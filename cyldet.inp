@@ -1,0 +1,226 @@
+# FORMATS
+GRID      1	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF
+SOLUTION  1	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF
+GRIDSRC   10    ! 0 - CENTAUR ASCII, 1 - VGRIDNS, 2 - MESH3D
+#
+
+# FLOWMODEL
+MODEL    0 	! 0 - Euler, 1 - Navier-Stokes
+MOVEGRID 0	! 0 - static grid, 1 - moving grid
+PBAFLAG  0      ! (0-Program burn is not used, 1-Program burn is used)
+#
+
+# NUMERICS
+CFL       0.5	! CFL number
+DISCR     5     ! Type of space discretization (1 - Roe, 2 - MAPS, 4 - AUSM)
+ORDER     2     ! Order of accuracy (1 - first, 2 - second)
+ENTROPY   0.05  ! Entropy correction coefficient (if DISCR=1)
+DIMENS    2     ! Run 2D computations
+CRECONSTF 0
+AXIFLAG   0
+#
+
+# FORCES
+FLAG 0
+PATCHFLAG 0
+#
+
+# TIMESTEP
+FLOWTYPE   1        ! 0=steady flow, 1=unsteady flow
+SOLVERTYPE 1        ! 1-dissipative, 3-nondissipative
+RUNTIME    1.0E+00  ! max. time simulated [s]
+MAXTIME    2.51E-03  ! max. time simulated [s]
+WRITIME    1.0E-05  ! time offset [s] to store solution
+PRNTIME    1.0E-07  ! time offset [s] to print convergence
+TIMESTEP   3.0E-12  ! max. physical time step [s]
+STARTTIME  0.0E+00  ! current time
+RKSCHEME   2        ! 1 - RK4, 2 - RK3
+WALLTIME   86400
+SAFEWRTIME 300
+#
+
+# MIXTURE
+GASMODEL   7 ! (1-TCPERF, 3-MIXT_TCPERF, 7-MIXT_JWL)     <== JWL needs Model 7
+#
+
+# SPECIES
+USED     1 ! Whether to use species module
+NSPECIES 2 ! Number of species
+#
+
+# SPECIES_TYPE
+SCHMIDTNO  1.0
+SOURCETYPE 0
+MATERIAL   AIR
+#
+
+# SPECIES_TYPE
+SCHMIDTNO  1.0
+SOURCETYPE 0
+MATERIAL   PRODUCTS
+#
+
+# MATERIAL
+NAME     AIR                ! <== Name of species
+PHASE    G                  ! <== Gaseous state
+MOLW     28.96564938684504  ! <== Molecular weight, which gives R=287.04 (SI)
+SPHT     1004.64            ! <== Specific heat, Cp and R gives gamma=1.4
+#
+
+# MATERIAL
+NAME     PRODUCTS           ! <== Name of species
+PHASE    G                  ! <== Gaseous state
+MOLW     316.20000000000000 ! <== Molecular weight, mw(g/mol)
+SPHT     1088.00            ! <== Specific heat, Cp
+#
+
+# INITFLOW
+FLAG    3                  ! 3-Hardcode ; 5-HardCoded Init Lim
+RVAL1   0.0038000000000000 ! CI loc = Gauss center
+RVAL2   101325.00000000000 ! FARF press
+RVAL3   1.2033847444266680 ! FARF dens
+RVAL4   1470.8512869201160 ! Dens ratio = rho_exp*FARF_dens
+RVAL5   0.1000000000000000 ! B=PclVfrac Perturbation
+RVAL6   0.0000000000000000 ! A=GasDens Perturbation
+RVAL7   1.2500000000000000 ! Radial location - Sec II
+RVAL8   0.1818181818181818 ! mole frac N2 - HE Matl.
+RVAL9   0.0000000000000000 ! mole frac O2 - HE Matl.
+RVAL10  0.1818181818181818 ! mole frac CO - HE Matl.
+RVAL11  0.2727272727272727 ! mole frac CO2 - HE Matl.
+RVAL12  0.3636363636363636 ! mole frac H20 - HE Matl.
+RVAL13  1.00890E+10        ! Density*Internal energy - HE Matl.
+RVAL14  6.17000E+11        ! A-JWL EOS
+RVAL15  16.9260E+09        ! B-JWL EOS
+RVAL16  0.69900E+09        ! C-JWL EOS
+RVAL17  0.2500000000000000 ! w-omega JWL EOS
+RVAL18  4.4000000000000000 ! R1-JWL EOS
+RVAL19  1.2000000000000000 ! R2-JWL EOS
+RVAL20  516.98100000000000 ! shcv-JWL EOS
+RVAL24  1770.0000000000000 ! Initial PETN density for JWL EOS
+RVAL25  0.0                ! Particle unfreeze time - defaults to zero 
+IVAL1   10                 ! m - Wave number in theta
+IVAL2   0                  ! n - Wave number in z
+IVAL3   2                  ! 1-Random init ; 2-Specific mode nos; 3 - Multimode
+IVAL4   2                  ! 1-Planar geometry ; 2-Cylindrical geometry
+IVAL5   18                 ! rad div in Sec I
+IVAL6   16                 ! the div in Sec I
+IVAL7   1                  ! z div in Sec I
+IVAL8   10                 ! rad div in Sec II
+IVAL9   16                 ! the div in Sec II
+IVAL10  1                  ! z div in Sec II
+IVAL11  8                  ! rad div in Sec III
+IVAL12  8                  ! the div in Sec III
+IVAL13  1                  ! z div in Sec III
+IVAL14  10                 ! Wave number in theta - mode 2
+IVAL15  0                  ! Wave number in z - mode 2
+IVAL16  1                  ! Something for random init
+IVAL17  1                  ! Number of random modes for multimodal init
+IVAL18  1                  ! Max wavenumber for multimodal init
+NVALSRAND 100              ! Number of random values to be genrated
+#
+WAVNUMRANGE 2
+ 0.0 0.0 0.0               ! krMin kthetaMin kzMin
+ 0.0 0.0 0.0               ! krMax kthetaMax kzMax
+#
+
+# PREP
+PARTMODE 2   ! 1-Use Metis graph partitioner, 2-Sequential partitioning
+#
+
+# VISCMODEL
+MODEL     1         ! 0=SutherLand, 1=Fixed, 2=Antibes, 10=Wilke-Sutherland  <== 
+VISCOSITY 1.0E-5    ! reference viscosity               <==
+REFTEMP   273.0     ! reference temperature             <==
+SUTHCOEF  110.0     ! sutherland coefficient            <==
+#
+
+# MATERIAL
+NAME     GLASS     !                            <== Particle material
+PHASE    SOLID
+MOLW     0.05585   ! molecular weight (in SI units)
+DENS     2500.0    ! density                    <== Material density
+SPHT     450.0     ! specific heat
+TBOIL    2503.0    ! boiling point
+TMELT    1873.0    ! melting point
+#
+
+# DISPART
+USED            1       ! 0=module not used
+NPCLSMAX        100     ! Total Number of DisPart
+EJECMODEL       2       ! Ejection Model (1=Model1, 2=CRE)
+INJCBETA        1.00E+0 ! injection beta Coefficient
+INJCVELRATIO    1.0     ! Injection Velocity Ratio
+SPLOAD          1.0     ! SuperParticle Loading
+INJCDIAMDIST    1       ! Injection Diameter Distribution Model (1=LogNormal, 2=Skewed, 3=Imposed_pdf)
+INJCDIAMMEAN    1.0E-05 ! Injection Mean Diameter
+INJCDIAMMIN     1.0E-05 ! Injection Minimum Diameter
+INJCDIAMMAX     1.0E-05 ! Injection Maximum Diameter
+INJCSTDDEV      0.00    ! injection Standard Deviation
+INTRPLMIXTMODEL 0       ! Interpolation Order for Mixture
+NPCLSBUFFTOT    2000    ! Total Size of Communication Buffer for DisPart
+BREAKUPMODEL    0       ! Breakup Model
+BREAKUPFAC      2.0     ! Breakup Factor
+BREAKUPWEBSWI   1       ! Breakup Weber Switch
+FINDPCLMETHOD   1       ! Particle Tracking Method (1: Trajectory, 2: Brute, 3: Octree, 4: Vicinity, 5: Hardcode)
+INITDIMENS      2
+NUNSTEADYDATA   100     ! No of unsteady data points to use
+CRWFLAG         0       ! Continuous Random Walk
+COLLISION       1       ! 0 - No particle collision, 1 - Use interparticle force   <==
+COLLISIONPS     1.0E7   ! Value for Ps parameter used in particle collision model  <==
+USESTABLEDT     0
+LIMITFORCE      0
+CFL             1
+#
+
+# DISPART_NCONT
+NCONT     1
+GLASS     1.00  293.34 ! MaterialName, injcMassRatio, injcTemp
+#
+
+# DISPART_INIT
+FLAG 3           ! 1-scratch, 2-file, 3-hardcode, 4-random   <== Use 3 or 4
+NPCLSRAND 5.0E+6 !                                         <==
+#
+NUMBER 2
+ -7.853981633974483E-01 4.844668755250454E-003 -1.979166666045913E-002 100.0E-6 293.34 5.000000000000000e-02 0.0 0.0 0.0 ! thetaMin rad z diam temp spL u v w <==
+  5.497787143782138E+00 5.468679044286462E-002 -2.083331346511712E-004 100.0E-6 293.34 5.000000000000000e-02 0.0 0.0 0.0 ! thetaMax rad z diam temp spL u v w <==
+#
+
+# INRT_DEFAULT
+2D_AVERAGE  0    ! (0 = Do not Average, 1=average in k-direction)
+MIXT_ACTV   1    ! (0=Passive, 1=Active) Activeness of Gas
+PLAG_ACTV   1    ! (0=Passive, 1=Active) Activeness of Lagrangian Particles
+SPEC1_ACTV  0    ! (0=Passive, 1=Active) Activeness of Smoke type 1
+SPEC2_ACTV  0    ! (0=Passive, 1=Active) Activeness of Smoke type 2
+SPEC3_ACTV  0    ! (0=Passive, 1=Active) Activeness of Smoke type 2
+#
+
+# INRT_DRAG
+USED     1     ! 0=interaction not used (default: 1)
+MODEL    4     ! (1=Stokes, 2=Schiller-Naumann, 3=Sommerfeld correlation, 4=ParmarEtAl) (2 is default)
+UNSTEADY 1     ! 0-no unsteady force, 1-use unsteady force                <==
+AMSCHEME 1     ! 1=Explicit time-stepping for AM force, 2=Implicit time-stepping for AM force
+VISCUNST 1     ! 0=Visc Unst force NOT computed, 1=Visc Unst force computed
+#
+
+# INRT_HEAT_TRANSFER_NONBURN
+USED   1         ! 0=interaction not used (default: 1)
+MODEL  2         ! (1=Stokes, 2=Ranz-Marshall correlation) (2 is default)
+#
+
+# POST
+INTERTYPE  0
+MERGEFLAG  1
+EXTRFLAG   1 ! Turn it 'ON' while running MVFRAME
+DISCFLAG   0
+PLTVOLFLAG 1
+PEULFLAG   1
+PLAGFRAC   0.25
+PROP       0    ! Write .prop files for cyldet: 0 = no (default), 1 = yes
+FRACTAL    0    ! Write fractal dimension files: 0 = no (default), 1 = yes
+#
+
+# MISC
+NBVECFACT  2
+CYCLETIME  0
+#

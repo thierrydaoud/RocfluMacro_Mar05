@@ -1,0 +1,3 @@
+ModColoring.o: \
+ ModDataTypes.o \
+

@@ -1,0 +1,6 @@
+Note: These are just possible options to add/modify. They are not listed in order of priority.
+
+1) Iterative Solver option for JWL gas mixtures
+2) 3D NSCBC Unit Vector correction
+3) Real gas NSCBC (i.e. the altered energy flux term)
+4) Put in Inflow NSCBC (and/or make sure it is right)

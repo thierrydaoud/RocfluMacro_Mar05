@@ -1,0 +1,20 @@
+RFLU_ModResidual.o: \
+ ModBndPatch.o \
+ ModDataStruct.o \
+ ModDataTypes.o \
+ ModError.o \
+ ModGlobal.o \
+ ModGrid.o \
+ ModInterfaces.o \
+ ModMixture.o \
+ ModMPI.o \
+ ModParameters.o \
+ ModSortSearch.o \
+ RFLU_ModConvertCv.o \
+ RFLU_ModDifferentiationBFaces.o \
+ RFLU_ModDifferentiationCells.o \
+ RFLU_ModDifferentiationFaces.o \
+ RFLU_ModLimiters.o \
+ RFLU_ModViscousFlux.o \
+ RFLU_ModWENO.o \
+

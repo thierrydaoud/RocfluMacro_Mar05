@@ -1,0 +1,27 @@
+################################################################################
+#
+# $Id: Filelist.txt,v 1.0 2022/05/08 bdurant Exp $
+#
+# Purpose: Filelist for Rocpicl module.
+#
+# Description: None.
+#
+# Notes: None.
+#
+# Copyright: (c) 2003 by the University of Illinois
+#
+################################################################################
+
+SRCF90+=	PICL_ReadPiclSection.F90\
+		PICL_TEMP_Runge.F90\
+		PICL_TEMP_WriteVTU.F90\
+		PICL_TEMP_InitSolver.F90\
+		PICL_ModInterfaces.F90
+
+################################################################################
+#
+# RCS Revision history:
+#
+#   $Log: Filelist.txt,v $
+#  
+################################################################################

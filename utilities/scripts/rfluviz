@@ -1,0 +1,51 @@
+#!/bin/sh
+
+CASE=$1
+COUNT=0
+
+# READ TIME STAMP FROM $CASE.rin FILE
+while IFS= read -r line; do
+
+i=$(printf "%11.5E\n" $line)
+echo 'Time='$i
+
+OLDF_GAS=PARAVIEW_$i/*[0-9].pvtu 
+OLDF_PCL=PARAVIEW_$i/*[0-9].pcls.pvtu 
+NEWF_GAS=${CASE}_$(printf '%05d' $COUNT).pvtu  
+NEWF_PCL=${CASE}_pcls_$(printf '%05d' $COUNT).pvtu
+
+cp $OLDF_GAS $NEWF_GAS 
+cp $OLDF_PCL $NEWF_PCL 
+
+cp $OLDF_GAS $NEWF_GAS 
+cp $OLDF_PCL $NEWF_PCL 
+
+sed -i "s/\.\//PARAVIEW_$i\//g" $NEWF_GAS 
+sed -i "s/\.\//PARAVIEW_$i\//g" $NEWF_PCL 
+
+((COUNT=COUNT+1))
+
+done < "$1.rin"
+
+#########################################################################################
+
+# READ TIME STAMP FROM PARA* FOLDER
+#find . -name 'PARA*' | sed 's/.\///' | sed 's/PARAVIEW_//' | sort -g > times_to_mv.log
+
+#for i in $( sort -g times_to_mv.log ); do
+#echo 'Time='$i
+##echo $COUNT
+#
+#OLDF_GAS=PARAVIEW_$i/*[0-9].pvtu 
+#OLDF_PCL=PARAVIEW_$i/*[0-9].pcls.pvtu 
+#NEWF_GAS=${CASE}_$(printf '%05d' $COUNT).pvtu  
+#NEWF_PCL=${CASE}_pcls_$(printf '%05d' $COUNT).pvtu
+#
+#cp $OLDF_GAS $NEWF_GAS 
+#cp $OLDF_PCL $NEWF_PCL 
+#
+#sed -i "s/\.\//PARAVIEW_$i\//g" $NEWF_GAS 
+#sed -i "s/\.\//PARAVIEW_$i\//g" $NEWF_PCL 
+#
+#((COUNT=COUNT+1))
+#done
