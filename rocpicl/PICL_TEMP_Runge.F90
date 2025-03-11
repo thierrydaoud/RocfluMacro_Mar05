@@ -405,15 +405,18 @@ pGc => pRegion%mixt%gradCell
         ! 03/11/2025 - Thierry - du/dt, dv/dt, dw/dt (not weighted by phi^g or rho^g)
 
         temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)& 
-                           -ug(XCOORD)*pGc(1,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                          +ug(XCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,2,i))
 
-        temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)&
-                           -ug(YCOORD)*pGc(2,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+        temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)& 
+                          +ug(YCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,3,i))
-
-        temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)&
-                           -ug(ZCOORD)*pGc(3,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                         
+        temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)& 
+                          +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,4,i))
 
        do lz=1,2
