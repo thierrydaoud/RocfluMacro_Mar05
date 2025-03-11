@@ -402,30 +402,18 @@ pGc => pRegion%mixt%gradCell
         ug(ZCOORD) = pRegion%mixt%cv(CV_MIXT_ZMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        !temp_drudtMixt = -pRegion%mixt%rhs(CV_MIXT_XMOM,i)&
-        !          +pRegion%mixt%cv(CV_MIXT_DENS,i)*DOT_PRODUCT(ug,pGc(:,2,i)) &
-        !          +ug(XCOORD)*DOT_PRODUCT(ug,pGc(:,1,i))
-
-        !temp_drvdtMixt = -pRegion%mixt%rhs(CV_MIXT_YMOM,i) &
-        !          +pRegion%mixt%cv(CV_MIXT_DENS,i)*DOT_PRODUCT(ug,pGc(:,3,i))&
-        !          +ug(YCOORD)*DOT_PRODUCT(ug,pGc(:,1,i))
-
-        !temp_drwdtMixt = -pRegion%mixt%rhs(CV_MIXT_ZMOM,i) &
-        !        +pRegion%mixt%cv(CV_MIXT_DENS,i)*DOT_PRODUCT(ug,pGc(:,4,i))&
-        !        +ug(ZCOORD)*DOT_PRODUCT(ug,pGc(:,1,i))
-
         ! 03/11/2025 - Thierry - du/dt, dv/dt, dw/dt (not weighted by phi^g or rho^g)
 
         temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)& 
-                           -ug(XCOORD)*pGc(:,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                           -ug(XCOORD)*pGc(1,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,2,i))
 
         temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)&
-                           -ug(YCOORD)*pGc(:,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                           -ug(YCOORD)*pGc(2,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,3,i))
 
         temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)&
-                           -ug(ZCOORD)*pGc(:,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                           -ug(ZCOORD)*pGc(3,1,i))/pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,4,i))
 
        do lz=1,2
@@ -476,9 +464,9 @@ pGc => pRegion%mixt%gradCell
 
        rhsR(lx,ly,lz,i) = -pRegion%mixt%rhs(CV_MIXT_DENS,i)
 
-       pGcX(lx,ly,lz,i) = pGc(XCOORD,1,i) ! dr/dx
-       pGcY(lx,ly,lz,i) = pGc(YCOORD,1,i) ! dr/dy
-       pGcz(lx,ly,lz,i) = pGc(ZCOORD,1,i) ! dr/dz
+       pGcX(lx,ly,lz,i) = pGc(XCOORD,1,i) ! d(rho phi)/dx
+       pGcY(lx,ly,lz,i) = pGc(YCOORD,1,i) ! d(rho phi)/dy
+       pGcz(lx,ly,lz,i) = pGc(ZCOORD,1,i) ! d(rho phi)/dz
 
        end do
        end do

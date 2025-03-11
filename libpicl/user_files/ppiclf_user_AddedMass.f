@@ -65,14 +65,22 @@
      >      + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >      + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
 
+      ! 03/11/2025 - Thierry - substantial derivative from Rocflu is 
+      !              weighted by \phi^g.
+      ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
+      !                   = phi^g * d(rho^g)/dt
+      !,  
+      !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
+      SDrho = SDrho / (rphif) 
+
       famx = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRX,i)-(ppiclf_y(PPICLF_JVX,i)*SDrho))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i))
 
       famy = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRY,i)-(ppiclf_y(PPICLF_JVY,i)*SDrho))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i))
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRZ,i)-(ppiclf_y(PPICLF_JVZ,i)*SDrho))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i))
 
 
       return
@@ -174,16 +182,19 @@
      >      + ppiclf_y(PPICLF_JVX,i) * ppiclf_rprop(PPICLF_R_JPGCX,i)
      >      + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >      + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
+      ! material derivative is phi weighted in Rocflu
+      ! drho/dt
+      SDrho = SDrho / (rphif) 
 
       ! Take care of volume in Binary subroutine
       famx = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRX,i)-(ppiclf_y(PPICLF_JVX,i)*SDrho))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i))
 
       famy = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRY,i)-(ppiclf_y(PPICLF_JVY,i)*SDrho))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i))
 
       famz = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRZ,i)-(ppiclf_y(PPICLF_JVZ,i)*SDrho))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i))
 
       Fam(1) = famx
       Fam(2) = famy
