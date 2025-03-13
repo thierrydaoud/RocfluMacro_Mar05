@@ -203,42 +203,45 @@
 
       One = 1.d0
       OneThird = 1.0d0/3.0d0
+      
+      ! 03/13/2025 - Thierry - max operations are computed only for debugging
+      if (ppiclf_debug .ge. 1) then
+        ! Set initial max values
+        phimax    = 0.d0
 
-      ! Set initial max values
-      phimax    = 0.d0
+        fqsx_max  = 0.d0
+        fqsy_max  = 0.d0
+        fqsz_max  = 0.d0
+        famx_max  = 0.d0
+        famy_max  = 0.d0
+        famz_max  = 0.d0
+        fdpdx_max = 0.d0
+        fdpdy_max = 0.d0
+        fdpdz_max = 0.d0
+        fcx_max   = 0.d0
+        fcy_max   = 0.d0
+        fcz_max   = 0.d0
+        fvux_max  = 0.d0
+        fvuy_max  = 0.d0
+        fvuz_max  = 0.d0
+        qq_max    = 0.d0
 
-      fqsx_max  = 0.d0
-      fqsy_max  = 0.d0
-      fqsz_max  = 0.d0
-      famx_max  = 0.d0
-      famy_max  = 0.d0
-      famz_max  = 0.d0
-      fdpdx_max = 0.d0
-      fdpdy_max = 0.d0
-      fdpdz_max = 0.d0
-      fcx_max   = 0.d0
-      fcy_max   = 0.d0
-      fcz_max   = 0.d0
-      fvux_max  = 0.d0
-      fvuy_max  = 0.d0
-      fvuz_max  = 0.d0
-      qq_max    = 0.d0
+        fqsx_fluct_max = 0.d0
+        fqsy_fluct_max = 0.d0
+        fqsz_fluct_max = 0.d0
+        fqsx_total_max = 0.d0
+        fqsy_total_max = 0.d0
+        fqsz_total_max = 0.d0
 
-      fqsx_fluct_max = 0.d0
-      fqsy_fluct_max = 0.d0
-      fqsz_fluct_max = 0.d0
-      fqsx_total_max = 0.d0
-      fqsy_total_max = 0.d0
-      fqsz_total_max = 0.d0
+        fqs_mag = 0.0
+        fam_mag = 0.0
+        fdp_mag = 0.0
+        fc_mag  = 0.0
 
-      fqs_mag = 0.0
-      fam_mag = 0.0
-      fdp_mag = 0.0
-      fc_mag  = 0.0
-
-      umean_max = 0.d0
-      vmean_max = 0.d0
-      wmean_max = 0.d0
+        umean_max = 0.d0
+        vmean_max = 0.d0
+        wmean_max = 0.d0
+      endif
 
 !
 !-----------------------------------------------------------------------
@@ -410,7 +413,10 @@
          reyL = dp*vmag*rhoMixt/rmu
          rnu = rmu/rhoMixt
 
-         phimax = max(phimax,abs(rphip))
+         ! 03/13/2025 - Thierry - max operations are computed only for debugging
+         if (ppiclf_debug .ge. 1) then
+            phimax = max(phimax,abs(rphip))
+         endif
 
          if (ppiclf_debug==2 .and. ppiclf_nid==0) then
             if (iStage==3) then
@@ -535,11 +541,14 @@
          fqsy = beta*vy
          fqsz = beta*vz
 
-         fqsx_max = max(fqsx_max,abs(fqsx))
-         fqsy_max = max(fqsy_max,abs(fqsy))
-         fqsz_max = max(fqsz_max,abs(fqsz))
-
-         fqs_mag  = max(fqs_mag,sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
+         ! 03/13/2025 - Thierry - max operations are computed only for debugging
+         if (ppiclf_debug .ge. 1) then
+          fqsx_max = max(fqsx_max,abs(fqsx))
+          fqsy_max = max(fqsy_max,abs(fqsy))
+          fqsz_max = max(fqsz_max,abs(fqsz))
+          fqs_mag  = max(fqs_mag,
+     >              sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
+         endif
 
 !
 ! Step 3: Force fluctuation for quasi-steady force
@@ -562,18 +571,19 @@
          ppiclf_rprop(PPICLF_R_FLUCTFY,i) = fqs_fluct(2)
          ppiclf_rprop(PPICLF_R_FLUCTFZ,i) = fqs_fluct(3)
 
+         if (ppiclf_debug .ge. 1) then
+          fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
+          fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
+          fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
 
-         fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
-         fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
-         fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
+          fqsx_total_max = max(fqsx_total_max, abs(fqsx))
+          fqsy_total_max = max(fqsy_total_max, abs(fqsy))
+          fqsz_total_max = max(fqsz_total_max, abs(fqsz))
 
-         fqsx_total_max = max(fqsx_total_max, abs(fqsx))
-         fqsy_total_max = max(fqsy_total_max, abs(fqsy))
-         fqsz_total_max = max(fqsz_total_max, abs(fqsz))
-
-         umean_max = max(umean_max, abs(upmean))
-         vmean_max = max(vmean_max, abs(vpmean))
-         wmean_max = max(wmean_max, abs(wpmean))
+          umean_max = max(umean_max, abs(upmean))
+          vmean_max = max(vmean_max, abs(vpmean))
+          wmean_max = max(wmean_max, abs(wpmean))
+         endif
 
 !
 ! Step 4: Force component added mass
@@ -620,10 +630,13 @@
 
 !-----------------------------------------------------------------------
 
-         famx_max = max(famx_max,abs(famx))
-         famy_max = max(famy_max,abs(famy))
-         famz_max = max(famz_max,abs(famz))
-         fam_mag =  max(fam_mag,sqrt(famx*famx+famy*famy+famz*famz))
+         if (ppiclf_debug .ge. 1) then
+          famx_max = max(famx_max,abs(famx))
+          famy_max = max(famy_max,abs(famy))
+          famz_max = max(famz_max,abs(famz))
+          fam_mag =  max(fam_mag,
+     >              sqrt(famx*famx+famy*famy+famz*famz))
+         endif
 
 !
 ! Step 5: Force component pressure gradient
@@ -637,11 +650,13 @@
      >               ppiclf_rprop(PPICLF_R_JDPDZ,i)
          endif ! end pg_flag = 1
 
-         fdpdx_max = max(fdpdx_max,abs(fdpdx))
-         fdpdy_max = max(fdpdy_max,abs(fdpdy))
-         fdpdz_max = max(fdpdz_max,abs(fdpdz))
-         fdp_mag =  max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
-     >                  +fdpdz*fdpdz))
+         if (ppiclf_debug .ge. 1) then
+          fdpdx_max = max(fdpdx_max,abs(fdpdx))
+          fdpdy_max = max(fdpdy_max,abs(fdpdy))
+          fdpdz_max = max(fdpdz_max,abs(fdpdz))
+          fdp_mag =  max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
+     >                   +fdpdz*fdpdz))
+         endif
 
 !
 ! Step 6: Force component collisional force, ie, particle-particle
@@ -661,10 +676,12 @@
 
          endif ! collisional_flag >= 1
 
-         fcx_max = max(fcx_max, abs(fcx))
-         fcy_max = max(fcy_max, abs(fcy))
-         fcz_max = max(fcz_max, abs(fcz))
-         fc_mag =  max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
+         if (ppiclf_debug .ge. 1) then
+          fcx_max = max(fcx_max, abs(fcx))
+          fcy_max = max(fcy_max, abs(fcy))
+          fcz_max = max(fcz_max, abs(fcz))
+          fc_mag =  max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
+         endif
 
 !
 ! Step 7: Viscous unsteady force with history kernel
@@ -675,9 +692,11 @@
             call ppiclf_user_VU_Hinsberg(i,iStage,fvux,fvuy,fvuz)
          endif
 
-         fvux_max = max(fvux_max, abs(fvux))
-         fvuy_max = max(fvuy_max, abs(fvuy))
-         fvuz_max = max(fvuz_max, abs(fvuz))
+         if (ppiclf_debug .ge. 1) then
+          fvux_max = max(fvux_max, abs(fvux))
+          fvuy_max = max(fvuy_max, abs(fvuy))
+          fvuz_max = max(fvuz_max, abs(fvuz))
+         endif
 !
 ! Step 8a: Combustion model for reactive particles
 !
@@ -695,7 +714,9 @@
             call ppiclf_user_HT_driver(i,qq)
          endif ! heattransfer_flag >= 1
 
-         qq_max = max(qq_max, abs(qq))
+         if (ppiclf_debug .ge. 1) then
+           qq_max = max(qq_max, abs(qq))
+         endif
 
 !
 ! Step 9: Angular velocity model
@@ -710,7 +731,9 @@
          endif ! collisional_flag >= 2
 
          tau = sqrt(taux*taux + tauy*tauy + tauz*tauz)
-         tau_max = max(tau_max, abs(tau))
+         if (ppiclf_debug .ge. 1) then
+           tau_max = max(tau_max, abs(tau))
+         endif
 
 !
 ! Step 10: Set ydot for all PPICLF_SLN number of equations
