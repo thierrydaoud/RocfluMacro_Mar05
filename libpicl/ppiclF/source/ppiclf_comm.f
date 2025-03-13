@@ -161,9 +161,6 @@ c     if (npt_total .eq. 1) then
       enddo
       endif
 
-      ! Thierry - we comment this out to prevent periodic
-      !           algorithm to overwrite bin boundaries
-
 !      if (ang_case==111) then
       if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
      >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
@@ -181,8 +178,6 @@ c     if (npt_total .eq. 1) then
       
 !      endif ! ang_case
 
-      ! Thierry - we make the bins in z-direction as big as the fluid mesh
-      !           this is also needed for the bin calculation
       if (ppiclf_ndim .gt. 2) then
       if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
      >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 

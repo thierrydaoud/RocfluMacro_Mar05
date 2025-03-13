@@ -319,16 +319,20 @@
 ! Added 3/6/24 
 ! Modified 3/14/24 
 !
-      avec = [vx,vy,vz]/max(1.d-8,vmag)
+      ! 03/13/2025 - Thierry - if velocity is very small, don't impose fluctuations
+      if(vmag > 1.d-8) then
+        avec = [vx,vy,vz]/vmag
 
-      CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
-      CD_frac  = CD_prime/sigD
+        CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
+        CD_frac  = CD_prime/sigD
 
-      ! 11/21/24 - Thierry - prevent NaN variables
-      if(CD_prime.eq.0.0 .and. sigD.eq.0.0) then
-        CD_frac = 0.0d0
+      else
+        avec     = [1.0, 0.0, 0.0]
+        CD_prime = 0.0
+        sigD     = 0.0
+        CD_frac  = 0.0
       endif
 
       ! Thierry Daoud - Updated June 2, 2024
