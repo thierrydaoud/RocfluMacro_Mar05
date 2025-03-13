@@ -165,20 +165,20 @@ c     if (npt_total .eq. 1) then
       !           algorithm to overwrite bin boundaries
 
 !      if (ang_case==111) then
-!      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
-!     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
-!     >    iperiodicx .eq. 0) then
-!         ppiclf_binb(1) = ppiclf_xdrange(1,1)
-!         ppiclf_binb(2) = ppiclf_xdrange(2,1)
-!      endif
-!
-!      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
-!     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
-!     >    iperiodicy .eq. 0) then
-!         ppiclf_binb(3) = ppiclf_xdrange(1,2)
-!         ppiclf_binb(4) = ppiclf_xdrange(2,2)
-!      endif
-!      
+      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
+     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
+     >    iperiodicx .eq. 0) then
+         ppiclf_binb(1) = ppiclf_xdrange(1,1)
+         ppiclf_binb(2) = ppiclf_xdrange(2,1)
+      endif
+
+      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
+     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
+     >    iperiodicy .eq. 0) then
+         ppiclf_binb(3) = ppiclf_xdrange(1,2)
+         ppiclf_binb(4) = ppiclf_xdrange(2,2)
+      endif
+      
 !      endif ! ang_case
 
       ! Thierry - we make the bins in z-direction as big as the fluid mesh

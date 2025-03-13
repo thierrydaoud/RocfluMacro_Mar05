@@ -60,7 +60,8 @@
       endif
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      if((x_per_flag.eq.1).or.(y_per_flag.eq.1).and.(ang_per_flag.eq.1))
+      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
+     >                     .and.(ang_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       ! Thierry - compute ang_case
