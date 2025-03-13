@@ -790,18 +790,21 @@
          if (feedback_flag==1) then
             ! Momentum equations feedback terms
             ppiclf_ydotc(PPICLF_JVX,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVX,i)*(rmass+0.*rmass_add) - fcx)
+     >         (ppiclf_ydot(PPICLF_JVX,i)*rmass - fcx)
             ppiclf_ydotc(PPICLF_JVY,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVY,i)*(rmass+0.*rmass_add) - fcy)
+     >         (ppiclf_ydot(PPICLF_JVY,i)*rmass - fcy)
             ppiclf_ydotc(PPICLF_JVZ,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVZ,i)*(rmass+0.*rmass_add) - fcz)
+     >         (ppiclf_ydot(PPICLF_JVZ,i)*rmass - fcz)
 
             ! Energy equation feedback term
             !ppiclf_ydotc(PPICLF_JT,i)  = 0.0d0
             ppiclf_ydotc(PPICLF_JT,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         ( ppiclf_ydotc(PPICLF_JVX,i)*ppiclf_y(PPICLF_JVX,i) + 
-     >           ppiclf_ydotc(PPICLF_JVY,i)*ppiclf_y(PPICLF_JVY,i) + 
-     >           ppiclf_ydotc(PPICLF_JVZ,i)*ppiclf_y(PPICLF_JVZ,i) +
+     >         ( (fqsx+fvuz)*ppiclf_y(PPICLF_JVX,i) + 
+     >           (fqsy+fvux)*ppiclf_y(PPICLF_JVY,i) + 
+     >           (fqsz+fvuz)*ppiclf_y(PPICLF_JVZ,i) +
+     >                  famx*ppiclf_rprop(PPICLF_R_JUX,i) +
+     >                  famy*ppiclf_rprop(PPICLF_R_JUY,i) +
+     >                  famz*ppiclf_rprop(PPICLF_R_JUZ,i) +
      >           qq )
             ppiclf_ydotc(PPICLF_JT,i) = -1.0d0*ppiclf_ydotc(PPICLF_JT,i)
          endif 
