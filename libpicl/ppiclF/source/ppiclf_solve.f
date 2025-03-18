@@ -2321,15 +2321,15 @@ c     ndum    = ppiclf_neltb*n
           ! get distance from particle to center
           d2l     = 0.0
           d2i     = 0.0
-          farAway = .TRUE.
+          farAway = .FALSE.
           DO l=1,3
             d2l  =(centeri(l,ie) - xp(l))**2 
             d2i = d2i + d2l
-            IF (d2l < (1.5**2)*d2Max_EleLen(l)) farAway = .FALSE.
+            IF (d2l > (1.5**2)*d2Max_EleLen(l)) farAway = .TRUE.
           ENDDO !l
           ! skip to next fluid cell if greater than 1.5*max cell
           ! distance in respective x,y,z direction.
-          if (farAWAY) CYCLE !ie
+          IF (farAWAY) CYCLE !ie
           ! Sort closest fluid cell centers
           added = .FALSE.
           DO i=1,27
