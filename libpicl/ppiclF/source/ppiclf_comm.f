@@ -536,10 +536,10 @@ c     current box coordinates
          IF (x_per_flag .EQ. 1) THEN
            IF (ii .EQ. ppiclf_n_bins(1)) ii = 0
            IF (ii .EQ. -1) ii = ppiclf_n_bins(1) - 1
-         ELSE IF (z_per_flag .EQ. 1) THEN
+         ELSE IF (y_per_flag .EQ. 1) THEN
            IF (jj .EQ. ppiclf_n_bins(2)) jj = 0
            IF (jj .EQ. -1) jj = ppiclf_n_bins(2) - 1
-         ELSE IF (y_per_flag .EQ. 1) THEN
+         ELSE IF (z_per_flag .EQ. 1) THEN
            IF (kk .EQ. ppiclf_n_bins(3)) kk = 0
            IF (kk .EQ. -1) kk = ppiclf_n_bins(3) - 1
          ELSE
