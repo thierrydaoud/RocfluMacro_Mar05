@@ -2300,13 +2300,52 @@ c     ndum    = ppiclf_neltb*n
           d2i_EleLen(l) = (MaxPoint(l)-MinPoint(l))**2
           ! Find max (mesh element length)^2 for all mesh elements in
           ! all directions
-          IF (d2i_EleLen(l) .GT. d2Max_EleLen(l)) THEN
-            d2Max_EleLen(l) = d2i_EleLen(l)
-          ENDIF
+          IF (d2i_EleLen(l) .GT. d2Max_EleLen(l)) 
+     >      d2Max_EleLen(l) = d2i_EleLen(l)
           ! Divide by number of points in mesh element to find centroid
           centeri(l,ie) = centeri(l,ie) / nxyz
         ENDDO !l
       ENDDO !ie
+
+      ! Set multiple of maximum element length to search for neighboring
+      ! fluid cell centers
+      DO l = 1,3
+        d2Max_EleLen(l) = d2Max_EleLen(l)*1.5**2
+      END DO
+
+      ! Shift centeri if linear periodicity is turned on
+      ! and fluid cell is located in opposite side of ppiclf domain
+      IF (x_per_flag .EQ. 1 .OR. y_per_flag .EQ. 1 .OR.
+     >    z_per_flag .EQ. 1) THEN
+        ! Only look at first real particle, as it will be within bin
+        xp(1) = ppiclf_y(PPICLF_JX, 1)
+        xp(2) = ppiclf_y(PPICLF_JY, 1)
+        xp(3) = ppiclf_y(PPICLF_JZ, 1)
+        ! Loop through every cell in domain
+        DO ie = 1,ppiclf_neltbbb
+          d2l  = 0.0
+          DO l = 1,3
+           !d2l: distance from spot in bin to fluid cell center 
+            d2l = ABS(xp(l) - centeri(l,ie))
+            ! This will have issue if only 2 ppiclf bins in this
+            ! dimension.  Not sure of smarter way to do this?
+            IF (d2l .GT. 2.0*ppiclf_bins_dx(l)) THEN
+              IF (centeri(l,ie) .GT. xp(l)) THEN
+                ! Move cell from end to beginning of ppiclf domain
+                centeri(l,ie) = ppiclf_binb(2*l-1) - (ppiclf_binb(2*l)
+     >            - centeri(l,ie))
+              ELSE
+                ! Move cell from beginning to end of ppiclf domain
+                centeri(l,ie) = ppiclf_binb(2*l) + (centeri(l,ie) -
+     >            ppiclf_binb(2*l+1)) 
+              END IF
+            END IF
+          END DO !l
+        END DO !ie
+      END IF 
+      ! End Linear Periodicity conditional
+            
+
       DO ip=1,ppiclf_npart !Loop all particles in this bin
         ! particle centers in all directions
         xp(1) = ppiclf_y(PPICLF_JX, ip)
@@ -2325,7 +2364,7 @@ c     ndum    = ppiclf_neltb*n
           DO l=1,3
             d2l  =(centeri(l,ie) - xp(l))**2 
             d2i = d2i + d2l
-            IF (d2l > (1.5**2)*d2Max_EleLen(l)) farAway = .TRUE.
+            IF (d2l > d2Max_EleLen(l)) farAway = .TRUE.
           ENDDO !l
           ! skip to next fluid cell if greater than 1.5*max cell
           ! distance in respective x,y,z direction.
