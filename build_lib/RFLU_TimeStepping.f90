@@ -231,6 +231,8 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
 !CRN - begin
   REAL(RFREAL) :: timerStart, timerEnd
 !CRN - end
+  ! 03/24/2025 - Thierry - variable used to store max time and dt 
+  LOGICAL, SAVE :: initialized = .FALSE.
 
 ! ******************************************************************************
 ! Start
@@ -483,6 +485,22 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
     !!global%dtMin = 1.d-6
     ! TLJ: Set dt fixed for unit test problems
     if (global%piclStationaryFlag<0) global%dtMin = 5.d-8
+    ! 03/24/2025 - Thierry - store values to calculate grind time 
+    IF((abs(global%currentTime-global%writeTime)<1e-6).and.(.NOT. initialized)) THEN
+      global%dttMinn = global%dtMin 
+      global%MMaxTTime = global%maxTime
+      global%ttotccells = pRegion%grid%nCellsTot
+      print*, "========================================"
+      print*, "Thierry - storing variables once"
+      print*, "global%currentTime", global%currentTime
+      print*, "global%writeTime ", global%writetime
+      print*, "global%dttMinn ",global%dttMinn
+      print*, "global%MMaxTTime", global%MMaxTTime
+      print*, "global%ttotccells", global%ttotccells
+      print*, "========================================"
+      initialized = .TRUE.
+    ENDIF
+    ! 03/24/2025 - Thierry - ends here 
 
 
 ! ==============================================================================

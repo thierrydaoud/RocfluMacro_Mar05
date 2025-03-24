@@ -176,6 +176,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
   REAL(KIND=8) :: timerEnd
   REAL(KIND=8) :: elapsedtime
   REAL(KIND=8) :: elapsedtime_hour
+  REAL(KIND=8) :: grindtime, niter
 
 ! ******************************************************************************
 ! Start, initialize some variables
@@ -672,6 +673,18 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
      elapsedtime_hour = elapsedtime / 60.0_RFREAL
      print*,"*** Total rflump timing = ",elapsedtime," minutes"
      print*,"*** Total rflump timing = ",elapsedtime_hour," hours"
+
+     niter = NINT(global%MMaxTTime / global%dttMinn) ! number of iterations
+     !grindtime = elapsedtime / (global%ttotccells * niter)
+     !print*, elapsedtime/niter
+     print*, elapsedtime, global%ttotccells, niter
+     !print*, "*** Grind time =", grindtime, "minutes"
+     !grindtime = elapsedtime_hour / (pRegion%grid%nCellsTot * niter)
+     !print*, "*** Grind time =", grindtime, "hour"
+     print*, "*** niter =", niter
+     !print*, "pRegion%grid%nCells =", pRegion%grid%nCells
+     !print*, "pRegion%grid%nCellsTot =", pRegion%grid%nCellsTot
+  
   ENDIF
 
 
