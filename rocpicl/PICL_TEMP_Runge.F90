@@ -156,6 +156,9 @@ TYPE(t_grid), POINTER :: pGrid
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: domgdx
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: domgdy
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: domgdz
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhodx
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhody
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhodz
 
   REAL(KIND=8) :: ppiclf
 
@@ -386,6 +389,23 @@ TYPE(t_grid), POINTER :: pGrid
       CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
+    ALLOCATE(drhodx(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(drhody(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(drhodz(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
 
 !Might need to update prim like plag does
 pGc => pRegion%mixt%gradCell
@@ -418,6 +438,7 @@ pGc => pRegion%mixt%gradCell
                           +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
                           /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                            +DOT_PRODUCT(ug,pGc(:,4,i))
+
 
        do lz=1,2
        do ly=1,2
@@ -471,6 +492,11 @@ pGc => pRegion%mixt%gradCell
        pGcY(lx,ly,lz,i) = pGc(YCOORD,1,i) ! d(rho phi)/dy
        pGcz(lx,ly,lz,i) = pGc(ZCOORD,1,i) ! d(rho phi)/dz
 
+       ! Gradient of rho^g of mixture (not weighted by phi^g!)
+       drhodx(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(1,1,i)
+       drhody(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(2,1,i)
+       drhodz(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(3,1,i)
+
        end do
        end do
        end do 
@@ -495,8 +521,9 @@ pGc => pRegion%mixt%gradCell
 ! TLJ PPICLF_LRP_INT in PPICLF_USER.h must match the number
 !     of calls to ppiclf_solve_InterpFieldUser
 ! Davin - added pressure 02/22/2025
-      IF (PPICLF_LRP_INT .NE. 21) THEN
-         write(*,*) "Error: PPICLF_LRP_INT must be set to 21"
+! 03/23/2025 - Thierry - added gradient of gas density.
+      IF (PPICLF_LRP_INT .NE. 24) THEN
+         write(*,*) "Error: PPICLF_LRP_INT must be set to 24"
          CALL ErrorStop(global,ERR_INVALID_VALUE ,__LINE__,'PPICLF:LRP_INT')
       endif
 
@@ -521,6 +548,9 @@ pGc => pRegion%mixt%gradCell
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JYVOR,domgdy)  
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JZVOR,domgdz)  
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JP,ppF)  
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGX,drhodx)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGY,drhody)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGZ,drhodz)
 
 
 !FEED BACK TERM
@@ -819,6 +849,24 @@ end DO
     END IF ! global%error
 
     DEALLOCATE(domgdz,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(drhodx,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(drhody,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(drhodz,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
       CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')

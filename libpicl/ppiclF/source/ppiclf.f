@@ -52,7 +52,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -60,7 +60,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -89,6 +89,7 @@
       integer*4 j, l
       real*8 SDrho
 !-----------------------------------------------------------------------
+      integer*4 store_forces
 
       integer*4 i, n, ic, k
 
@@ -756,6 +757,21 @@
          ppiclf_ydot(PPICLF_JMETAL,i)  = mdot_me
          ppiclf_ydot(PPICLF_JOXIDE,i)  = mdot_ox
 
+         if (i<=5 .and. iStage==3 .and. write_forces==1) then
+           ppiclf_y(PPICLF_JFQSX,i) = fqsx
+           ppiclf_y(PPICLF_JFQSY,i) = fqsy
+           ppiclf_y(PPICLF_JFQSZ,i) = fqsz
+
+           ppiclf_y(PPICLF_JFAMX,i) = famx
+           ppiclf_y(PPICLF_JFAMY,i) = famy
+           ppiclf_y(PPICLF_JFAMX,i) = famz
+
+           write(1310+i,*) i, ppiclf_time, fqsx, fqsy, fqsz,
+     >                                     famx, famy, famz, 
+     >                                  fdpdx, fdpdy, fdpdz,
+     >                                        fcx, fcy, fcz
+
+         endif
 !
 ! Update and Shift data for viscous unsteady case
 !
@@ -1112,7 +1128,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1120,7 +1136,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
 
       integer*4 i, iStage
       real*8 famx, famy, famz
@@ -1299,7 +1315,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1307,7 +1323,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
 
       integer*4 i
       real*8 gamma,mp,phi,re
@@ -1574,7 +1590,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1582,7 +1598,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i, iStage
       real*8 fqs_fluct(3)
 
@@ -1850,16 +1866,20 @@
 ! Added 3/6/24 
 ! Modified 3/14/24 
 !
-      avec = [vx,vy,vz]/max(1.d-8,vmag)
+      ! 03/13/2025 - Thierry - if velocity is very small, don't impose fluctuations
+      if(vmag > 1.d-8) then
+        avec = [vx,vy,vz]/vmag
 
-      CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
-      CD_frac  = CD_prime/sigD
+        CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
+        CD_frac  = CD_prime/sigD
 
-      ! 11/21/24 - Thierry - prevent NaN variables
-      if(CD_prime.eq.0.0 .and. sigD.eq.0.0) then
-        CD_frac = 0.0d0
+      else
+        avec     = [1.0, 0.0, 0.0]
+        CD_prime = 0.0
+        sigD     = 0.0
+        CD_frac  = 0.0
       endif
 
       ! Thierry Daoud - Updated June 2, 2024
@@ -1996,7 +2016,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -2004,7 +2024,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i, iStage
       real*8 famx, famy, famz, rmass_add
       real*8 rcd_am
@@ -2037,18 +2057,21 @@
       !              weighted by \phi^g.
       ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
       !                   = phi^g * d(rho^g)/dt
-      !,  
+      ! ( assume d(phi^g)/dt = 0 )  
       !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
       SDrho = SDrho / (rphif) 
 
       famx = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >  + ppiclf_rprop(PPICLF_R_JUX,i)*vx*ppiclf_rprop(PPICLF_R_JRHOGX,i))
 
       famy = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >  + ppiclf_rprop(PPICLF_R_JUY,i)*vy*ppiclf_rprop(PPICLF_R_JRHOGY,i))
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i))
 
 
       return
@@ -3015,7 +3038,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3023,7 +3046,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
 
       integer*4 i
       real*8 qq
@@ -3300,7 +3323,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3308,7 +3331,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
 
       integer*4 i,iStage
       real*8 taux, tauy, tauz
@@ -3446,7 +3469,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3454,7 +3477,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i, iStage, iT
       real*8 fvux,fvuy,fvuz
       real*8 time,fH,factor,A,B,kernelVU
@@ -3889,7 +3912,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData, ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3897,7 +3920,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData, ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
 
       integer*4 i
       integer*4 j
@@ -4356,7 +4379,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -4364,7 +4387,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i,j,k
 
 !
@@ -4400,7 +4423,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -4408,7 +4431,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i, n, ic, k, iStage
 
 ! Needed for allreduce
@@ -5054,9 +5077,6 @@ c     if (npt_total .eq. 1) then
       enddo
       endif
 
-      ! Thierry - we comment this out to prevent periodic
-      !           algorithm to overwrite bin boundaries
-
 !      if (ang_case==111) then
       if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
      >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
@@ -5074,8 +5094,6 @@ c     if (npt_total .eq. 1) then
       
 !      endif ! ang_case
 
-      ! Thierry - we make the bins in z-direction as big as the fluid mesh
-      !           this is also needed for the bin calculation
       if (ppiclf_ndim .gt. 2) then
       if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
      >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 
@@ -11827,15 +11845,15 @@ c     ndum    = ppiclf_neltb*n
           ! get distance from particle to center
           d2l     = 0.0
           d2i     = 0.0
-          farAway = .TRUE.
+          farAway = .FALSE.
           DO l=1,3
             d2l  =(centeri(l,ie) - xp(l))**2 
             d2i = d2i + d2l
-            IF (d2l < (1.5**2)*d2Max_EleLen(l)) farAway = .FALSE.
+            IF (d2l > (1.5**2)*d2Max_EleLen(l)) farAway = .TRUE.
           ENDDO !l
           ! skip to next fluid cell if greater than 1.5*max cell
           ! distance in respective x,y,z direction.
-          if (farAWAY) CYCLE !ie
+          IF (farAWAY) CYCLE !ie
           ! Sort closest fluid cell centers
           added = .FALSE.
           DO i=1,27

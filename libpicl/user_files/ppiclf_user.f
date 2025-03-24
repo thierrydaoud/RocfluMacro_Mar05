@@ -50,7 +50,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -58,7 +58,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -87,6 +87,7 @@
       integer*4 j, l
       real*8 SDrho
 !-----------------------------------------------------------------------
+      integer*4 store_forces
 
       integer*4 i, n, ic, k
 
@@ -754,6 +755,21 @@
          ppiclf_ydot(PPICLF_JMETAL,i)  = mdot_me
          ppiclf_ydot(PPICLF_JOXIDE,i)  = mdot_ox
 
+         if (i<=5 .and. iStage==3 .and. write_forces==1) then
+           ppiclf_y(PPICLF_JFQSX,i) = fqsx
+           ppiclf_y(PPICLF_JFQSY,i) = fqsy
+           ppiclf_y(PPICLF_JFQSZ,i) = fqsz
+
+           ppiclf_y(PPICLF_JFAMX,i) = famx
+           ppiclf_y(PPICLF_JFAMY,i) = famy
+           ppiclf_y(PPICLF_JFAMX,i) = famz
+
+           write(1310+i,*) i, ppiclf_time, fqsx, fqsy, fqsz,
+     >                                     famx, famy, famz, 
+     >                                  fdpdx, fdpdy, fdpdz,
+     >                                        fcx, fcy, fcz
+
+         endif
 !
 ! Update and Shift data for viscous unsteady case
 !

@@ -28,7 +28,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -36,7 +36,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, write_forces
       integer*4 i, iStage
       real*8 famx, famy, famz, rmass_add
       real*8 rcd_am
@@ -69,18 +69,21 @@
       !              weighted by \phi^g.
       ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
       !                   = phi^g * d(rho^g)/dt
-      !,  
+      ! ( assume d(phi^g)/dt = 0 )  
       !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
       SDrho = SDrho / (rphif) 
 
       famx = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >  + ppiclf_rprop(PPICLF_R_JUX,i)*vx*ppiclf_rprop(PPICLF_R_JRHOGX,i))
 
       famy = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >  + ppiclf_rprop(PPICLF_R_JUY,i)*vy*ppiclf_rprop(PPICLF_R_JRHOGY,i))
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i))
 
 
       return
@@ -188,13 +191,16 @@
 
       ! Take care of volume in Binary subroutine
       famx = rcd_am*
-     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >  + ppiclf_rprop(PPICLF_R_JUX,i)*vx*ppiclf_rprop(PPICLF_R_JRHOGX,i))
 
       famy = rcd_am*
-     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >  + ppiclf_rprop(PPICLF_R_JUY,i)*vy*ppiclf_rprop(PPICLF_R_JRHOGY,i))
 
       famz = rcd_am*
-     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i))
 
       Fam(1) = famx
       Fam(2) = famy

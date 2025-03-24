@@ -129,6 +129,11 @@ SUBROUTINE CellGradientsMP(region)
   TYPE(t_region), POINTER :: pRegion
   INTEGER :: iSpec
   INTEGER, DIMENSION(:), ALLOCATABLE :: varInfoSpec
+! 03/19/2025 - Thierry - begins here
+  INTEGER :: iEv
+  INTEGER, DIMENSION(:), ALLOCATABLE :: varInfoPicl
+  INTEGER, DIMENSION(:), POINTER :: piclcvInfo
+! 03/19/2025 - Thierry - ends here
 
 ! ******************************************************************************
 ! Start
@@ -178,7 +183,7 @@ SUBROUTINE CellGradientsMP(region)
         varInfoMixt(CV_MIXT_ZVEL) = V_MIXT_ZVEL
         varInfoMixt(CV_MIXT_TEMP) = V_MIXT_TEMP               
       CASE DEFAULT
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,185)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,192)
     END SELECT ! pRegion%mixtInput%gasModel
 
 ! ------------------------------------------------------------------------------ 
@@ -232,7 +237,7 @@ SUBROUTINE CellGradientsMP(region)
                                  pRegion%mixt%gradCell,pRegion%mixt%lim)
         CALL RFLU_DestroyLimiter(pRegion,pRegion%mixt%lim)
       CASE DEFAULT 
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,239)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,246)
     END SELECT ! pRegion%mixtInput%reconst
 
 ! ------------------------------------------------------------------------------ 
@@ -257,7 +262,7 @@ SUBROUTINE CellGradientsMP(region)
       ALLOCATE(varInfoSpec(pRegion%specInput%nSpecies),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN 
-        CALL ErrorStop(global,ERR_ALLOCATE,265,'varInfoSpec')
+        CALL ErrorStop(global,ERR_ALLOCATE,272,'varInfoSpec')
       END IF ! global%error
 
       DO iSpec = 1,pRegion%specInput%nSpecies
@@ -276,7 +281,7 @@ SUBROUTINE CellGradientsMP(region)
       DEALLOCATE(varInfoSpec,STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN 
-        CALL ErrorStop(global,ERR_DEALLOCATE,284,'varInfoSpec')
+        CALL ErrorStop(global,ERR_DEALLOCATE,291,'varInfoSpec')
       END IF ! global%error
 
 ! ------------------------------------------------------------------------------ 
@@ -327,7 +332,7 @@ SUBROUTINE CellGradientsMP(region)
                                    pRegion%spec%gradCell,pRegion%spec%lim)
           CALL RFLU_DestroyLimiter(pRegion,pRegion%spec%lim)
         CASE DEFAULT 
-          CALL ErrorStop(global,ERR_REACHED_DEFAULT,335)
+          CALL ErrorStop(global,ERR_REACHED_DEFAULT,342)
       END SELECT ! pRegion%mixtInput%reconst
 
       CALL RFLU_ScalarConvertCvPrim2Cons(pRegion,pRegion%spec%cv, &
@@ -335,6 +340,86 @@ SUBROUTINE CellGradientsMP(region)
     END IF ! global%specUsed
 
   END IF ! pRegion%mixtInput%spaceOrder
+
+! 03/19/2025 - Thierry - begins here
+!                        modifications to calculate the gradient of gas vol frac.
+!                        reaping the benefits of Rahul's implementation for PLAG done below
+  IF ( global%piclUsed .EQV. .TRUE. ) THEN
+    ALLOCATE(varInfoPicl(1),STAT=errorFlag)
+    ALLOCATE(piclcvInfo(1),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN 
+      CALL ErrorStop(global,ERR_ALLOCATE,361,'varInfoPicl')
+    END IF ! global%error
+
+    DO iEv = 1,1
+      varInfoPicl(iEv) = iEv
+    END DO ! iEv
+    piclcvInfo = varInfoPicl
+
+    pRegion%mixt%piclVFg(1,:) = 1.0_RFREAL - pRegion%mixt%piclVF ! gas volume fraction
+
+    ! phi^g rho^g -> rho^g
+    pRegion%mixt%cv(CV_MIXT_DENS,:) = pRegion%mixt%cv(CV_MIXT_DENS,:)/&
+                                      pRegion%mixt%piclVFg(1,:)
+                                    
+!------------------Gradient of Rho^g--------------------------------
+    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,1,1,1,varInfoPicl, &
+                                      pRegion%mixt%cv,&
+                                      pRegion%mixt%piclgradRhog)
+
+    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,1, &
+                                      pRegion%mixt%piclgradRhog)
+
+    CALL RFLU_LimitGradCellsSimple(pRegion,1,1,1,1, & 
+                                   pRegion%mixt%cv,&
+                                   piclcvInfo,&
+                                   pRegion%mixt%piclgradRhog)
+    ! rho^g ->  phi^g rho^g
+    pRegion%mixt%cv(CV_MIXT_DENS,:) = pRegion%mixt%cv(CV_MIXT_DENS,:)*&
+                                      pRegion%mixt%piclVFg(1,:)
+
+! Thierry - kept them in the code if needed for future use.
+!           relevant variable declarations and allocation have to be 
+!           uncommented in other parts of the code.
+!------------------Gradient of Phi^g--------------------------------
+!
+!    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,1,1,1,varInfoPicl, &
+!                                      pRegion%mixt%piclVFg,&
+!                                      pRegion%mixt%piclgradVFg)
+!
+!    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,1, &
+!                                      pRegion%mixt%piclgradVFg)
+!
+!    CALL RFLU_LimitGradCellsSimple(pRegion,1,1,1,1, & 
+!                                   pRegion%mixt%piclVFg,&
+!                                   piclcvInfo,&
+!                                   pRegion%mixt%piclgradVFg)
+!
+!
+!------------------Gradient of Phi^g Rho^g--------------------------
+!
+!    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,1,1,1,varInfoPicl, &
+!                                      pRegion%mixt%cv,&
+!                                      pRegion%mixt%piclgradVFRhog)
+!
+!    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,1, &
+!                                      pRegion%mixt%piclgradVFRhog)
+!
+!    CALL RFLU_LimitGradCellsSimple(pRegion,1,1,1,1, & 
+!                                   pRegion%mixt%cv,&
+!                                   piclcvInfo,&
+!                                   pRegion%mixt%piclgradVFRhog)
+!--------------------------------------------------------------------
+
+    DEALLOCATE(varInfoPicl,STAT=errorFlag)
+    DEALLOCATE(piclcvInfo,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN 
+      CALL ErrorStop(global,ERR_DEALLOCATE,428,'varInfoPicl')
+    END IF ! global%error
+  END IF ! global%piclUsed
+! 03/19/2025 - ends here
 
 
 
