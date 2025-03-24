@@ -1,11 +1,11 @@
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 c Computational particles
-      REAL*8 PPICLF_Y (12 ,20000) ! Solution
-     > ,PPICLF_YDOT (12 ,20000) ! Total solution RHS
-     > ,PPICLF_YDOTC (12 ,20000) ! Coupled solution RHS
-     > ,PPICLF_RPROP (36 ,20000) ! Real particle properties
+      REAL*8 PPICLF_Y (18 ,20000) ! Solution
+     > ,PPICLF_YDOT (18 ,20000) ! Total solution RHS
+     > ,PPICLF_YDOTC (18 ,20000) ! Coupled solution RHS
+     > ,PPICLF_RPROP (39 ,20000) ! Real particle properties
      > ,PPICLF_RPROP2(4,20000) ! Secondary real particle properties
      > ,PPICLF_RPROP3(6*5,20000) ! Third real particle properties
       COMMON /PPICLF_SLN_CURRENT_R/ PPICLF_Y
@@ -19,7 +19,7 @@ c Computational particles
       COMMON /PPICLF_SLN_CURRENT_N/ PPICLF_NPART
       INTEGER*4 PPICLF_NPART
 c Previous time step solutions, may grow later
-      REAL*8 PPICLF_Y1(12*20000)
+      REAL*8 PPICLF_Y1(18*20000)
       COMMON /PPICLF_SLN_PREVIOUS_R/ PPICLF_Y1
 c Previous time step solutions, may grow later
       REAL*8 PPICLF_TIMEBH(5)
@@ -28,8 +28,8 @@ c Previous time step solutions, may grow later
       COMMON /PPICLF_SLN_UNSTEADY/ PPICLF_TIMEBH
      > ,PPICLF_DRUDTPLAG
      > ,PPICLF_DRUDTMIXT
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 C Grid
       REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,100000)
@@ -41,11 +41,11 @@ C Grid
       REAL*8 PPICLF_PRO_FLD (2,2,2,100000
      > ,10),
      > PPICLF_INT_FLDU(2,2,2
-     > ,100000,21),
+     > ,100000,24),
      > PPICLF_INT_FLD (2,2,2
-     > ,21,100000),
+     > ,24,100000),
      > PPICLF_INT_FLDG(2,2,2
-     > ,21,100000),
+     > ,24,100000),
      > PPICLF_PRO_FLDB(2,2,2
      > ,10,100000),
      > PPICLF_XM1B (2,2,2,3
@@ -75,10 +75,10 @@ C Grid
      > PPICLF_NELTBBB,PPICLF_NELTBG, PPICLF_NELTBBG
       INTEGER*4 PPICLF_NEE
       COMMON /PPICLF_GRID_ORIG_CELL_N/ PPICLF_NEE
-      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(21)
+      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(24)
       COMMON /PPICLF_INTERP_I/ PPICLF_INT_ICNT, PPICLF_INT_MAP
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 c Particle options
       LOGICAL PPICLF_RESTART, PPICLF_OVERLAP, PPICLF_LCOMM
@@ -108,8 +108,8 @@ c Particle options
      > ,PPICLF_RK3COEF, PPICLF_DT
      > ,PPICLF_TIME, PPICLF_D2CHK
      > ,PPICLF_RK3ARK
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 c Communication
       COMMON /PPICLF_PARALLEL_COMM_I/ PPICLF_COMM, PPICLF_NP, PPICLF_NID
@@ -144,8 +144,8 @@ c Bins
       COMMON /PPICLF_PARALLEL_BIN_LOCAL_N/ PPICLF_BX, PPICLF_BY
      > ,PPICLF_BZ
 C Ghost particles
-      REAL*8 PPICLF_RPROP_GP(12 +36 +10,26*20000)
-     > ,PPICLF_CP_MAP(12 +36 +10,20000)
+      REAL*8 PPICLF_RPROP_GP(18 +39 +10,26*20000)
+     > ,PPICLF_CP_MAP(18 +39 +10,20000)
       COMMON /PPICLF_PARALLEL_GHOST_R/ PPICLF_RPROP_GP, PPICLF_CP_MAP
       INTEGER*4 PPICLF_NB_R(3,20000)
      > ,PPICLF_NB_G(3,26*20000)
@@ -154,8 +154,8 @@ C Ghost particles
       COMMON /PPICLF_PARALLEL_GHOST_I/ PPICLF_IPROP_GP
       INTEGER*4 PPICLF_NPART_GP
       COMMON /PPICLF_PARALLEL_GHOST_N/ PPICLF_NPART_GP
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 !
 ! General useage
@@ -244,8 +244,8 @@ C Ghost particles
      > xrot, vrot
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
      > y_per_min, y_per_max, z_per_min, z_per_max
-! y, y1, ydot, ydotc: 12
-! rprop: 36
+! y, y1, ydot, ydotc: 18
+! rprop: 39
 ! map: 10
 C Wall support
       REAL*8 PPICLF_WALL_C(9,1000),PPICLF_WALL_N(4,1000)

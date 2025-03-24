@@ -175,6 +175,12 @@ MODULE ModMixture
 !BAD Added piclfVF to talk to rocflu
 
     REAL(RFREAL), DIMENSION(:), POINTER :: piclVF
+    ! 03/19/2025 - Thierry - added for gradient of gas volume fraction calculation of ppiclF
+    REAL(RFREAL), DIMENSION(:,:), POINTER :: piclVFg
+    REAL(RFREAL), DIMENSION(:,:,:), POINTER :: piclgradRhog
+    !REAL(RFREAL), DIMENSION(:,:,:), POINTER :: piclgradVFg
+    !REAL(RFREAL), DIMENSION(:,:,:), POINTER :: piclgradVFRhog
+    ! 03/19/2025 - Thierry - ends here
     REAL(RFREAL) :: piclGeom    
 
     REAL(RFREAL), POINTER :: sd(:,:)

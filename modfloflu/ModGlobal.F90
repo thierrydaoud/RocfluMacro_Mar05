@@ -500,7 +500,7 @@ MODULE ModGlobal
                piclViscousUnsteady, &
                piclPeriodicXFlag, piclPeriodicYFlag, piclPeriodicZFlag, &
                piclAngularPeriodicFlag, piclSBNearFlag, piclBurnRateFlag, &
-               piclMoveParticles
+               piclMoveParticles, piclWriteForces
 
 
     REAL(RFREAL) :: piclTemp, piclFilterWidth, piclNeighborWidth, piclKsp, &

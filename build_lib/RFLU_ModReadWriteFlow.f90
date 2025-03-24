@@ -2672,6 +2672,13 @@ MODULE RFLU_ModReadWriteFlow
       WRITE(iFile) sectionString
   IF ( global%piclUsed) THEN
       WRITE(iFile) (pRegion%mixt%piclVF(j),j=1,pGrid%nCellsTot)
+      ! 03/20/2025 - Thierry - begins here
+      WRITE(iFile) (pRegion%mixt%piclgradRhog(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclgradVFg(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclgradVFRhog(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclVFg(1,j),j=1,pGrid%nCellsTot)
+      ! 03/20/2025 - Thierry - ends here
+
   END IF
 !(pCv(j),j=1,pGrid%nCellsTot)
       !if (pRegion%iRegionGlobal .eq. 1) then
@@ -2700,7 +2707,7 @@ MODULE RFLU_ModReadWriteFlow
     CLOSE(iFile,IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_FILE_CLOSE,2744,iFileName)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,2751,iFileName)
     END IF ! global%error
 
 ! ******************************************************************************
@@ -2710,6 +2717,10 @@ MODULE RFLU_ModReadWriteFlow
     IF ( global%myProcid == MASTERPROC .AND. &
          global%verbLevel > VERBOSE_NONE ) THEN
       WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Writing binary piclVF file done.'
+      ! 03/20/2025 - Thierry - begins here
+      WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Writing binary piclgradRhog file&
+                                            done.'
+      ! 03/20/2025 - Thierry - ends here
     END IF ! global%verbLevel
 
     CALL DeregisterFunction(global)
@@ -2749,9 +2760,10 @@ MODULE RFLU_ModReadWriteFlow
 ! ******************************************************************************
 
 
-! y, y1, ydot, ydotc: 12
+! y, y1, ydot, ydotc: 18
 
-! rprop: 36
+
+! rprop: 39
 
 ! map: 10
 
@@ -3003,6 +3015,22 @@ MODULE RFLU_ModReadWriteFlow
     !     var=pRegion%mixt%piclVF(1:Ne))
     E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Particle Volume Fraction', &
          var=pRegion%mixt%piclVF(1:Ne))
+      ! 03/20/2025 - Thierry - begins here
+    E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas Density', &
+         varX=pRegion%mixt%piclgradRhog(1,1,1:Ne), &
+         varY=pRegion%mixt%piclgradRhog(2,1,1:Ne), &
+         varZ=pRegion%mixt%piclgradRhog(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas VF', &
+    !     varX=pRegion%mixt%piclgradVFg(1,1,1:Ne), &
+    !     varY=pRegion%mixt%piclgradVFg(2,1,1:Ne), &
+    !     varZ=pRegion%mixt%piclgradVFg(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas Density VF', &
+    !     varX=pRegion%mixt%piclgradVFRhog(1,1,1:Ne), &
+    !     varY=pRegion%mixt%piclgradVFRhog(2,1,1:Ne), &
+    !     varZ=pRegion%mixt%piclgradVFRhog(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gas Volume Fraction', &
+    !     var=pRegion%mixt%piclVFg(1,1:Ne))
+      ! 03/20/2025 - Thierry - ends here
   END IF
 
 
@@ -3101,6 +3129,15 @@ MODULE RFLU_ModReadWriteFlow
 
   IF ( global%piclUsed) THEN
       E_IO = PVTK_VAR_XML(varname = 'Particle Volume Fraction', tp='Float64')
+      ! 03/20/2025 - Thierry - begins here
+      E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density',& 
+                                                               tp='Float64' )
+      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas VF',& 
+      !                                                         tp='Float64' )
+      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density VF',& 
+      !                                                         tp='Float64' )
+      !E_IO = PVTK_VAR_XML(varname = 'Gas Volume Fraction', tp='Float64')
+      ! 03/20/2025 - Thierry - ends here
   END IF
 
 
@@ -3517,7 +3554,7 @@ END IF
          IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_FILE_OPEN,3917,iFileName)
+      CALL ErrorStop(global,ERR_FILE_OPEN,3953,iFileName)
     END IF ! global%error
 
     END IF
@@ -3604,7 +3641,7 @@ END IF
       CLOSE(iFile,IOSTAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_FILE_CLOSE,4038,iFileName)
+        CALL ErrorStop(global,ERR_FILE_CLOSE,4074,iFileName)
       END IF ! global%error
     END IF ! masterproc
 
@@ -3706,7 +3743,7 @@ END IF
          CALL RFLU_PICL_WriteFlowBinary(pRegion)
         END IF
       ELSE
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4160)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4196)
       END IF ! global%solutFormat
 
 ! ******************************************************************************
@@ -3737,7 +3774,7 @@ END IF
           CALL SPEC_RFLU_WriteEEvBinary(pRegion)
         END IF ! pRegion%specInput%nSpeciesEE
       ELSE
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4220)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4256)
       END IF ! global%solutFormat
     END IF ! global%specUsed
 

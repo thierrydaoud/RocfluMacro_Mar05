@@ -2,9 +2,15 @@ FC               = mpif77 # Valid MPI Fortran compiler
 CC               = mpicc  # Valid MPI C compiler
 FFLAGS          += -cpp -w -O3 -std=legacy #-fallow-argument-mismatch -fcheck=all
 #FFLAGS          += -cpp -w -std=legacy -g #-fcheck=all
-CPFLAGS         += -E
+CPFLAGS         += -E 
 #FFLAGS          += -DPPICLC
- 	           
+
+## Write Forces Flag
+#WRFORCES_FLAGS = 
+#ifeq ($(WRFORCES),1)
+#	WRFORCES_FLAGS = -DWRFORCES
+#endif
+
 INSTALL_LOCATION = .
 
 ####################

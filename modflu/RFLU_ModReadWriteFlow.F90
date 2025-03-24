@@ -2712,6 +2712,13 @@ MODULE RFLU_ModReadWriteFlow
 #ifdef PICL
   IF ( global%piclUsed) THEN
       WRITE(iFile) (pRegion%mixt%piclVF(j),j=1,pGrid%nCellsTot)
+      ! 03/20/2025 - Thierry - begins here
+      WRITE(iFile) (pRegion%mixt%piclgradRhog(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclgradVFg(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclgradVFRhog(:,1,j),j=1,pGrid%nCellsTot)
+      !WRITE(iFile) (pRegion%mixt%piclVFg(1,j),j=1,pGrid%nCellsTot)
+      ! 03/20/2025 - Thierry - ends here
+
   END IF
 !(pCv(j),j=1,pGrid%nCellsTot)
 #endif
@@ -2751,6 +2758,10 @@ MODULE RFLU_ModReadWriteFlow
     IF ( global%myProcid == MASTERPROC .AND. &
          global%verbLevel > VERBOSE_NONE ) THEN
       WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Writing binary piclVF file done.'
+      ! 03/20/2025 - Thierry - begins here
+      WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Writing binary piclgradRhog file&
+                                            done.'
+      ! 03/20/2025 - Thierry - ends here
     END IF ! global%verbLevel
 
     CALL DeregisterFunction(global)
@@ -3052,6 +3063,22 @@ MODULE RFLU_ModReadWriteFlow
     !     var=pRegion%mixt%piclVF(1:Ne))
     E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Particle Volume Fraction', &
          var=pRegion%mixt%piclVF(1:Ne))
+      ! 03/20/2025 - Thierry - begins here
+    E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas Density', &
+         varX=pRegion%mixt%piclgradRhog(1,1,1:Ne), &
+         varY=pRegion%mixt%piclgradRhog(2,1,1:Ne), &
+         varZ=pRegion%mixt%piclgradRhog(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas VF', &
+    !     varX=pRegion%mixt%piclgradVFg(1,1,1:Ne), &
+    !     varY=pRegion%mixt%piclgradVFg(2,1,1:Ne), &
+    !     varZ=pRegion%mixt%piclgradVFg(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas Density VF', &
+    !     varX=pRegion%mixt%piclgradVFRhog(1,1,1:Ne), &
+    !     varY=pRegion%mixt%piclgradVFRhog(2,1,1:Ne), &
+    !     varZ=pRegion%mixt%piclgradVFRhog(3,1,1:Ne))
+    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gas Volume Fraction', &
+    !     var=pRegion%mixt%piclVFg(1,1:Ne))
+      ! 03/20/2025 - Thierry - ends here
   END IF
 #endif
 
@@ -3222,6 +3249,15 @@ MODULE RFLU_ModReadWriteFlow
 #ifdef PICL
   IF ( global%piclUsed) THEN
       E_IO = PVTK_VAR_XML(varname = 'Particle Volume Fraction', tp='Float64')
+      ! 03/20/2025 - Thierry - begins here
+      E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density',& 
+                                                               tp='Float64' )
+      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas VF',& 
+      !                                                         tp='Float64' )
+      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density VF',& 
+      !                                                         tp='Float64' )
+      !E_IO = PVTK_VAR_XML(varname = 'Gas Volume Fraction', tp='Float64')
+      ! 03/20/2025 - Thierry - ends here
   END IF
 #endif
 

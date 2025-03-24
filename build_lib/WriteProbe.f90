@@ -97,9 +97,10 @@ SUBROUTINE WriteProbe( regions,iReg )
 
 
 
-! y, y1, ydot, ydotc: 12
+! y, y1, ydot, ydotc: 18
 
-! rprop: 36
+
+! rprop: 39
 
 ! map: 10
 
