@@ -132,9 +132,6 @@ SUBROUTINE RungeKuttaMP( regions )
 ! ... local variables
   INTEGER :: flowModel
 
-  ! 03/24/2025 - Thierry - variables to check if pDiss is being zeroed out. remove later
-  INTEGER :: ii, jj 
-
   TYPE(t_global), POINTER :: global
   TYPE(t_region), POINTER :: pRegion
 
@@ -241,29 +238,6 @@ SUBROUTINE RungeKuttaMP( regions )
 
         CALL SourceTermsMP( regions(iReg) )
         
-        ! 03/24/2025 - Thierry - checking if values in diss variable are zeroed out before this step
-!        print*, "================================================================="
-!        IF (ALL(pRegion%mixt%diss(CV_MIXT_XMOM,:)== 0.0_RFREAL)) THEN
-!              PRINT *, "All values are zero."
-!        END IF
-!        
-!        IF (ANY(pRegion%mixt%diss(CV_MIXT_XMOM,:)/= 0.0)) THEN
-!              PRINT *, "At least one value is non-zero."
-!              DO jj=1, SiZE(pRegion%mixt%diss, DIM=2)
-!                DO ii=1, SIZE(pRegion%mixt%diss, DIM=1)
-!                  IF(pRegion%mixt%diss(ii,jj) /= 0.0_RFREAL) THEN
-!                    print*, "pRegion%mixt%diss(", ii, ",", jj, ")", pRegion%mixt%diss(ii,jj)
-!                  ENDIF
-!                ENDDO
-!              ENDDO
-!        END IF
-!        !print*, "diss(XMOM,:) =" pRegion%mixt%diss(CV_MIXT_XMOM,:)
-!        print*, "Size of pDiss =", "(", SiZE(pRegion%mixt%diss, DIM=1), "," , &
-!                                        SiZE(pRegion%mixt%diss, DIM=2) , ")"
-!        print*, "pRegion%grid%nCellsTot =", pRegion%grid%nCellsTot
-!        print*, "================================================================="
-
-
 #ifdef PICL
         pRegion => regions(iReg)
         IF ( global%piclUsed .EQV. .TRUE. ) THEN
