@@ -1,12 +1,12 @@
 #define PPICLF_LPART 20000
 #define PPICLF_LWALL 1000
 #define PPICLF_LRS 18
-#define PPICLF_LRP 39
+#define PPICLF_LRP 42
 #define PPICLF_LEE 100000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
 #define PPICLF_LEZ 2
-#define PPICLF_LRP_INT 24
+#define PPICLF_LRP_INT 27
 #define PPICLF_LRP_PRO 10
 
 ! y, y1, ydot, ydotc: PPICLF_LRS
@@ -70,6 +70,9 @@
 #define PPICLF_R_JRHOGX 37
 #define PPICLF_R_JRHOGY 38
 #define PPICLF_R_JRHOGZ 39
+#define PPICLF_R_JDPVDX 40
+#define PPICLF_R_JDPVDY 41
+#define PPICLF_R_JDPVDZ 42
 
 ! map: PPICLF_LRP_PRO
 #define PPICLF_P_JPHIP 1

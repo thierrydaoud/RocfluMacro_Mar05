@@ -110,7 +110,7 @@ SUBROUTINE PICL_TEMP_InitSolver( pRegion)
 ! y, y1, ydot, ydotc: 18
 
 
-! rprop: 39
+! rprop: 42
 
 ! map: 10
 
@@ -162,7 +162,7 @@ INTEGER :: errorFlag,icg
                    zpf_factor,xpf_factor,dp,neighborWidth,dp_max_l,xp_min,xp_max, &
                    xp_min_l,xp_max_l
    REAL(KIND=8) :: y(18, 20000), &
-                   rprop(39, 20000)
+                   rprop(42, 20000)
    REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: xGrid, yGrid, zGrid,vfP
    REAL(RFREAL),ALLOCATABLE,DIMENSION(:) :: xData,yData,zData,rData,dumData     
    REAL(KIND=8), DIMENSION(:), ALLOCATABLE :: volp,SPL 
@@ -178,7 +178,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces
+        sbNearest_flag, burnrate_flag, write_forces, flow_model
    real*8 :: rmu_ref, tref, suth, ksp, erest
    common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag, &
         collisional_flag, heattransfer_flag, feedback_flag, &
@@ -186,7 +186,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, ksp, erest, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces
+        sbNearest_flag, burnrate_flag, write_forces, flow_model
    real*8 :: ppiclf_rcp_part
    CHARACTER(12) :: ppiclf_matname
    common /RFLU_ppiclf_misc01/ ppiclf_rcp_part
@@ -401,7 +401,7 @@ IF (global%restartFromScratch) THEN
          y(10,i) = 0.0d0
   
          ! initially zero out all properties
-         do ii=1,39
+         do ii=1,42
            rprop(ii, i) = 0.0d0
          end do
 
@@ -700,6 +700,11 @@ else if (global%myProcid == MASTERPROC) then
 end if
 
 
+! 03/24/2025 - Thierry - store the RocfluMP Flow Model chosen (Euler or NS)
+!                        this is used in ppiclF for calculating the pressure gradient
+!                        whether with or without the viscous part
+flow_model = pRegion%mixtInput%flowModel
+
 ! Important note from BRAD:
 !!!!!!!!!!!!!!!!!!!!!!!!WARNING!!!!!!!!!!!!!!!!!!!!
 !Make sure this call is done specifically when starting the simulation
@@ -710,31 +715,31 @@ end if
 DEALLOCATE(xGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,681,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,686,'PPICLF:xGrid')
 END IF ! global%error
 
 DEALLOCATE(yGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,687,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,692,'PPICLF:yGrid')
 END IF ! global%error
 
 DEALLOCATE(zGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,693,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,698,'PPICLF:zGrid')
 END IF ! global%error
 
 ALLOCATE(vfP(2,2,2,nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,699,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,704,'PPICLF:xGrid')
     END IF ! global%error
 
 ALLOCATE(volp(nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,705,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,710,'PPICLF:xGrid')
     END IF ! global%error
 
 do i=1,pGrid%nCellsTot
@@ -753,7 +758,7 @@ DO i = 1,pRegion%grid%nCells
 
        IF (pRegion%mixtInput%axiFlag) THEN
            WRITE(*,*) "Need to properly implement axi-sym for phip init."
-           CALL ErrorStop(global,ERR_OPTION_TYPE,724,'PPICLF:axi')
+           CALL ErrorStop(global,ERR_OPTION_TYPE,729,'PPICLF:axi')
        END IF
 
        tester = tester + (0.125*vfP(lx,ly,lz,i))*pRegion%grid%vol(i)
@@ -785,7 +790,7 @@ DO icg = 1,pGrid%nCellsTot
     pRegion%mixt%cv(CV_MIXT_ENER,icg) = vFrac*pRegion%mixt%cv(CV_MIXT_ENER,icg)
     if (pRegion%mixt%cv(CV_MIXT_DENS,icg) .le. 0.0) then
          WRITE(*,*) "Error: negative density: ",pRegion%mixt%cv(CV_MIXT_DENS,icg)      
-         CALL ErrorStop(global,ERR_INVALID_VALUE,756,'PPICLF:init')
+         CALL ErrorStop(global,ERR_INVALID_VALUE,761,'PPICLF:init')
     end if    
 
 END DO ! icg
@@ -793,12 +798,12 @@ END DO ! icg
 DEALLOCATE(vfP,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,764,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,769,'PPICLF:zGrid')
     END IF ! global%error
 DEALLOCATE(volp,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,769,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,774,'PPICLF:zGrid')
     END IF ! global%error
 
 !!Josh - Removed Brad Comments and Restart Section

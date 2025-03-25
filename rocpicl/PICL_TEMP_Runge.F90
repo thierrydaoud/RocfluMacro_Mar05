@@ -159,6 +159,10 @@ TYPE(t_grid), POINTER :: pGrid
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhodx
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhody
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: drhodz
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvxF
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvyF
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvzF
+
 
   REAL(KIND=8) :: ppiclf
 
@@ -407,6 +411,24 @@ TYPE(t_grid), POINTER :: pGrid
       CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
+    ALLOCATE(dpvxF(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(dpvyF(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(dpvzF(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
 !Might need to update prim like plag does
 pGc => pRegion%mixt%gradCell
 !Fill arrays for interp field
@@ -497,6 +519,11 @@ pGc => pRegion%mixt%gradCell
        drhody(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(2,1,i)
        drhodz(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(3,1,i)
 
+       ! Viscous term of pressure gradient (divergence of tau)
+       dpvxF(lx,ly,lz,i) = pRegion%mixt%diss(CV_MIXT_XMOM,i)/pRegion%grid%vol(i)
+       dpvyF(lx,ly,lz,i) = pRegion%mixt%diss(CV_MIXT_YMOM,i)/pRegion%grid%vol(i)
+       dpvzF(lx,ly,lz,i) = pRegion%mixt%diss(CV_MIXT_ZMOM,i)/pRegion%grid%vol(i)
+
        end do
        end do
        end do 
@@ -522,8 +549,8 @@ pGc => pRegion%mixt%gradCell
 !     of calls to ppiclf_solve_InterpFieldUser
 ! Davin - added pressure 02/22/2025
 ! 03/23/2025 - Thierry - added gradient of gas density.
-      IF (PPICLF_LRP_INT .NE. 24) THEN
-         write(*,*) "Error: PPICLF_LRP_INT must be set to 24"
+      IF (PPICLF_LRP_INT .NE. 27) THEN
+         write(*,*) "Error: PPICLF_LRP_INT must be set to 27"
          CALL ErrorStop(global,ERR_INVALID_VALUE ,__LINE__,'PPICLF:LRP_INT')
       endif
 
@@ -551,6 +578,9 @@ pGc => pRegion%mixt%gradCell
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGX,drhodx)
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGY,drhody)
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGZ,drhodz)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDX,dpvxF)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDY,dpvyF)  
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDZ,dpvzF)  
 
 
 !FEED BACK TERM
@@ -867,6 +897,24 @@ end DO
     END IF ! global%error
 
     DEALLOCATE(drhodz,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(dpvxF,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(dpvyF,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(dpvzF,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
       CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')

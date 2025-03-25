@@ -50,7 +50,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces
+     >   sbNearest_flag, burnrate_flag, write_forces, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -58,7 +58,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces
+     >   sbNearest_flag, burnrate_flag, write_forces, flow_model
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -643,12 +643,24 @@
 ! Step 5: Force component pressure gradient
 !
          if (pg_flag == 1) then
-            fdpdx = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >               ppiclf_rprop(PPICLF_R_JDPDX,i)
-            fdpdy = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >               ppiclf_rprop(PPICLF_R_JDPDY,i)
-            fdpdz = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >               ppiclf_rprop(PPICLF_R_JDPDZ,i)
+            if(flow_model == 0) then ! Euler Flow Model
+              fdpdx = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPDX,i)
+              fdpdy = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPDY,i)
+              fdpdz = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPDZ,i)
+            elseif (flow_model == 1) then ! Navier-Stokes Flow Model
+              fdpdx = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >              (-ppiclf_rprop(PPICLF_R_JDPDX,i)
+     >               +ppiclf_rprop(PPICLF_R_JDPVDX,i))
+              fdpdy = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >              (-ppiclf_rprop(PPICLF_R_JDPDY,i)
+     >               +ppiclf_rprop(PPICLF_R_JDPVDY,i))
+              fdpdz = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >              (-ppiclf_rprop(PPICLF_R_JDPDZ,i)
+     >               +ppiclf_rprop(PPICLF_R_JDPVDZ,i))
+            endif ! flow_model
          endif ! end pg_flag = 1
 
          if (ppiclf_debug .ge. 1) then
