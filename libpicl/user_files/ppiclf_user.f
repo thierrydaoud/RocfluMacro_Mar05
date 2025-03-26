@@ -50,7 +50,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces, flow_model
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -58,7 +58,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces, flow_model
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -70,7 +70,7 @@
       real*8 fqsforce
       real*8 fqs_fluct(3)
       real*8 famx, famy, famz 
-      real*8 fdpdx, fdpdy, fdpdz
+      real*8 fdpdx, fdpdy, fdpdz, fdpvdx, fdpvdy, fdpvdz
       real*8 fcx, fcy, fcz
       real*8 fbx, fby, fbz 
       real*8 fvux, fvuy, fvuz
@@ -83,7 +83,7 @@
       real*8 gkern
   
 !-----------------------------------------------------------------------
-      ! Thierry - 06/27/204 - added mass variables declaration
+      ! Thierry - 06/27/2024 - added mass variables declaration
       integer*4 j, l
       real*8 SDrho
 !-----------------------------------------------------------------------
@@ -368,8 +368,13 @@
 
          ! Zero out for each particle i
          famx = 0.0d0; famy = 0.0d0; famz = 0.0d0; rmass_add = 0.0d0;
+         Fam(1) = 0.0d0; Fam(2) = 0.0d0; Fam(3) = 0.0d0
+         FamUnary(1)=0.0d0;FamUnary(2)=0.0d0;FamUnary(3)=0.0d0;
+         FamBinary(1)=0.0d0;FamBinary(2)=0.0d0;FamBinary(3)=0.0d0;
+         Wdot_neighbor_mean(1) = 0.0d0; Wdot_neighbor_mean(2) = 0.0d0; 
+         Wdot_neighbor_mean(3) = 0.0d0; nneighbors = 0.0d0
          fqsx = 0.0d0; fqsy = 0.0d0; fqsz = 0.0d0; beta = 0.0d0;
-         fqs_fluct = 0.0d0
+         fqs_fluct(1)=0.0d0;fqs_fluct(2)=0.0d0;fqs_fluct(3)=0.0d0;
          fdpdx = 0.0d0; fdpdy = 0.0d0; fdpdz = 0.0d0;
          fcx = 0.0d0; fcy = 0.0d0; fcz = 0.0d0;
          taux = 0.0d0; tauy = 0.0d0; tauz = 0.0d0;
@@ -390,20 +395,11 @@
          ! before looping over particle j (j neq i)
          ! Briney Added Mass flag
          if (am_flag == 2) then 
-            ! zero variables initially
-            nneighbors = 0
-            do j=1,3
-               Fam(j) = 0.0
-               Wdot_neighbor_mean(j) = 0.0
-            enddo
-
             ! 07/14/24 - Thierry - If Briney Algorithm flag and fluct_flag
             !   are ON -> evaluate added-mass unary term before evaluating
             !   neighbor-induced acceleration in EvalNearestNeighbor
-
             call ppiclf_user_AM_Briney_Unary(i,iStage,
      >           famx,famy,famz,rmass_add)
-
          endif ! end am_flag = 2
 
 !
@@ -522,13 +518,15 @@
             if (nneighbors .gt. 0) then
                call ppiclf_user_AM_Briney_Binary(i,iStage,
      >              famx,famy,famz,rmass_add)
+               FamBinary(1) = famx - FamUnary(1)
+               FamBinary(2) = famy - FamUnary(2)
+               FamBinary(3) = famz - FamUnary(3)
             else
             ! if particle has no neighbors, need to multiply added mass forces
             ! by volume, as this is taken care of in Binary subroutine
                famx = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famy = famy*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famz = famz*ppiclf_rprop(PPICLF_R_JVOLP,i)
-
             endif
 
          else
@@ -544,24 +542,27 @@
 ! Step 5: Force component pressure gradient
 !
          if (pg_flag == 1) then
-            if(flow_model == 0) then ! Euler Flow Model
               fdpdx = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
      >                 ppiclf_rprop(PPICLF_R_JDPDX,i)
               fdpdy = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
      >                 ppiclf_rprop(PPICLF_R_JDPDY,i)
               fdpdz = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
      >                 ppiclf_rprop(PPICLF_R_JDPDZ,i)
+            if(flow_model == 0) then ! Euler Flow Model
+              fdpvdx = 0.0d0
+              fdpvdy = 0.0d0
+              fdpvdz = 0.0d0 
             elseif (flow_model == 1) then ! Navier-Stokes Flow Model
-              fdpdx = ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >              (-ppiclf_rprop(PPICLF_R_JDPDX,i)
-     >               +ppiclf_rprop(PPICLF_R_JDPVDX,i))
-              fdpdy = ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >              (-ppiclf_rprop(PPICLF_R_JDPDY,i)
-     >               +ppiclf_rprop(PPICLF_R_JDPVDY,i))
-              fdpdz = ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     >              (-ppiclf_rprop(PPICLF_R_JDPDZ,i)
-     >               +ppiclf_rprop(PPICLF_R_JDPVDZ,i))
+              fdpvdx = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPVDX,i)
+              fdpvdy = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPVDY,i)
+              fdpvdz = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                 ppiclf_rprop(PPICLF_R_JDPVDZ,i)
             endif ! flow_model
+              fdpdx = fdpdx + fdpvdx
+              fdpdy = fdpdy + fdpvdy
+              fdpdz = fdpdz + fdpvdz
          endif ! end pg_flag = 1
 
 
@@ -641,22 +642,6 @@
          ppiclf_ydot(PPICLF_JMETAL,i)  = mdot_me
          ppiclf_ydot(PPICLF_JOXIDE,i)  = mdot_ox
 
-         if (i<=5 .and. iStage==3 .and. write_forces==1) then
-           ppiclf_y(PPICLF_JFQSX,i) = fqsx
-           ppiclf_y(PPICLF_JFQSY,i) = fqsy
-           ppiclf_y(PPICLF_JFQSZ,i) = fqsz
-
-           ppiclf_y(PPICLF_JFAMX,i) = famx
-           ppiclf_y(PPICLF_JFAMY,i) = famy
-           ppiclf_y(PPICLF_JFAMX,i) = famz
-
-           write(1310+i,*) i, ppiclf_time, fqsx, fqsy, fqsz,
-     >                                     famx, famy, famz, 
-     >                                  fdpdx, fdpdy, fdpdz,
-     >                                        fcx, fcy, fcz
-
-         endif
-!
 ! Update and Shift data for viscous unsteady case
 !
          if (ViscousUnsteady_flag>=1) then
@@ -744,10 +729,25 @@
             ppiclf_ydot(PPICLF_JOZ,i) = 0.0d0
          endif
 
- 999     continue
-         
+! Step 13: Store forces         
+           ppiclf_rprop(PPICLF_R_FQSX,i) = fqsx
+           ppiclf_rprop(PPICLF_R_FQSY,i) = fqsy
+           ppiclf_rprop(PPICLF_R_FQSZ,i) = fqsz
+           ppiclf_rprop(PPICLF_R_FAMX,i) = famx
+           ppiclf_rprop(PPICLF_R_FAMY,i) = famy
+           ppiclf_rprop(PPICLF_R_FAMZ,i) = famz
+           ppiclf_rprop(PPICLF_R_FAMBX,i) = FamBinary(1)
+           ppiclf_rprop(PPICLF_R_FAMBY,i) = FamBinary(2)
+           ppiclf_rprop(PPICLF_R_FAMBZ,i) = FamBinary(3)
+           ppiclf_rprop(PPICLF_R_FCX,i) = fcx
+           ppiclf_rprop(PPICLF_R_FCY,i) = fcy
+           ppiclf_rprop(PPICLF_R_FCZ,i) = fcz
+           ppiclf_rprop(PPICLF_R_FVUX,i) = fvux
+           ppiclf_rprop(PPICLF_R_FVUY,i) = fvuy
+           ppiclf_rprop(PPICLF_R_FVUZ,i) = fvuz
+           ppiclf_rprop(PPICLF_R_QQ,i) = qq
 
- !Step 13: If debug mode is ON, calculate and print the max values.
+ ! Step 14: If debug mode is ON, calculate and print the max values.
  !         The user should not have this ON for productive runs. 
       
          if (ppiclf_debug .ge. 1) then
@@ -839,7 +839,7 @@
            
       enddo ! do i=1,ppiclf_npart
 
-
+      
 !
 !-----------------------------------------------------------------------
 !

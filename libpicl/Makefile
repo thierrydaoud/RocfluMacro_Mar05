@@ -5,8 +5,9 @@ FFLAGS          += -cpp -w -O3 -std=legacy #-fallow-argument-mismatch -fcheck=al
 CPFLAGS         += -E 
 #FFLAGS          += -DPPICLC
 
-## Write Forces Flag
+# Write Forces Flag
 #WRFORCES_FLAGS = 
+# To output Forces, compile code w/: make clean ; make WRFORCES=1
 #ifeq ($(WRFORCES),1)
 #	WRFORCES_FLAGS = -DWRFORCES
 #endif

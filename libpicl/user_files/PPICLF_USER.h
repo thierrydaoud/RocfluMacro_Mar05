@@ -1,7 +1,7 @@
 #define PPICLF_LPART 20000
 #define PPICLF_LWALL 1000
 #define PPICLF_LRS 18
-#define PPICLF_LRP 42
+#define PPICLF_LRP 58
 #define PPICLF_LEE 100000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
@@ -22,12 +22,6 @@
 #define PPICLF_JOZ 10
 #define PPICLF_JMETAL 11
 #define PPICLF_JOXIDE 12
-#define PPICLF_JFQSX 13
-#define PPICLF_JFQSY 14
-#define PPICLF_JFQSZ 15
-#define PPICLF_JFAMX 16
-#define PPICLF_JFAMY 17
-#define PPICLF_JFAMZ 18
 
 
 ! rprop: PPICLF_LRP
@@ -73,6 +67,22 @@
 #define PPICLF_R_JDPVDX 40
 #define PPICLF_R_JDPVDY 41
 #define PPICLF_R_JDPVDZ 42
+#define PPICLF_R_FQSX 43
+#define PPICLF_R_FQSY 44
+#define PPICLF_R_FQSZ 45
+#define PPICLF_R_FAMX 46
+#define PPICLF_R_FAMY 47
+#define PPICLF_R_FAMZ 48
+#define PPICLF_R_FAMBX 49
+#define PPICLF_R_FAMBY 50
+#define PPICLF_R_FAMBZ 51
+#define PPICLF_R_FCX 52
+#define PPICLF_R_FCY 53
+#define PPICLF_R_FCZ 54
+#define PPICLF_R_FVUX 55
+#define PPICLF_R_FVUY 56
+#define PPICLF_R_FVUZ 57
+#define PPICLF_R_QQ 58
 
 ! map: PPICLF_LRP_PRO
 #define PPICLF_P_JPHIP 1
@@ -85,4 +95,3 @@
 #define PPICLF_P_JPHIPV 8
 #define PPICLF_P_JPHIPW 9
 #define PPICLF_P_JPHIPT 10
-

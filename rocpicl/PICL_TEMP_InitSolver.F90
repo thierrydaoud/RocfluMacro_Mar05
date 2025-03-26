@@ -144,7 +144,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces, flow_model
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: rmu_ref, tref, suth, ksp, erest
    common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag, &
         collisional_flag, heattransfer_flag, feedback_flag, &
@@ -152,7 +152,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, ksp, erest, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces, flow_model
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: ppiclf_rcp_part
    CHARACTER(12) :: ppiclf_matname
    common /RFLU_ppiclf_misc01/ ppiclf_rcp_part
@@ -207,7 +207,6 @@ qs_fluct_flag = global%piclQsFluctFlag
 ppiclf_debug = global%piclDebug
 sbNearest_flag = global%piclSBNearFlag
 burnrate_flag = global%piclBurnRateFlag
-write_forces = global%piclWriteForces
 
 rmu_flag = pRegion%mixtInput%viscModel
 rmu_ref = pRegion%mixtInput%refVisc
@@ -788,7 +787,6 @@ DEALLOCATE(volp,STAT=errorFlag)
      print*, 'TLJ'
      print*, 'Starting PICL_TEMP_InitSolver.F90'
      print*, ' '
-     print*, 'write_forces         = ',global%piclWriteForces
      print*, 'stationary           = ',global%piclStationaryFlag
      print*, 'qs_flag              = ',global%piclQsFlag
      print*, 'am_flag              = ',global%piclAmFlag
