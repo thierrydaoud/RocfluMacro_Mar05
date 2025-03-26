@@ -105,10 +105,9 @@ USE RFLU_ModConvertCv, ONLY: RFLU_ConvertCvCons2Prim, &
 ! y, y1, ydot, ydotc: 18
 
 
-! rprop: 42
+! rprop: 58
 
 ! map: 10
-
 
 
 

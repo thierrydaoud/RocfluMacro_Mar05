@@ -2674,9 +2674,6 @@ MODULE RFLU_ModReadWriteFlow
       WRITE(iFile) (pRegion%mixt%piclVF(j),j=1,pGrid%nCellsTot)
       ! 03/20/2025 - Thierry - begins here
       WRITE(iFile) (pRegion%mixt%piclgradRhog(:,1,j),j=1,pGrid%nCellsTot)
-      !WRITE(iFile) (pRegion%mixt%piclgradVFg(:,1,j),j=1,pGrid%nCellsTot)
-      !WRITE(iFile) (pRegion%mixt%piclgradVFRhog(:,1,j),j=1,pGrid%nCellsTot)
-      !WRITE(iFile) (pRegion%mixt%piclVFg(1,j),j=1,pGrid%nCellsTot)
       ! 03/20/2025 - Thierry - ends here
 
   END IF
@@ -2707,7 +2704,7 @@ MODULE RFLU_ModReadWriteFlow
     CLOSE(iFile,IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_FILE_CLOSE,2751,iFileName)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,2748,iFileName)
     END IF ! global%error
 
 ! ******************************************************************************
@@ -2763,10 +2760,9 @@ MODULE RFLU_ModReadWriteFlow
 ! y, y1, ydot, ydotc: 18
 
 
-! rprop: 42
+! rprop: 58
 
 ! map: 10
-
 
 
 
@@ -3020,16 +3016,6 @@ MODULE RFLU_ModReadWriteFlow
          varX=pRegion%mixt%piclgradRhog(1,1,1:Ne), &
          varY=pRegion%mixt%piclgradRhog(2,1,1:Ne), &
          varZ=pRegion%mixt%piclgradRhog(3,1,1:Ne))
-    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas VF', &
-    !     varX=pRegion%mixt%piclgradVFg(1,1,1:Ne), &
-    !     varY=pRegion%mixt%piclgradVFg(2,1,1:Ne), &
-    !     varZ=pRegion%mixt%piclgradVFg(3,1,1:Ne))
-    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gradient Gas Density VF', &
-    !     varX=pRegion%mixt%piclgradVFRhog(1,1,1:Ne), &
-    !     varY=pRegion%mixt%piclgradVFRhog(2,1,1:Ne), &
-    !     varZ=pRegion%mixt%piclgradVFRhog(3,1,1:Ne))
-    !E_IO = VTK_VAR_XML(NC_NN = Ne, varname = 'Gas Volume Fraction', &
-    !     var=pRegion%mixt%piclVFg(1,1:Ne))
       ! 03/20/2025 - Thierry - ends here
   END IF
 
@@ -3132,11 +3118,6 @@ MODULE RFLU_ModReadWriteFlow
       ! 03/20/2025 - Thierry - begins here
       E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density',& 
                                                                tp='Float64' )
-      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas VF',& 
-      !                                                         tp='Float64' )
-      !E_IO = PVTK_VAR_XML(Nc = 3, varname = 'Gradient Gas Density VF',& 
-      !                                                         tp='Float64' )
-      !E_IO = PVTK_VAR_XML(varname = 'Gas Volume Fraction', tp='Float64')
       ! 03/20/2025 - Thierry - ends here
   END IF
 
@@ -3554,7 +3535,7 @@ END IF
          IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_FILE_OPEN,3953,iFileName)
+      CALL ErrorStop(global,ERR_FILE_OPEN,3935,iFileName)
     END IF ! global%error
 
     END IF
@@ -3641,7 +3622,7 @@ END IF
       CLOSE(iFile,IOSTAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_FILE_CLOSE,4074,iFileName)
+        CALL ErrorStop(global,ERR_FILE_CLOSE,4056,iFileName)
       END IF ! global%error
     END IF ! masterproc
 
@@ -3743,7 +3724,7 @@ END IF
          CALL RFLU_PICL_WriteFlowBinary(pRegion)
         END IF
       ELSE
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4196)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4178)
       END IF ! global%solutFormat
 
 ! ******************************************************************************
@@ -3774,7 +3755,7 @@ END IF
           CALL SPEC_RFLU_WriteEEvBinary(pRegion)
         END IF ! pRegion%specInput%nSpeciesEE
       ELSE
-        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4256)
+        CALL ErrorStop(global,ERR_REACHED_DEFAULT,4238)
       END IF ! global%solutFormat
     END IF ! global%specUsed
 

@@ -28,7 +28,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -36,7 +36,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag, write_forces
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iStage
       real*8 famx, famy, famz, rmass_add
       real*8 famx_old, famy_old, famz_old
@@ -212,6 +212,13 @@
      >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
      >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vgradrhog)
 
+      ! Multiply by neighbors here for storing
+      FamUnary(1) = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
+      FamUnary(2) = famy*ppiclf_rprop(PPICLF_R_JVOLP,i)
+      FamUnary(3) = famz*ppiclf_rprop(PPICLF_R_JVOLP,i)
+
+      ! Do not multiply by volume for Fam, as this is done
+      ! in user file (if nneighbors=0) or Binary subroutine (if nneighbors>0)
       Fam(1) = famx
       Fam(2) = famy
       Fam(3) = famz

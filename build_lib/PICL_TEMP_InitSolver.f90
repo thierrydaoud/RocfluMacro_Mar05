@@ -110,10 +110,9 @@ SUBROUTINE PICL_TEMP_InitSolver( pRegion)
 ! y, y1, ydot, ydotc: 18
 
 
-! rprop: 42
+! rprop: 58
 
 ! map: 10
-
 
 
 
@@ -162,7 +161,7 @@ INTEGER :: errorFlag,icg
                    zpf_factor,xpf_factor,dp,neighborWidth,dp_max_l,xp_min,xp_max, &
                    xp_min_l,xp_max_l
    REAL(KIND=8) :: y(18, 20000), &
-                   rprop(42, 20000)
+                   rprop(58, 20000)
    REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: xGrid, yGrid, zGrid,vfP
    REAL(RFREAL),ALLOCATABLE,DIMENSION(:) :: xData,yData,zData,rData,dumData     
    REAL(KIND=8), DIMENSION(:), ALLOCATABLE :: volp,SPL 
@@ -178,7 +177,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces, flow_model
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: rmu_ref, tref, suth, ksp, erest
    common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag, &
         collisional_flag, heattransfer_flag, feedback_flag, &
@@ -186,7 +185,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, ksp, erest, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag, write_forces, flow_model
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: ppiclf_rcp_part
    CHARACTER(12) :: ppiclf_matname
    common /RFLU_ppiclf_misc01/ ppiclf_rcp_part
@@ -239,7 +238,6 @@ qs_fluct_flag = global%piclQsFluctFlag
 ppiclf_debug = global%piclDebug
 sbNearest_flag = global%piclSBNearFlag
 burnrate_flag = global%piclBurnRateFlag
-write_forces = global%piclWriteForces
 
 rmu_flag = pRegion%mixtInput%viscModel
 rmu_ref = pRegion%mixtInput%refVisc
@@ -288,7 +286,7 @@ call ppiclf_solve_Initialize( &
 
 ! Sanity check for viscosity
 if (rmu_ref .lt. 0.0d0) then
-    CALL ErrorStop(global,ERR_PICL_INVALID_VISC,259,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_VISC,258,&
         'Negative viscosity for ppiclF')
 end if
 
@@ -345,7 +343,7 @@ IF (global%restartFromScratch) THEN
    OPEN(iFile,FILE=iFileName,FORM="FORMATTED",STATUS="OLD",IOSTAT=errorFlag)
    global%error = errorFlag   
    IF ( global%error /= ERR_NONE ) THEN 
-      CALL ErrorStop(global,ERR_FILE_OPEN,316,iFileName)
+      CALL ErrorStop(global,ERR_FILE_OPEN,315,iFileName)
    END IF
 
    ! check for comments at beginning of file
@@ -363,7 +361,7 @@ IF (global%restartFromScratch) THEN
    READ(iFile,*) npart ! global number of particles
   
    IF (npart .gt. 20000*global%nProcs) THEN
-      CALL ErrorStop(global,ERR_ILLEGAL_VALUE,334,'PPICLF:too &
+      CALL ErrorStop(global,ERR_ILLEGAL_VALUE,333,'PPICLF:too &
         many particles to initialize')
    END IF
   
@@ -401,7 +399,7 @@ IF (global%restartFromScratch) THEN
          y(10,i) = 0.0d0
   
          ! initially zero out all properties
-         do ii=1,42
+         do ii=1,58
            rprop(ii, i) = 0.0d0
          end do
 
@@ -428,7 +426,7 @@ IF (global%restartFromScratch) THEN
 
          IF (.NOT. foundMat) THEN
             print*,global%myProcid,'stopping foundMat = False'
-            CALL ErrorStop(global,ERR_INRT_MISSPLAGMAT,399,matName)
+            CALL ErrorStop(global,ERR_INRT_MISSPLAGMAT,398,matName)
          END IF
 
          IF ( global%myProcid == MASTERPROC) then
@@ -479,7 +477,7 @@ IF (global%restartFromScratch) THEN
    CALL MPI_Barrier(global%mpiComm,errorFlag)
    global%error = errorFlag   
    IF ( global%error /= ERR_NONE ) THEN 
-      CALL ErrorStop(global,ERR_FILE_CLOSE,450,iFileName)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,449,iFileName)
    END IF ! global%error  
 
 ELSE
@@ -504,7 +502,7 @@ ELSE
    ENDIF
 
    IF (ii .lt. 0) THEN
-      CALL ErrorStop(global,ERR_FILE_EXIST,475,vtuFile)
+      CALL ErrorStop(global,ERR_FILE_EXIST,474,vtuFile)
    END IF
 
    ! TLJ - 11/23/2024
@@ -591,19 +589,19 @@ lz = 2
 ALLOCATE(xGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,562,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,561,'PPICLF:xGrid')
 END IF ! global%error
 
 ALLOCATE(yGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,568,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,567,'PPICLF:yGrid')
 END IF ! global%error
 
 ALLOCATE(zGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,574,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,573,'PPICLF:zGrid')
 END IF ! global%error
 
 !Loop cells
@@ -656,7 +654,7 @@ call ppiclf_comm_InitOverlapMesh(nCells,lx,ly,lz,xGrid,yGrid,zGrid)
 !           angular periodicity around z-axis
 IF(((ang_per_flag.eq.1) .and. (x_per_flag.eq.1 .or. y_per_flag.eq.1)) .or. & 
     (ang_per_flag .gt. 1)) THEN
-    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,627,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,626,&
       'Wrong periodicity choices for ppiclF')
 END IF 
 
@@ -715,31 +713,31 @@ flow_model = pRegion%mixtInput%flowModel
 DEALLOCATE(xGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,686,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,685,'PPICLF:xGrid')
 END IF ! global%error
 
 DEALLOCATE(yGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,692,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,691,'PPICLF:yGrid')
 END IF ! global%error
 
 DEALLOCATE(zGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,698,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,697,'PPICLF:zGrid')
 END IF ! global%error
 
 ALLOCATE(vfP(2,2,2,nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,704,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,703,'PPICLF:xGrid')
     END IF ! global%error
 
 ALLOCATE(volp(nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,710,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,709,'PPICLF:xGrid')
     END IF ! global%error
 
 do i=1,pGrid%nCellsTot
@@ -758,7 +756,7 @@ DO i = 1,pRegion%grid%nCells
 
        IF (pRegion%mixtInput%axiFlag) THEN
            WRITE(*,*) "Need to properly implement axi-sym for phip init."
-           CALL ErrorStop(global,ERR_OPTION_TYPE,729,'PPICLF:axi')
+           CALL ErrorStop(global,ERR_OPTION_TYPE,728,'PPICLF:axi')
        END IF
 
        tester = tester + (0.125*vfP(lx,ly,lz,i))*pRegion%grid%vol(i)
@@ -790,7 +788,7 @@ DO icg = 1,pGrid%nCellsTot
     pRegion%mixt%cv(CV_MIXT_ENER,icg) = vFrac*pRegion%mixt%cv(CV_MIXT_ENER,icg)
     if (pRegion%mixt%cv(CV_MIXT_DENS,icg) .le. 0.0) then
          WRITE(*,*) "Error: negative density: ",pRegion%mixt%cv(CV_MIXT_DENS,icg)      
-         CALL ErrorStop(global,ERR_INVALID_VALUE,761,'PPICLF:init')
+         CALL ErrorStop(global,ERR_INVALID_VALUE,760,'PPICLF:init')
     end if    
 
 END DO ! icg
@@ -798,12 +796,12 @@ END DO ! icg
 DEALLOCATE(vfP,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,769,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,768,'PPICLF:zGrid')
     END IF ! global%error
 DEALLOCATE(volp,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,774,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,773,'PPICLF:zGrid')
     END IF ! global%error
 
 !!Josh - Removed Brad Comments and Restart Section
@@ -819,7 +817,6 @@ DEALLOCATE(volp,STAT=errorFlag)
      print*, 'TLJ'
      print*, 'Starting PICL_TEMP_InitSolver.F90'
      print*, ' '
-     print*, 'write_forces         = ',global%piclWriteForces
      print*, 'stationary           = ',global%piclStationaryFlag
      print*, 'qs_flag              = ',global%piclQsFlag
      print*, 'am_flag              = ',global%piclAmFlag

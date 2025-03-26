@@ -71,10 +71,12 @@
 ! For ppiclf_user_AddedMass.f
 !
       integer*4 nneighbors
-      real*8 Fam(3), Wdot_neighbor_mean(3), R_pair(6,6)
+      real*8 Fam(3), FamUnary(3), FamBinary(3),
+     >       Wdot_neighbor_mean(3), R_pair(6,6)
 
       common /user_AddedMass01/ nneighbors
-      common /user_AddedMass02/ Fam, Wdot_neighbor_mean, R_pair
+      common /user_AddedMass02/ Fam, FamUnary, FamBinary,
+     >                          Wdot_neighbor_mean, R_pair
 
 !
 ! For ppiclf_solve_InitAngularPeriodic

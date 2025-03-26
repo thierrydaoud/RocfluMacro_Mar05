@@ -148,7 +148,6 @@ SUBROUTINE PICL_ReadPiclSection( global )
   keys(32)  = 'ROUT'
   keys(33)  = 'SUBBIN'
   keys(34)  = 'REACTIVE'
-  keys(35)  = 'WRITEFORCES'
  
   CALL ReadSection( global,IF_INPUT,nVals,keys(1:nVals),vals(1:nVals), & 
                     defined(1:nVals) ) 
@@ -199,7 +198,7 @@ SUBROUTINE PICL_ReadPiclSection( global )
     global%piclFilterWidth = vals(11)
   ELSE
     IF (global%piclUsed) THEN
-      CAll ErrorStop(global,ERR_PICL_FWIDTH_UNDEF,191,'')
+      CAll ErrorStop(global,ERR_PICL_FWIDTH_UNDEF,190,'')
     END IF
   END IF
 
@@ -293,10 +292,6 @@ SUBROUTINE PICL_ReadPiclSection( global )
 
   IF (defined(34) .EQV. .TRUE. ) THEN
     global%piclBurnRateFlag = vals(34)
-  END IF
-
-  IF (defined(35) .EQV. .TRUE. ) THEN
-    global%piclWriteForces = NINT(vals(35))
   END IF
 
 ! finalize
