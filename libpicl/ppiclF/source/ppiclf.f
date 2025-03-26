@@ -89,6 +89,7 @@
       integer*4 j, l
       real*8 SDrho
 !-----------------------------------------------------------------------
+      real*8 vgradrhog
       integer*4 store_forces
 
       integer*4 i, n, ic, k
@@ -861,6 +862,10 @@
             ! material derivative is phi weighted in Rocflu
             ! drho/dt
             SDrho = SDrho / (rphif)  
+            vgradrhog = vx * ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >                  vy * ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >                  vz * ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
       
             ! Fluid density
             rhof   = ppiclf_rprop(PPICLF_R_JRHOF,i)
@@ -870,20 +875,23 @@
             vz     = ppiclf_rprop(PPICLF_R_JUZ,i) - ppiclf_y(PPICLF_JVZ,i)
             ! Unary added mass solves rho^g d(u^p)/dt implicitly
             ! Binary added mass solves it explicitly and not implicitly
-            ! WDOTX = d(rho^g u^g)/dt - d(rho^g u^p)/dt)
+            ! WDOTX = D(rho^g u^g)/Dt - d(rho^g u^p)/dt)
             ! X-acceleration
             ppiclf_rprop(PPICLF_R_WDOTX,i) = 
      >                  vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >                 +ppiclf_rprop(PPICLF_R_JUX,i)*vgradrhog
      >                 -(rhof*ppiclf_ydot(PPICLF_JVX,i)) 
           
             ! Y-acceleration
             ppiclf_rprop(PPICLF_R_WDOTY,i) = 
      >                  vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >                 +ppiclf_rprop(PPICLF_R_JUY,i)*vgradrhog
      >                 -(rhof*ppiclf_ydot(PPICLF_JVY,i)) 
 
             ! Z-acceleration
             ppiclf_rprop(PPICLF_R_WDOTZ,i) = 
      >                  vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >                 +ppiclf_rprop(PPICLF_R_JUZ,i)*vgradrhog
      >                 -(rhof*ppiclf_ydot(PPICLF_JVZ,i)) 
           
             ! write out for debug
