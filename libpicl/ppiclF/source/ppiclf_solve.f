@@ -2255,7 +2255,7 @@ c     ndum    = ppiclf_neltb*n
 !
 !-----------------------------------------------------------------------
 !
-!     Avery's latest version Sept 26, 2024
+!     Avery's latest version March 27, 2025
 !
       SUBROUTINE ppiclf_solve_LocalInterp
       IMPLICIT NONE
@@ -2264,11 +2264,15 @@ c     ndum    = ppiclf_neltb*n
 
       ! Local Variables
       INTEGER*4 i, j, k, l, ix, iy, iz, ip, ie, iee, nxyz, nnearest, 
-     >          inearest(28)
+     >          inearest(28), PerCells, NumDO, ieN, BB, iBin(3), ii,
+     >          jj, kk 
       REAL*8    d2l, d2i, wsum, eps, A(27,4), d2(28), xp(3),  
-     >          center(3,28), b(27,1), w(27), centeri(3,ppiclf_neltbbb),
-     >          d2i_EleLen(3), MaxPoint(3), MinPoint(3),d2Max_EleLen(3)
-      LOGICAL   added, farAway 
+     >          center(3,28), b(27,1), w(27), shift(3), shifti(3),
+     >          centeri(3,ppiclf_neltbbb), centerPer(4,ppiclf_neltbbb),
+     >          d2i_EleLen(3), MaxPoint(3), MinPoint(3),d2Max_EleLen(3),
+     >          Max_EleLen(3), binlength(3), BoundDist(3), binbound(3),
+     >          CurrentbinBMin(3), CurrentbinBMax(3)
+      LOGICAL   added, farAway
       !***************************************************************
  
       eps = 1.0e-12 !machine epsilon
@@ -2307,44 +2311,140 @@ c     ndum    = ppiclf_neltb*n
         ENDDO !l
       ENDDO !ie
 
-      ! Set multiple of maximum element length to search for neighboring
-      ! fluid cell centers
-      DO l = 1,3
-        d2Max_EleLen(l) = d2Max_EleLen(l)*1.5**2
-      END DO
 
-      ! Shift centeri if linear periodicity is turned on
-      ! and fluid cell is located in opposite side of ppiclf domain
-      IF (x_per_flag .EQ. 1 .OR. y_per_flag .EQ. 1 .OR.
-     >    z_per_flag .EQ. 1) THEN
-        ! Only look at first real particle, as it will be within bin
-        xp(1) = ppiclf_y(PPICLF_JX, 1)
-        xp(2) = ppiclf_y(PPICLF_JY, 1)
-        xp(3) = ppiclf_y(PPICLF_JZ, 1)
-        ! Loop through every cell in domain
-        DO ie = 1,ppiclf_neltbbb
-          d2l  = 0.0
+      ! *** Linear Periodicity Start ***
+      ! Copy cell in centerPer array if linear periodicity is turned on
+      ! and fluid cell is one of two layers of cells near boundary.
+      ! centerPer(1-x;2-y;3-z;4-FluidCellNumber , Number of Periodic Cells)
+
+      ! Set multiple of maximum element length in each direction
+      DO l = 1,3
+        Max_EleLen(l) = SQRT(d2Max_EleLen(l))
+        binlength(l) = ppiclf_binb(2*l) - ppiclf_binb((2*l)-1)
+      END DO
+      
+      ! Find current bin boundaries
+      DO l = 1,3
+        iBin(l) = FLOOR((ppiclf_y(l,1)-ppiclf_binb(2*l-1))/
+     >            ppiclf_bins_dx(l))
+        CurrentbinBMin(l) = ppiclf_bins_dx(l)*iBin(l)+ppiclf_binb(2*l-1)
+        CurrentbinBMax(l) = ppiclf_bins_dx(l)*
+     >                      (iBin(l)+1)+ppiclf_binb(2*l-1)
+      END DO
+ 
+      ! if ix/y/z ==2, then periodicity on in that dimension
+      ix = 1
+      iy = 1
+      iz = 1
+      IF (x_per_flag .EQ. 1) ix = 2
+      IF (y_per_flag .EQ. 1) iy = 2
+      IF (z_per_flag .EQ. 1) iz = 2
+      ! Number of copied fluid cells due to periodicity 
+      PerCells = 0
+      IF(ix.EQ.2 .OR. iy.EQ.2 .OR. iz.EQ.2) THEN
+        ! At least one dimension is periodic
+        ! Loop through twice to look at max and min bin boundaries
+        DO BB = 1,2
           DO l = 1,3
-           !d2l: distance from spot in bin to fluid cell center 
-            d2l = ABS(xp(l) - centeri(l,ie))
-            ! This will have issue if only 2 ppiclf bins in this
-            ! dimension.  Not sure of smarter way to do this?
-            IF (d2l .GT. 2.0*ppiclf_bins_dx(l)) THEN
-              IF (centeri(l,ie) .GT. xp(l)) THEN
-                ! Move cell from end to beginning of ppiclf domain
-                centeri(l,ie) = ppiclf_binb(2*l-1) - (ppiclf_binb(2*l)
-     >            - centeri(l,ie))
-              ELSE
-                ! Move cell from beginning to end of ppiclf domain
-                centeri(l,ie) = ppiclf_binb(2*l) + (centeri(l,ie) -
-     >            ppiclf_binb(2*l+1)) 
-              END IF
-            END IF
+            IF(BB .EQ. 1) THEN
+              ! To compare cell with minimum bin domain boundary
+              shift(l)    =  binlength(l)
+              binbound(l) =  ppiclf_binb((2*l)-1)
+            ELSE
+              ! To compare cell with maximum bin domain boundary
+              shift(l)    = -binlength(l)
+              binbound(l) =  ppiclf_binb(2*l)
+            END IF 
           END DO !l
-        END DO !ie
-      END IF 
-      ! End Linear Periodicity conditional
-            
+          ! Loop through every cell mapped to bin
+          DO ie = 1,ppiclf_neltbbb
+            ! x periodicity loop
+            DO ii = 1,ix
+              IF(ii.EQ.2) THEN
+                BoundDist(1) = ABS(centeri(1,ie)-binbound(1))
+                ! 1.51 since comparing to cell center location
+                IF(BoundDist(1) < 1.51*Max_EleLen(1)) THEN
+                  shifti(1) = shift(1)
+                ELSE
+                  !Making sure we only duplicate periodic cells
+                  CYCLE
+                END IF
+              ELSE
+                shifti(1) = 0.0D0
+              END IF
+              ! y periodicity loop
+              DO jj = 1,iy
+                IF(jj.EQ.2) THEN
+                  BoundDist(2) = ABS(centeri(2,ie)-binbound(2))
+                  IF(BoundDist(2) < 1.51*Max_EleLen(2)) THEN
+                    shifti(2) = shift(2)
+                  ELSE
+                    !Making sure we only duplicate periodic cells
+                    CYCLE
+                  END IF
+                ELSE
+                  shifti(2) = 0.0D0
+                END IF
+                ! z periodicity loop
+                DO kk = 1,iz
+                  IF(kk.EQ.2) THEN
+                    BoundDist(3) = ABS(centeri(3,ie)-binbound(3))
+                    IF(BoundDist(3) < 1.51*Max_EleLen(3)) THEN
+                      shifti(3) = shift(3)
+                    ELSE
+                      !Making sure we only duplicate periodic cells
+                      CYCLE
+                    END IF
+                  ELSE
+                    shifti(3) = 0.0D0
+                  END IF
+                  !Making sure we only duplicate periodic cells
+                  IF(ii.EQ.1 .AND. jj.EQ.1 .AND. kk.EQ.1) CYCLE
+                  ! Increment periodic cell copy counter 
+                  PerCells = PerCells + 1
+                  IF(PerCells .GT. ppiclf_neltbbb) THEN
+                    WRITE(*,*) 'ERROR: Increase centerPer array column',
+     >                         ' size in ppiclf_solve_LocalInterp.f',
+     >                         ' for this problem.  It exceeds',
+     >                         ' ppiclf_neltbbb.'
+                    CALL ppiclf_exittr('',0.0d0,0)
+                  END IF  
+                  ! Save fluid cell number
+                  centerPer(4,PerCells) = ie
+                  DO l = 1,3
+                    ! shifti will be nonzero if dimension is periodic
+                    ! and close to ppiclf domain boundary
+                    centerPer(l,PerCells) = centeri(l,ie) + shifti(l)
+
+                    ! Check if copied cell is outside of the
+                    ! bin fluid mapping bounds in any dimension.
+                    ! If it,then rewrite over this cell index in next loop cycle.
+                    IF(centerPer(l,PerCells) .LT.
+     >              CurrentbinBMin(l) - 1.52*Max_EleLen(l)
+     >              .OR. centerPer(l,PerCells) .GT.
+     >              CurrentbinBMax(l)+1.52*Max_EleLen(l)) THEN
+                      PerCells = PerCells - 1
+                      EXIT
+                    END IF
+                  END DO !l
+                END DO !iz
+              END DO !iy
+            END DO !ix
+          END DO !ie
+        END DO !BB
+      END IF !lin periodicity on
+      ! *** Linear Periodicity End ***
+           
+      ! Set the multiple of maximum element length in each
+      ! dimension that will be used to search for neighboring
+      ! fluid elements for interpolation at particle location.
+      !
+      ! Standard is 1.5*Len, which will give you at least 27 elements
+      ! if particle is not near fluid domain boundary.
+
+      DO l = 1,3 
+        d2Max_EleLen(l) = d2Max_EleLen(l)*(1.5**2)
+      END DO
 
       DO ip=1,ppiclf_npart !Loop all particles in this bin
         ! particle centers in all directions
@@ -2356,41 +2456,60 @@ c     ndum    = ppiclf_neltb*n
           inearest(ie) = -1 ! index of nearest elements
           d2(ie) = 1E20 ! distance to center of nearest element
         ENDDO !ie
-        DO ie = 1,ppiclf_neltbbb
-          ! get distance from particle to center
-          d2l     = 0.0
-          d2i     = 0.0
-          farAway = .FALSE.
-          DO l=1,3
-            d2l  =(centeri(l,ie) - xp(l))**2 
-            d2i = d2i + d2l
-            IF (d2l > d2Max_EleLen(l)) farAway = .TRUE.
-          ENDDO !l
-          ! skip to next fluid cell if greater than 1.5*max cell
-          ! distance in respective x,y,z direction.
-          IF (farAWAY) CYCLE !ie
-          ! Sort closest fluid cell centers
-          added = .FALSE.
-          DO i=1,27
-            j = 27 - i + 1
-            IF (d2i .LT. d2(j)) THEN
-              d2(j+1) = d2(j)
-              inearest(j+1) = inearest(j)
-              DO l=1,3
-                center(l, j+1) = center(l, j)
-              ENDDO
-              d2(j) = d2i
-              inearest(j) = ie
-              DO l=1,3
-                center(l, j) = centeri(l,ie)
-              ENDDO
-              added = .TRUE.
-            ELSE ! If not within closest cell list
-              EXIT !i
-            ENDIF
-          ENDDO !i
-          IF (added) nnearest = nnearest + 1
-        ENDDO ! ie
+        NumDO = 1
+        ieN = ppiclf_neltbbb
+        IF (x_per_flag.EQ.1 .OR. y_per_flag.EQ.1 .OR. z_per_flag.EQ.1)
+     >                 NumDO = 2
+        DO ii = 1,NumDO
+          IF(ii .EQ. 2) ieN = PerCells  
+          DO ie = 1,ieN
+            ! get distance from particle to center
+            d2l     = 0.0
+            d2i     = 0.0
+            farAway = .FALSE.
+            DO l=1,3
+              IF(ii .EQ. 1) THEN
+                d2l = (centeri(l,ie) - xp(l))**2 
+              ELSE
+                d2l = (centerPer(l,ie) - xp(l))**2
+              END IF
+              d2i = d2i + d2l
+              IF (d2l > d2Max_EleLen(l)) farAway = .TRUE.
+            END DO !l
+            ! skip to next fluid cell if greater than 1.5*max cell
+            ! distance in respective x,y,z direction.
+            IF (farAWAY) CYCLE !ie
+            ! Sort closest fluid cell centers
+            added = .FALSE.
+            DO i=1,27
+              j = 27 - i + 1
+              IF (d2i .LT. d2(j)) THEN
+                d2(j+1) = d2(j)
+                inearest(j+1) = inearest(j)
+                DO l=1,3
+                  center(l, j+1) = center(l, j)
+                ENDDO
+                d2(j) = d2i
+                IF(ii .EQ. 1) THEN
+                  inearest(j) = ie
+                ELSE
+                  inearest(j) = centerPer(4,ie)
+                END IF
+                DO l=1,3
+                  IF(ii .EQ. 1) THEN
+                    center(l, j) = centeri(l,ie)
+                  ELSE
+                    center(l, j) = centerPer(l,ie)
+                  END IF
+                END DO
+                added = .TRUE.
+              ELSE ! If not within closest cell list
+                EXIT !i
+              END IF
+            END DO !i
+            IF (added) nnearest = nnearest + 1
+          END DO ! ie
+        END DO !ii
         nnearest = min(nnearest, 27)
         IF (nnearest .lt. 1) THEN
           PRINT *, 'nnearest', nnearest, ip, ppiclf_npart, xp
