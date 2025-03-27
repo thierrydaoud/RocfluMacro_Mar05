@@ -686,8 +686,7 @@ c     current box coordinates
            IF (kk .EQ. -1) kk = ppiclf_n_bins(3) - 1
          END IF
         
-         ! These IFs shouldn't be necessary. David had them in his
-         ! original code.
+         ! If periodicity isn't on, move to closest bin.
          IF (ii .EQ. ppiclf_n_bins(1)) ii = ppiclf_n_bins(1) - 1
          IF (jj .EQ. ppiclf_n_bins(2)) jj = ppiclf_n_bins(2) - 1
          IF (kk .EQ. ppiclf_n_bins(3)) kk = ppiclf_n_bins(3) - 1
