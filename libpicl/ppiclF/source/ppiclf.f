@@ -749,6 +749,9 @@
            ppiclf_rprop(PPICLF_R_FVUY,i) = fvuy
            ppiclf_rprop(PPICLF_R_FVUZ,i) = fvuz
            ppiclf_rprop(PPICLF_R_QQ,i) = qq
+           ppiclf_rprop(PPICLF_R_FPGX,i) = fdpdx
+           ppiclf_rprop(PPICLF_R_FPGY,i) = fdpdy
+           ppiclf_rprop(PPICLF_R_FPGZ,i) = fdpdz
 
  ! Step 14: If debug mode is ON, calculate and print the max values.
  !         The user should not have this ON for productive runs. 

@@ -1,7 +1,7 @@
 #define PPICLF_LPART 20000
 #define PPICLF_LWALL 1000
 #define PPICLF_LRS 18
-#define PPICLF_LRP 58
+#define PPICLF_LRP 61
 #define PPICLF_LEE 100000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
@@ -67,6 +67,7 @@
 #define PPICLF_R_JDPVDX 40
 #define PPICLF_R_JDPVDY 41
 #define PPICLF_R_JDPVDZ 42
+        ! force dumping 
 #define PPICLF_R_FQSX 43
 #define PPICLF_R_FQSY 44
 #define PPICLF_R_FQSZ 45
@@ -83,6 +84,9 @@
 #define PPICLF_R_FVUY 56
 #define PPICLF_R_FVUZ 57
 #define PPICLF_R_QQ 58
+#define PPICLF_R_FPGX 59
+#define PPICLF_R_FPGY 60
+#define PPICLF_R_FPGZ 61
 
 ! map: PPICLF_LRP_PRO
 #define PPICLF_P_JPHIP 1
