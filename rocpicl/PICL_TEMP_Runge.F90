@@ -81,6 +81,16 @@ SUBROUTINE PICL_TEMP_Runge( pRegion)
   USE ModParameters
   USE ModGrid, ONLY: t_grid
   USE ModMixture, ONLY: t_mixt
+
+  USE RFLU_ModDifferentiationCells
+  USE RFLU_ModLimiters, ONLY: RFLU_CreateLimiter, &
+                              RFLU_ComputeLimiterBarthJesp, &
+                              RFLU_ComputeLimiterVenkat, &
+                              RFLU_LimitGradCells, &
+                              RFLU_LimitGradCellsSimple, &
+                              RFLU_DestroyLimiter
+  USE RFLU_ModWENO, ONLY: RFLU_WENOGradCellsWrapper, &
+                          RFLU_WENOGradCellsXYZWrapper
 #ifdef PICL
 USE RFLU_ModConvertCv, ONLY: RFLU_ConvertCvCons2Prim, &
                              RFLU_ConvertCvPrim2Cons
@@ -162,9 +172,24 @@ TYPE(t_grid), POINTER :: pGrid
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvxF
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvyF
   REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: dpvzF
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: SDOX
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: SDOY
+  REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: SDOZ
 
+  ! TLJ - added for Feedback term - 04/01/2025
+  INTEGER, DIMENSION(:), ALLOCATABLE :: varInfoPicl
+  INTEGER, DIMENSION(:), POINTER :: piclcvInfo
+  REAL(KIND=8) :: dodx, dody, dodz,     &
+                  omgx, omgy, omgz,     &
+                  divu,                 &
+                  dprdx, dprdy, dprdz,  &
+                  dpdx, dpdy, dpdz,     &
+                  phirho, ir, ir2 ,     &
+                  dfxdx, dfxdy, dfxdz,  &
+                  dfydx, dfydy, dfydz,  &
+                  dfzdx, dfzdy, dfzdz   
 
-  REAL(KIND=8) :: ppiclf
+  !REAL(KIND=8) :: ppiclf
 
 #endif
 
@@ -429,38 +454,108 @@ TYPE(t_grid), POINTER :: pGrid
       CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
+    ALLOCATE(SDOX(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(SDOY(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    ALLOCATE(SDOZ(2,2,2,nCells),STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+
+
 !Might need to update prim like plag does
 pGc => pRegion%mixt%gradCell
+
+    ! 04/01/2025 - TLJ - we need feedback terms and their gradients to
+    !       calculate the undisturbed torque component
+    ! Internal definitions; some redundancy but just ignore
+    ! We do not need energy, but might in the future
+    DO i = 1,pRegion%grid%nCells
+       JFXCell(i) = 0.0_RFREAL
+       JFYCell(i) = 0.0_RFREAL
+       JFZCell(i) = 0.0_RFREAL
+       do lz=1,2
+       do ly=1,2
+       do lx=1,2 
+          call ppiclf_solve_GetProFldIJKEF(lx,ly,lz,i,PPICLF_P_JFX,JFX(lx,ly,lz,i))  
+          call ppiclf_solve_GetProFldIJKEF(lx,ly,lz,i,PPICLF_P_JFY,JFY(lx,ly,lz,i))
+          call ppiclf_solve_GetProFldIJKEF(lx,ly,lz,i,PPICLF_P_JFZ,JFZ(lx,ly,lz,i))
+          JFXCell(i) = JFXCell(i) + JFX(lx,ly,lz,i)
+          JFYCell(i) = JFYCell(i) + JFY(lx,ly,lz,i) 
+          JFZCell(i) = JFZCell(i) + JFZ(lx,ly,lz,i) 
+       end do
+       end do
+       end do 
+       !! Do not multiply by cell volume like what is done for
+       !! the right hand side of the Euler/NS equations
+       JFXCell(i) = JFXCell(i) * 0.125 * pregion%grid%vol(i)
+       JFYCell(i) = JFYCell(i) * 0.125 * pregion%grid%vol(i)
+       JFZCell(i) = JFZCell(i) * 0.125 * pregion%grid%vol(i)
+       pregion%mixt%piclFeedback(1,i) = JFXCell(i)
+       pregion%mixt%piclFeedback(2,i) = JFYCell(i)
+       pregion%mixt%piclFeedback(3,i) = JFZCell(i)
+    ENDDO
+    ! Now calculate the gradient of the feedback force
+    ALLOCATE(varInfoPicl(3),STAT=errorFlag)
+    ALLOCATE(piclcvInfo(3),STAT=errorFlag)
+    varInfoPicl(1) = 1
+    varInfoPicl(2) = 2
+    varInfoPicl(3) = 3
+    piclcvInfo = varInfoPicl
+    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,3,1,3,varInfoPicl, &
+                                      pRegion%mixt%piclFeedback,&
+                                      pRegion%mixt%piclgradFeedback)
+    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,3, &
+                                      pRegion%mixt%piclgradFeedback)
+    CALL RFLU_LimitGradCellsSimple(pRegion,1,3,1,3, &
+                                   pRegion%mixt%piclFeedback,&
+                                   piclcvInfo,&
+                                   pRegion%mixt%piclgradFeedback)
+    DEALLOCATE(varInfoPicl,STAT=errorFlag)
+    DEALLOCATE(piclcvInfo,STAT=errorFlag)
+    ! END - TLJ calculating gradient of feedback force
+
 !Fill arrays for interp field
     DO i = 1,pRegion%grid%nCells
 !Zero out phip
-        PhiP(i) = 0.0_RFREAL
-        ug(XCOORD) = pRegion%mixt%cv(CV_MIXT_XMOM,i)&
+       PhiP(i) = 0.0_RFREAL
+
+       ug(XCOORD) = pRegion%mixt%cv(CV_MIXT_XMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        ug(YCOORD) = pRegion%mixt%cv(CV_MIXT_YMOM,i)&
+       ug(YCOORD) = pRegion%mixt%cv(CV_MIXT_YMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        ug(ZCOORD) = pRegion%mixt%cv(CV_MIXT_ZMOM,i)&
+       ug(ZCOORD) = pRegion%mixt%cv(CV_MIXT_ZMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        ! 03/11/2025 - Thierry - du/dt, dv/dt, dw/dt (not weighted by phi^g or rho^g)
+       ! 03/11/2025 - Thierry - Du/Dt, Dv/Dt, Dw/Dt (not weighted by phi^g or rho^g)
 
-        temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)& 
-                          +ug(XCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
-                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
-                           +DOT_PRODUCT(ug,pGc(:,2,i))
+       temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)& 
+                         +ug(XCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                         /pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                         +DOT_PRODUCT(ug,pGc(:,2,i))
 
-        temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)& 
-                          +ug(YCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
-                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
-                           +DOT_PRODUCT(ug,pGc(:,3,i))
+       temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)& 
+                         +ug(YCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                         /pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                         +DOT_PRODUCT(ug,pGc(:,3,i))
                          
-        temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)& 
-                          +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
-                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
-                           +DOT_PRODUCT(ug,pGc(:,4,i))
-
+       temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)& 
+                         +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+                         /pRegion%mixt%cv(CV_MIXT_DENS,i)&
+                         +DOT_PRODUCT(ug,pGc(:,4,i))
 
        do lz=1,2
        do ly=1,2
@@ -483,41 +578,95 @@ pGc => pRegion%mixt%gradCell
        ! Davin - added pressure to interpolation values 02/22/2025
        ppF(lx,ly,lz,i) = pRegion%mixt%dv(DV_MIXT_PRES,i) 
 
-       dpxF(lx,ly,lz,i) = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_PRES,i)
-       dpyF(lx,ly,lz,i) = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_PRES,i) 
-       dpzF(lx,ly,lz,i) = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_PRES,i) 
+       dpxF(lx,ly,lz,i) = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_PRES,i) ! dp/dx
+       dpyF(lx,ly,lz,i) = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_PRES,i) ! dp/dy
+       dpzF(lx,ly,lz,i) = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_PRES,i) ! dp/dz
 
        dudx = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_XVEL,i)
-       dudy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_XVEL,i) 
-       dudz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_XVEL,i) 
+       dudy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_XVEL,i)
+       dudz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_XVEL,i)
 
        dvdx = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_YVEL,i)
-       dvdy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_YVEL,i) 
-       dvdz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_YVEL,i) 
+       dvdy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_YVEL,i)
+       dvdz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_YVEL,i)
 
        dwdx = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_ZVEL,i)
-       dwdy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_ZVEL,i) 
-       dwdz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_ZVEL,i) 
+       dwdy = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_ZVEL,i)
+       dwdz = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_ZVEL,i)
 
        domgdx(lx,ly,lz,i) = dwdy - dvdz
        domgdy(lx,ly,lz,i) = dudz - dwdx
        domgdz(lx,ly,lz,i) = dvdx - dudy
 
- 
-       SDRX(lx,ly,lz,i) = temp_dudtMixt 
-       SDRY(lx,ly,lz,i) = temp_dvdtMixt 
-       SDRZ(lx,ly,lz,i) = temp_dwdtMixt 
+       ! 04/01/2025 - TLJ - Calculate the substantial derivative of vorticity
+       ! Internal definitions; some redundancy but just ignore
+       dodx   = 0.0_RFREAL ! D(Omega_x)/DT
+       dody   = 0.0_RFREAL ! D(Omega_y)/DT
+       dodz   = 0.0_RFREAL ! D(Omega_z)/DT
+       omgx   = dwdy - dvdz ! Omega_x
+       omgy   = dudz - dwdx ! Omega_y
+       omgz   = dvdx - dudy ! Omega_z
+       divu   = dudx + dvdy + dwdz ! u_x+v_y+w_z; divergence of velocity
+       dprdx  = pGc(XCOORD,1,i) ! d(rho phi)/dx
+       dprdy  = pGc(YCOORD,1,i) ! d(rho phi)/dy
+       dprdz  = pGc(ZCOORD,1,i) ! d(rho phi)/dz
+       dpdx   = pRegion%mixt%gradCell(XCOORD,GRC_MIXT_PRES,i) ! dp/dx
+       dpdy   = pRegion%mixt%gradCell(YCOORD,GRC_MIXT_PRES,i) ! dp/dy
+       dpdz   = pRegion%mixt%gradCell(ZCOORD,GRC_MIXT_PRES,i) ! dp/dz
+       dfxdx  = pRegion%mixt%piclgradFeedback(XCOORD,1,i) ! dFx/dx
+       dfxdy  = pRegion%mixt%piclgradFeedback(YCOORD,1,i) ! dFx/dy
+       dfxdz  = pRegion%mixt%piclgradFeedback(ZCOORD,1,i) ! dFx/dz
+       dfydx  = pRegion%mixt%piclgradFeedback(XCOORD,2,i) ! dFy/dx
+       dfydy  = pRegion%mixt%piclgradFeedback(YCOORD,2,i) ! dFy/dy
+       dfydz  = pRegion%mixt%piclgradFeedback(ZCOORD,2,i) ! dFy/dz
+       dfzdx  = pRegion%mixt%piclgradFeedback(XCOORD,3,i) ! dFz/dx
+       dfzdy  = pRegion%mixt%piclgradFeedback(YCOORD,3,i) ! dFz/dy
+       dfzdz  = pRegion%mixt%piclgradFeedback(ZCOORD,3,i) ! dFz/dz
+       phirho = pRegion%mixt%cv(CV_MIXT_DENS,i) ! phi_g*rho_g
+       ir     = 1.0_RFREAL / phirho
+       ir2    = ir*ir
+       ! 1. Vortex stretching
+       dodx = omgx*dudx + omgy*dudy + omgz*dudz
+       dody = omgx*dvdx + omgy*dvdy + omgz*dvdz
+       dodz = omgx*dwdx + omgy*dwdy + omgz*dwdz
+       ! 2. Vortex dilatation
+       dodx = dodx - omgx*divu
+       dody = dody - omgy*divu
+       dodz = dodz - omgz*divu
+       ! 3. Baroclinic
+       dodx = dodx + (dprdy*dpdz - dprdz*dpdy)*ir2
+       dody = dody + (dprdz*dpdx - dprdx*dpdz)*ir2
+       dodz = dodz + (dprdx*dpdy - dprdy*dpdx)*ir2
+       ! 4. Torque due to feedback force
+       dodx = dodx + (dfzdy - dfydz)*ir
+       dody = dody + (dfxdz - dfzdx)*ir
+       dodz = dodz + (dfydx - dfxdy)*ir
+       ! 5. Misalignment of phi*rho and feedback force
+       dodx = dodx + (dprdy*JFZCell(i) - dprdz*JFYCell(i))*ir2
+       dody = dody + (dprdz*JFXCell(i) - dprdx*JFZCell(i))*ir2
+       dodz = dodz + (dprdx*JFYCell(i) - dprdy*JFXCell(i))*ir2
+       ! 6. Add terms and store
+       SDOX(lx,ly,lz,i) = dodx
+       SDOY(lx,ly,lz,i) = dody
+       SDOZ(lx,ly,lz,i) = dodz
+       ! End - TLJ - Calculate the substantial derivative of vorticity
 
-       rhsR(lx,ly,lz,i) = -pRegion%mixt%rhs(CV_MIXT_DENS,i)
+       ! Substantial derivative of gas-phase velocity
+       SDRX(lx,ly,lz,i) = temp_dudtMixt ! Du/Dt
+       SDRY(lx,ly,lz,i) = temp_dvdtMixt ! Dv/Dt
+       SDRZ(lx,ly,lz,i) = temp_dwdtMixt ! Dw/Dt
+
+       rhsR(lx,ly,lz,i) = -pRegion%mixt%rhs(CV_MIXT_DENS,i) ! \p(rho*phi)/\p(t)
 
        pGcX(lx,ly,lz,i) = pGc(XCOORD,1,i) ! d(rho phi)/dx
        pGcY(lx,ly,lz,i) = pGc(YCOORD,1,i) ! d(rho phi)/dy
        pGcz(lx,ly,lz,i) = pGc(ZCOORD,1,i) ! d(rho phi)/dz
 
        ! Gradient of rho^g of mixture (not weighted by phi^g!)
-       drhodx(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(1,1,i)
-       drhody(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(2,1,i)
-       drhodz(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(3,1,i)
+       ! Using grad(rhog) directly
+       drhodx(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(1,1,i) ! d(rho)/dx
+       drhody(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(2,1,i) ! d(rho)/dy
+       drhodz(lx,ly,lz,i) = pRegion%mixt%piclgradRhog(3,1,i) ! d(rho)/dz
 
        ! Viscous term of pressure gradient (divergence of tau)
        dpvxF(lx,ly,lz,i) = pRegion%mixt%diss(CV_MIXT_XMOM,i)/pRegion%grid%vol(i)
@@ -535,7 +684,7 @@ pGc => pRegion%mixt%gradCell
        do lz=1,2
        do ly=1,2
        do lx=1,2 
-             vfp(lx,ly,lz,i) = PhiP(i)      
+          vfp(lx,ly,lz,i) = PhiP(i)      
        end do
        end do
        end do   
@@ -548,9 +697,8 @@ pGc => pRegion%mixt%gradCell
 ! TLJ PPICLF_LRP_INT in PPICLF_USER.h must match the number
 !     of calls to ppiclf_solve_InterpFieldUser
 ! Davin - added pressure 02/22/2025
-! 03/23/2025 - Thierry - added gradient of gas density.
-      IF (PPICLF_LRP_INT .NE. 27) THEN
-         write(*,*) "Error: PPICLF_LRP_INT must be set to 27"
+      IF (PPICLF_LRP_INT .NE. 30) THEN
+         write(*,*) "Error: PPICLF_LRP_INT must be set to 30"
          CALL ErrorStop(global,ERR_INVALID_VALUE ,__LINE__,'PPICLF:LRP_INT')
       endif
 
@@ -579,22 +727,26 @@ pGc => pRegion%mixt%gradCell
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGY,drhody)
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JRHOGZ,drhodz)
       CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDX,dpvxF)
-      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDY,dpvyF)  
-      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDZ,dpvzF)  
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDY,dpvyF)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JDPVDZ,dpvzF)
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JSDOX,SDOX)  
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JSDOY,SDOY)  
+      CALL ppiclf_solve_InterpFieldUser(PPICLF_R_JSDOZ,SDOZ)  
 
 
 !FEED BACK TERM
 !Fill arrays for interp field
 IF (global%piclFeedbackFlag == 1) THEN
     DO i = 1,pRegion%grid%nCells
-        ug(XCOORD) = pRegion%mixt%cv(CV_MIXT_XMOM,i)&
+       ug(XCOORD) = pRegion%mixt%cv(CV_MIXT_XMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        ug(YCOORD) = pRegion%mixt%cv(CV_MIXT_YMOM,i)&
+       ug(YCOORD) = pRegion%mixt%cv(CV_MIXT_YMOM,i)&
                         /pRegion%mixt%cv(CV_MIXT_DENS,i)
 
-        ug(ZCOORD) = pRegion%mixt%cv(CV_MIXT_ZMOM,i)&
+       ug(ZCOORD) = pRegion%mixt%cv(CV_MIXT_ZMOM,i)&
                           /pRegion%mixt%cv(CV_MIXT_DENS,i)
+
        JFXCell(i) = 0.0_RFREAL
        JFYCell(i) = 0.0_RFREAL
        JFZCell(i) = 0.0_RFREAL
@@ -611,20 +763,20 @@ IF (global%piclFeedbackFlag == 1) THEN
        JFYCell(i) = JFYCell(i) + JFY(lx,ly,lz,i) 
        JFZCell(i) = JFZCell(i) + JFZ(lx,ly,lz,i) 
        JFECell(i) = JFECell(i) + JFE(lx,ly,lz,i)  
-        !Jenergy = +...
+       !Jenergy = +...
        end do
        end do
        end do 
-        JFXCell(i) = JFXCell(i) *0.125 * pregion%grid%vol(i)
-        JFYCell(i) = JFYCell(i) *0.125 * pregion%grid%vol(i)
-        JFZCell(i) = JFZCell(i) *0.125 * pregion%grid%vol(i)
-        !JE correction
+       JFXCell(i) = JFXCell(i) * 0.125 * pregion%grid%vol(i)
+       JFYCell(i) = JFYCell(i) * 0.125 * pregion%grid%vol(i)
+       JFZCell(i) = JFZCell(i) * 0.125 * pregion%grid%vol(i)
+       !JE correction
 
-        JFECell(i) = JFECell(i) * 0.125 * pregion%grid%vol(i)
+       JFECell(i) = JFECell(i) * 0.125 * pregion%grid%vol(i)
 
-        !energydotg = JFXCell(i) * ug(1) + JFYCell(i) * ug(2) + JFECell(i)
+       !energydotg = JFXCell(i) * ug(1) + JFYCell(i) * ug(2) + JFECell(i)
 
-        energydotg = JFECell(i) ! includs KE feedback already
+       energydotg = JFECell(i) ! includs KE feedback already
 
 IF (IsNan(JFXCell(i)) .EQV. .TRUE.) THEN
         write(*,*) "BROKEN-PX",i,JFXCell(i),ug(1),ug(2),ug(3)
@@ -815,55 +967,55 @@ end DO
     DEALLOCATE(JFX,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFXCell,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFY,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFYCell,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFZ,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFZCell,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFE,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(JFECell,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error    
 
     DEALLOCATE(PhiP,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
 
     DEALLOCATE(domgdx,STAT=errorFlag)
@@ -919,6 +1071,26 @@ end DO
     IF ( global%error /= ERR_NONE ) THEN
       CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
     END IF ! global%error
+
+    DEALLOCATE(SDOX,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(SDOY,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+    DEALLOCATE(SDOZ,STAT=errorFlag)
+    global%error = errorFlag
+    IF ( global%error /= ERR_NONE ) THEN
+      CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'PPICLF:xGrid')
+    END IF ! global%error
+
+
 
 #endif
 !PPICLF Integration END

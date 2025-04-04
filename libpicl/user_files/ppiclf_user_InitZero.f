@@ -36,6 +36,8 @@
 !
       ppiclf_TimeBH = 0.0d0
 
+      ppiclf_drudtMixt = 0.0d0
+      ppiclf_drudtPlag = 0.0d0
 
 
       return

@@ -466,6 +466,10 @@ SUBROUTINE RFLU_DeallocateMemorySolCv(pRegion)
     IF (global%error /= ERR_NONE) THEN
       CALL ErrorStop(global,ERR_DEALLOCATE,__LINE__,'pRegion%mixt%piclfVF')
     END IF ! global%error
+    ! 04/01/2025 - TLJ - begins here 
+    DEALLOCATE(pRegion%mixt%piclFeedback,STAT=errorFlag)
+    DEALLOCATE(pRegion%mixt%piclgradFeedback,STAT=errorFlag)
+    ! 04/01/2025 - TLJ - ends here 
   END IF
 #endif
 

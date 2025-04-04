@@ -100,10 +100,12 @@ SUBROUTINE RFLU_SetDependentVars(pRegion,icgBeg,icgEnd)
 
 !DEC$ NOFREEFORM
 
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 
+! y, y1, ydot, ydotc: 12
 
-! rprop: 58
+! rprop: 61
 
 ! map: 10
 

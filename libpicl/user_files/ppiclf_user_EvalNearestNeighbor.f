@@ -6,9 +6,9 @@
 !     particle-wall interactions. Subroutine also includes
 !     the new added-mass binary terms, developed by Sam Briney.
 !
-! if collisional_flag = 1  F = Fn
-!                     = 2  F = Fn + Ft + Tt
-!                     = 3  F = Fn + Ft + Tt + Th + Tr
+! Added: if collisional_flag = 1  F = Fn
+!                            = 2  F = Fn + Ft + Tt
+!                            = 3  F = Fn + Ft + Tt + Th + Tr
 ! where Tt = collisional torque
 !       Th = hydrodynamic torque
 !       Tr = rolling torque
@@ -84,21 +84,27 @@
       real*8 thetar, dp1, dp2, r12
       real*8 omgrx, omgry, omgrz, omgr_mag
       real*8 Ftx, Fty, Ftz
+      
+      ! 04/03/2025 - TLJ added for spring stiffness coefficient
+      real*8 nu1, nu2
+      real*8 E1, E2, Estar
+      real*8 r1, r2, Rstar 
+      real*8 ksp1, ksp2, ksp_min
 
 !
 ! Code:
 !
-      pi   = acos(-1.0d0)
-      pi2  = pi*pi
+      pi2  = rpi*rpi
 
       ! other particles
       if (j .ne. 0) then
          !Added spload and radius factor
 
-         ! Compute mean particle diameter between i and j
+         ! Compute mean particle diameter between i and j; delta_{ij}
          rthresh  = 0.5d0*(rpropi(PPICLF_R_JDP) + rpropj(PPICLF_R_JDP))
 
-         ! Compute distance between centers of particles i and j
+         ! Compute vector components and distance between 
+         !    centers of particles i and j; D_{ij}
          rxdiff = yj(PPICLF_JX) - yi(PPICLF_JX)
          rydiff = yj(PPICLF_JY) - yi(PPICLF_JY)
          rzdiff = yj(PPICLF_JZ) - yi(PPICLF_JZ)
@@ -170,19 +176,39 @@
 !
          ! For particle-particle collision
 
-         ! Cycle if rdiff > rthresh + repi
-         ! For eps, see Capecelatro etal, JCP, 2013
-         eps = 0.075*min(rpropi(PPICLF_R_JDP),rpropj(PPICLF_R_JDP))
-         !eps = 0.0d0
-
+         ! Cycle if rdiff > rthresh
+         eps = 0.0d0
          if (rdiff .lt. rthresh+eps) then
+
+            ! Compute spring stiffness constant dynamically.
+            ! The number of collision timesteps (ksp) is set by the user
+            ! k1 = k_{n,limit}
+            ksp1 = rmass*rpi*rpi/((ksp*ppiclf_dt)**2)
+            ! k2 = k_{hertzian}
+            E1  = 1.0d9  ! Assumed value for Young's modulus
+            E2  = 1.0d9  ! Assumed value for Young's modulus
+            nu1 = 0.35d0 ! Assumed value for Poisson's ratio
+            nu2 = 0.35d0 ! Assumed value for Poisson's ratio
+            Estar = (1.0d0-nu1*nu1)/E1 + (1.0d0-nu2*nu2)/E2
+            Estar = 1.0d0/Estar
+            r1 = 0.5d0*rpropi(PPICLF_R_JDP)
+            r2 = 0.5d0*rpropj(PPICLF_R_JDP)
+            Rstar = r1*r2/(r1+r2)
+            ksp2 = (4.0d0/3.0d0)*Estar*sqrt(Rstar)
+            ksp2 = ksp2*sqrt(abs(rdiff-rthresh))
+            ! kn = min(k1,k2)
+            ksp_min = min(ksp1,ksp2)
 
             rm1 = rpropi(PPICLF_R_JRHOP)*rpropi(PPICLF_R_JVOLP)
             rm2 = rpropj(PPICLF_R_JRHOP)*rpropj(PPICLF_R_JVOLP)
          
-            rmult = 1.0d0/(1.0d0/rm1+1.0d0/rm2)
-            eta_n = -2.0d0*sqrt(ksp)*log(erest)/sqrt(log(erest)**2+pi2)
+            rmult = (rm1*rm2)/(rm1+rm2)
+            eta_n = -2.0d0*sqrt(ksp_min)*log(erest)
+     >              /sqrt(log(erest)**2+pi2)
      >              *sqrt(rmult)
+
+!            print*,'COLLS: ',i,j,ksp1,ksp2,ksp_min,
+!     >              eta_n,rdiff-rthresh,vmag
 
             ! Compute unit normal vector along line of contact 
             !   pointing from particle i to particle j
@@ -217,10 +243,12 @@
          
             ! Compute delta_12 and normal parameters
             rdelta12 = rthresh - rdiff
-            rksp_max  = ksp*rdelta12
+            rksp_max  = ksp_min*rdelta12
             rv12_mage = rv12_mag*eta_n
             rnmag     = -rksp_max - rv12_mage
 
+            ! Normal collision force Fn = -rnmag*n_{ij}
+            ! Scalar magnitude |Fn| = abs(rnmag)
             Fn_mag = abs(rnmag)
 
             ! Compute tangential unit vector
@@ -237,21 +265,22 @@
             rt_12z = utz/ut_mag
 
             ! Compute tangential collision force
-            if (ut_mag > 0) then
-               mu_c  = 0.4d0  ! Dimensionless; Coulomb
-               eta_t = eta_n  ! Set to normal; damping
-               Ftmin  = -min(mu_c*Fn_mag,eta_t*ut_mag)  
-            endif
-            if (collisional_flag==1) then ! Normal component only
-               Ftmin = 0.0d0
+            Ftmin = 0.0d0
+            if (collisional_flag>=2) then ! Tangential component
+               if (ut_mag > 0) then
+                  mu_c  = 0.4d0  ! Dimensionless; Coulomb
+                  eta_t = eta_n  ! Set to normal; damping
+                  Ftmin  = -min(mu_c*Fn_mag,eta_t*ut_mag)  
+               endif
             endif
 
             ! Compute contributions to angular velocities
             tcx = 0.0d0; tcy = 0.0d0; tcz = 0.0d0;
             trx = 0.0d0; try = 0.0d0; trz = 0.0d0;
+
             if (collisional_flag>=2) then
 
-               ! Collision torque contribution
+               ! Tangential force and Collision torque contributions
                Ftx = Ftmin*rt_12x
                Fty = Ftmin*rt_12y
                Ftz = Ftmin*rt_12z
@@ -260,8 +289,8 @@
                tcy = rad1*(rn_12z*Ftx - rn_12x*Ftz)
                tcz = rad1*(rn_12x*Fty - rn_12y*Ftx)
 
-               if (collisional_flag==3) then
-                  ! Rolling torque contribution
+               if (collisional_flag>=3) then
+                  ! Add Rolling torque contribution
                   thetar = 0.06  ! Needs to be calibrated
                   dp1 = rpropi(PPICLF_R_JDP)
                   dp2 = rpropj(PPICLF_R_JDP)
@@ -300,7 +329,7 @@
             ppiclf_ydotc(PPICLF_JOZ,i) = ppiclf_ydotc(PPICLF_JOZ,i)
      >                                 + tcz + trz
 
-         end if ! rdiff lt rthresh + eps
+         end if ! rdiff lt rthresh
 
 !-----------------------------------------------------------------------
 !
@@ -339,34 +368,34 @@
          !
          if (j.ne.0) then
          if (qs_fluct_filter_flag==0) then
-           upmean   = upmean + yj(PPICLF_JVX)
-           vpmean   = vpmean + yj(PPICLF_JVY)
-           wpmean   = wpmean + yj(PPICLF_JVZ)
-           u2pmean  = u2pmean + yj(PPICLF_JVX)**2
-           v2pmean  = v2pmean + yj(PPICLF_JVY)**2
-           w2pmean  = w2pmean + yj(PPICLF_JVZ)**2
-           icpmean  = icpmean + 1
+            upmean   = upmean + yj(PPICLF_JVX)
+            vpmean   = vpmean + yj(PPICLF_JVY)
+            wpmean   = wpmean + yj(PPICLF_JVZ)
+            u2pmean  = u2pmean + yj(PPICLF_JVX)**2
+            v2pmean  = v2pmean + yj(PPICLF_JVY)**2
+            w2pmean  = w2pmean + yj(PPICLF_JVZ)**2
+            icpmean  = icpmean + 1
          else if (qs_fluct_filter_flag==1) then
-           ! See https://dpzwick.github.io/ppiclF-doc/algorithms/overlap_mesh.html
-           dist = sqrt(xdist2**2 + ydist2**2 + zdist2**2)
-           gkern = sqrt(pi*ppiclf_filter**2/
+            ! See https://dpzwick.github.io/ppiclF-doc/algorithms/overlap_mesh.html
+            dist = sqrt(xdist2**2 + ydist2**2 + zdist2**2)
+            gkern = sqrt(pi*ppiclf_filter**2/
      >              (4.0d0*log(2.0d0)))**(-ppiclf_ndim) * 
      >              exp(-dist**2/(ppiclf_filter**2/(4.0d0*log(2.0d0))))
 
-           phipmean = phipmean + gkern*rpropj(PPICLF_R_JVOLP)
-           upmean   = upmean +
-     >                gkern*yj(PPICLF_JVX)*rpropj(PPICLF_R_JVOLP)
-           vpmean   = vpmean +
-     >                gkern*yj(PPICLF_JVY)*rpropj(PPICLF_R_JVOLP)
-           wpmean   = wpmean +
-     >                gkern*yj(PPICLF_JVZ)*rpropj(PPICLF_R_JVOLP)
-           u2pmean  = u2pmean +
-     >               gkern*(yj(PPICLF_JVX)**2)*rpropj(PPICLF_R_JVOLP)
-           v2pmean  = v2pmean +
-     >               gkern*(yj(PPICLF_JVY)**2)*rpropj(PPICLF_R_JVOLP)
-           w2pmean  = w2pmean +
-     >               gkern*(yj(PPICLF_JVZ)**2)*rpropj(PPICLF_R_JVOLP)
-           icpmean = icpmean + 1
+            phipmean = phipmean + gkern*rpropj(PPICLF_R_JVOLP)
+            upmean   = upmean +
+     >                 gkern*yj(PPICLF_JVX)*rpropj(PPICLF_R_JVOLP)
+            vpmean   = vpmean +
+     >                 gkern*yj(PPICLF_JVY)*rpropj(PPICLF_R_JVOLP)
+            wpmean   = wpmean +
+     >                 gkern*yj(PPICLF_JVZ)*rpropj(PPICLF_R_JVOLP)
+            u2pmean  = u2pmean +
+     >                gkern*(yj(PPICLF_JVX)**2)*rpropj(PPICLF_R_JVOLP)
+            v2pmean  = v2pmean +
+     >                gkern*(yj(PPICLF_JVY)**2)*rpropj(PPICLF_R_JVOLP)
+            w2pmean  = w2pmean +
+     >                gkern*(yj(PPICLF_JVZ)**2)*rpropj(PPICLF_R_JVOLP)
+            icpmean = icpmean + 1
          end if
          end if
 
@@ -376,7 +405,7 @@
       ! boundaries
       elseif (j .eq. 0) then
 
-         rksp_wall = ksp
+         !rksp_wall = ksp
          !rksp_wall = 1000
 
          ! give a bit larger collision threshold for walls
@@ -394,6 +423,23 @@
          if (rdiff .gt. rthresh) return
 
          rm1 = rpropi(PPICLF_R_JRHOP)*rpropi(PPICLF_R_JVOLP)
+
+         ! Compute spring stiffness constant dynamically, 
+         !   which overrides the user defined value
+         ! Need to make sure this formula is valid for a wall
+         ! k1 = k_{n,limit}
+         ksp1 = rm1*rpi*rpi/((ksp*ppiclf_dt)**2)
+         ! k2 = k_{hertzian}
+         E1  = 1.0d9  ! Assumed value for Young's modulus
+         nu1 = 0.35d0 ! Assumed value for Poisson's ratio
+         Estar = E1/(1.0d0-nu1*nu1)
+         r1 = 0.5d0*rpropi(PPICLF_R_JDP)
+         r2 = r1
+         Rstar = r1*r2/(r1+r2)
+         ksp2 = (2.0d0/3.0d0)*Estar*sqrt(Rstar)
+         ksp2 = ksp2*sqrt(abs(rdiff-rthresh))
+         ! kn = min(k1,k2)
+         rksp_wall = min(ksp1,ksp2)
          
          rmult = sqrt(rm1)
          eta_n = 2.0d0*sqrt(rksp_wall)*log(erest)
@@ -403,7 +449,7 @@
          rn_12x = rxdiff*rbot
          rn_12y = rydiff*rbot
          rn_12z = rzdiff*rbot
-         
+        
          rdelta12 = rthresh - rdiff
          
          rv12_mag = -yi(PPICLF_JVX)*rn_12x
@@ -422,7 +468,7 @@
          ppiclf_ydotc(PPICLF_JVZ,i) = ppiclf_ydotc(PPICLF_JVZ,i)
      >                              + rnmag*rn_12z
         
-       !write(*,*) "Wall NEAR",i,ppiclf_ydotc(PPICLF_JVY,i)  
+         !write(*,*) "Wall NEAR",i,ppiclf_ydotc(PPICLF_JVY,i)  
       endif
 
 

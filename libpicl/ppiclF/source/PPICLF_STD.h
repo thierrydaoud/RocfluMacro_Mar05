@@ -8,7 +8,9 @@
 
 #define PPICLF_LRP2 4
 
+#ifndef PPICLF_VU
 #define PPICLF_VU 5
+#endif
 #define PPICLF_LRP3 6*PPICLF_VU
 
 #ifndef PPICLF_LIP

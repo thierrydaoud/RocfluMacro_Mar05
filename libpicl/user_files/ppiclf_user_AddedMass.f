@@ -39,10 +39,9 @@
      >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iStage
       real*8 famx, famy, famz, rmass_add
-      real*8 famx_old, famy_old, famz_old
       real*8 rcd_am
       real*8 SDrho
-      real*8 vgradrhog
+      real*8 ug,vg,wg,vgradrho
 
 !
 ! Code:
@@ -71,25 +70,28 @@
       !              weighted by \phi^g.
       ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
       !                   = phi^g * d(rho^g)/dt
-      ! ( assume d(phi^g)/dt = 0 )  
+      !  
       !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
       SDrho = SDrho / (rphif) 
 
-      vgradrhog = vx * ppiclf_rprop(PPICLF_R_JRHOGX,i) +
-     >            vy * ppiclf_rprop(PPICLF_R_JRHOGY,i) +
-     >            vz * ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+      ! 03/23/2025 - TLJ - added extra term involving grad(rhog)
+      vgradrho = vx*ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >           vy*ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >           vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
+      ug = ppiclf_rprop(PPICLF_R_JUX,i)
+      vg = ppiclf_rprop(PPICLF_R_JUY,i)
+      wg = ppiclf_rprop(PPICLF_R_JUZ,i)
 
       famx = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
-     >  + ppiclf_rprop(PPICLF_R_JUX,i)*vgradrhog)
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i) + ug*vgradrho)
 
       famy = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
-     >  + ppiclf_rprop(PPICLF_R_JUY,i)*vgradrhog)
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i) + vg*vgradrho)
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
-     >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vgradrhog)
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
+
 
       return
       end
@@ -145,7 +147,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -153,14 +155,14 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer i, j, k, l, n, jj
       integer*4 iStage
       real*8 rad
       real*8 famx, famy, famz, rmass_add
       real*8 rcd_am
       real*8 SDrho
-      real*8 vgradrhog
+      real*8 ug,vg,wg,vgradrho
 
 !
 ! Code:
@@ -195,22 +197,24 @@
       ! drho/dt
       SDrho = SDrho / (rphif) 
 
-      vgradrhog = vx * ppiclf_rprop(PPICLF_R_JRHOGX,i) +
-     >            vy * ppiclf_rprop(PPICLF_R_JRHOGY,i) +
-     >            vz * ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+      ! 03/23/2025 - TLJ - added extra term involving grad(rhog)
+      vgradrho = vx*ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >           vy*ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >           vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
+      ug = ppiclf_rprop(PPICLF_R_JUX,i)
+      vg = ppiclf_rprop(PPICLF_R_JUY,i)
+      wg = ppiclf_rprop(PPICLF_R_JUZ,i)
 
       ! Take care of volume in Binary subroutine
       famx = rcd_am*
-     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
-     >  + ppiclf_rprop(PPICLF_R_JUX,i)*vgradrhog)
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i) + ug*vgradrho)
 
       famy = rcd_am*
-     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
-     >  + ppiclf_rprop(PPICLF_R_JUY,i)*vgradrhog)
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i) + vg*vgradrho)
 
       famz = rcd_am*
-     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
-     >  + ppiclf_rprop(PPICLF_R_JUZ,i)*vgradrhog)
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
 
       ! Multiply by neighbors here for storing
       FamUnary(1) = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
@@ -284,7 +288,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -292,7 +296,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer i, j, k, l, n, jj
       integer*4 iStage
       real*8 rad

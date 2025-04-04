@@ -85,7 +85,7 @@ SUBROUTINE PICL_ReadPiclSection( global )
   INTEGER :: nVals
 
   INTEGER :: iReg
-  INTEGER, PARAMETER :: NVALS_MAX = 35
+  INTEGER, PARAMETER :: NVALS_MAX = 28
 
   CHARACTER(20) :: keys(NVALS_MAX)
 
@@ -122,21 +122,15 @@ SUBROUTINE PICL_ReadPiclSection( global )
   keys(17)  = 'QSFLUCTFILTADAPT'
   keys(18)  = 'VISCOUSUNSTEADY'
   keys(19)  = 'PERIODICX'
-  keys(20)  = 'PERIODICXMIN'
-  keys(21)  = 'PERIODICXMAX'
-  keys(22)  = 'PERIODICY'
-  keys(23)  = 'PERIODICYMIN'
-  keys(24)  = 'PERIODICYMAX'
-  keys(25)  = 'PERIODICZ'
-  keys(26)  = 'PERIODICZMIN'
-  keys(27)  = 'PERIODICZMAX'
-  keys(28)  = 'ANGULARPERIODIC'
-  keys(29)  = 'ANGLE'
-  keys(30)  = 'XANGLE'
-  keys(31)  = 'RIN'
-  keys(32)  = 'ROUT'
-  keys(33)  = 'SUBBIN'
-  keys(34)  = 'REACTIVE'
+  keys(20)  = 'PERIODICY'
+  keys(21)  = 'PERIODICZ'
+  keys(22)  = 'ANGULARPERIODIC'
+  keys(23)  = 'ANGLE'
+  keys(24)  = 'XANGLE'
+  keys(25)  = 'RIN'
+  keys(26)  = 'ROUT'
+  keys(27)  = 'SUBBIN'
+  keys(28)  = 'REACTIVE'
  
   CALL ReadSection( global,IF_INPUT,nVals,keys(1:nVals),vals(1:nVals), & 
                     defined(1:nVals) ) 
@@ -224,63 +218,39 @@ SUBROUTINE PICL_ReadPiclSection( global )
   END IF
   
   IF (defined(20) .EQV. .TRUE. ) THEN
-    global%piclPeriodicXMin = vals(20)
+    global%piclPeriodicYFlag = NINT(vals(20))
   END IF
   
   IF (defined(21) .EQV. .TRUE. ) THEN
-    global%piclPeriodicXMax = vals(21)
+    global%piclPeriodicZFlag = NINT(vals(21))
   END IF
-
+  
   IF (defined(22) .EQV. .TRUE. ) THEN
-    global%piclPeriodicYFlag = NINT(vals(22))
+    global%piclAngularPeriodicFlag = NINT(vals(22))
   END IF
   
   IF (defined(23) .EQV. .TRUE. ) THEN
-    global%piclPeriodicYMin = vals(23)
+    global%piclAngularPeriodicAngle = vals(23)
   END IF
   
   IF (defined(24) .EQV. .TRUE. ) THEN
-    global%piclPeriodicYMax = vals(24)
+    global%piclAngularPeriodicXAngle = vals(24)
   END IF
 
   IF (defined(25) .EQV. .TRUE. ) THEN
-    global%piclPeriodicZFlag = NINT(vals(25))
+    global%piclAngularPeriodicRin = vals(25)
   END IF
   
   IF (defined(26) .EQV. .TRUE. ) THEN
-    global%piclPeriodicZMin = vals(26)
+    global%piclAngularPeriodicRout = vals(26)
   END IF
-  
+
   IF (defined(27) .EQV. .TRUE. ) THEN
-    global%piclPeriodicZMax = vals(27)
+    global%piclSBNearFlag = vals(27)
   END IF
 
   IF (defined(28) .EQV. .TRUE. ) THEN
-    global%piclAngularPeriodicFlag = NINT(vals(28))
-  END IF
-  
-  IF (defined(29) .EQV. .TRUE. ) THEN
-    global%piclAngularPeriodicAngle = vals(29)
-  END IF
-  
-  IF (defined(30) .EQV. .TRUE. ) THEN
-    global%piclAngularPeriodicXAngle = vals(30)
-  END IF
-
-  IF (defined(31) .EQV. .TRUE. ) THEN
-    global%piclAngularPeriodicRin = vals(31)
-  END IF
-  
-  IF (defined(32) .EQV. .TRUE. ) THEN
-    global%piclAngularPeriodicRout = vals(32)
-  END IF
-
-  IF (defined(33) .EQV. .TRUE. ) THEN
-    global%piclSBNearFlag = vals(33)
-  END IF
-
-  IF (defined(34) .EQV. .TRUE. ) THEN
-    global%piclBurnRateFlag = vals(34)
+    global%piclBurnRateFlag = vals(28)
   END IF
 
 ! finalize
