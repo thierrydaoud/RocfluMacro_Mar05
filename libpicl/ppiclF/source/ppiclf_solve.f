@@ -1,102 +1,115 @@
-      subroutine ppiclf_solve_Initialize(xi1,xpmin,xpmax,
+      SUBROUTINE ppiclf_solve_Initialize(xi1,xpmin,xpmax,
      >        yi1,ypmin,ypmax,zi1,zpmin,zpmax,
      >        ai1,apa,apxa,aprin,aprout)
 !
-      implicit none
+      IMPLICIT NONE
 !
-      include "PPICLF"
+      INCLUDE "PPICLF"
 !
-      integer*4 xi1, yi1, zi1, ai1
-      real*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
+! Input:
+!
+      INTEGER*4 xi1, yi1, zi1, ai1
+      REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
      >       apa,apxa,aprin,aprout
-      real*8 pi, angled
+      REAL*8 pi, angled
+
+!
+! Code:
+!
+      ! Called by rocpicl/PICL_TEMP_InitSolver.F90
+      ! xdrange adjusts the bin boundaries.  If periodic
+      ! in a direction, then ppiclf bin bounds are set to 
+      ! fluid domain boundary in that dimension.
+      ! User must input minimums and maximums to match fluid
+      ! domain boundaries.
+!*** future work - can we automate finding fluid domain boundaries?
 
       ! Linear X-Periodicity
       x_per_flag = xi1
-      if(x_per_flag.eq.1) then
-        if (xpmin .ge. xpmax) call ppiclf_exittr('PeriodicX 
+      IF(x_per_flag.EQ.1) THEN
+        IF(xpmin .ge. xpmax) CALL ppiclf_exittr('PeriodicX 
      >      must have xmin < xmax$',xpmin,0)
         ppiclf_iperiodic(1) = 0
         x_per_min = xpmin
         x_per_max = xpmax
         ppiclf_xdrange(1,1) = xpmin
         ppiclf_xdrange(2,1) = xpmax
-      endif
+      END IF
 
       ! Linear Y-Periodicity
       y_per_flag = yi1
-      if(y_per_flag.eq.1) then
-        if (ypmin .ge. ypmax) call ppiclf_exittr('PeriodicY 
+      IF(y_per_flag.EQ.1) THEN
+        IF(ypmin .ge. ypmax) CALL ppiclf_exittr('PeriodicY 
      >     must have ymin < ymax$',ypmin,0)
         ppiclf_iperiodic(2) = 0
         y_per_min = ypmin
         y_per_max = ypmax
         ppiclf_xdrange(1,2) = ypmin
         ppiclf_xdrange(2,2) = ypmax
-      endif
+      END IF
 
       ! Linear Z-Periodicity
       z_per_flag = zi1
-      if(z_per_flag.eq.1) then
-        if (zpmin .ge. zpmax) call ppiclf_exittr('PeriodicZ 
+      IF(z_per_flag.EQ.1) THEN
+        IF(zpmin .ge. zpmax) CALL ppiclf_exittr('PeriodicZ 
      >     must have zmin < zmax$',zpmin,0)
         ppiclf_iperiodic(3) = 0
         z_per_min = zpmin
         z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
-      endif
+      END IF
 
 
       ! Angular Periodicity
       ang_per_flag = ai1
-      if(ang_per_flag.eq.1) then
+      IF(ang_per_flag.EQ.1) THEN
         ppiclf_iperiodic(1) = 0 ! X-Periodicity
         ppiclf_iperiodic(2) = 0 ! Y-Periodicity
         ang_per_angle  = apa
         ang_per_xangle = apxa
         ang_per_rin    = aprin
         ang_per_rout   = aprout
-      endif
+      END IF
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      if((x_per_flag.eq.1).or.(y_per_flag.eq.1).and.(ang_per_flag.eq.1))
-     >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
+      IF((x_per_flag.EQ.1).or.(y_per_flag.EQ.1).and.(ang_per_flag.EQ.1))
+     >   CALL ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       ! Thierry - compute ang_case
 
-      pi = acos(-1.0)
+      pi = ACOS(-1.0)
       angled = ang_per_angle * 180.0d0 / pi ! store angle value in degrees
 
-      if (ang_per_flag==0) then
+      IF(ang_per_flag.EQ.0) THEN
          ang_case = 0 ! standard geometry
-      else
-         if (angled .lt. 90.0)        ang_case = 1 ! general wedge
-         if (nint(angled) .eq. 90.0)  ang_case = 2 ! quarter cylinder
-         if (nint(angled) .eq. 180.0) ang_case = 3 ! half cylinder
-      endif
+      ELSE
+         IF(angled .lt. 90.0)        ang_case = 1 ! general wedge
+         IF(NINT(angled) .EQ. 90.0)  ang_case = 2 ! quarter cylinder
+         IF(NINT(angled) .EQ. 180.0) ang_case = 3 ! half cylinder
+      END IF
 
-      if (ppiclf_nid==0) then
-         print*, " "
-         print*, " ======================================="
-         print*, " "
-         print*, "!!! PPICLF Angular Periodicity Initialized !!!!"
-         print*, "  Angular periodicity flag =", ang_per_flag
-         if (ang_per_flag==0) then
-            print*, "  Init Angular- ang_case =", ang_case
-         else
-            print*, "  Init Angular- angle =", ang_per_angle
-            print*, "  Init Angular- angled =", angled
-            print*, "  Init Angular- nint(angled) =", nint(angled)
-            print*, "  Init Angular- ang_case =", ang_case
-         endif
-         print*, " "
-         print*, " ======================================="
-         print*, " "
-      endif
+      IF(ppiclf_nid.EQ.0 .AND. ang_case.NE.0) THEN
+         PRINT*, " "
+         PRINT*, " ======================================="
+         PRINT*, " "
+         PRINT*, "!!! PPICLF Angular Periodicity Initialized !!!!"
+         PRINT*, "  Angular periodicity flag =", ang_per_flag
+         !IF(ang_per_flag.EQ.0) THEN
+         !   PRINT*, "  Init Angular- ang_case =", ang_case
+         !ELSE
+         PRINT*, "  Init Angular- angle =", ang_per_angle
+         PRINT*, "  Init Angular- angled =", angled
+         PRINT*, "  Init Angular- nint(angled) =", NINT(angled)
+         PRINT*, "  Init Angular- ang_case =", ang_case
+         !END IF
+         PRINT*, " "
+         PRINT*, " ======================================="
+         PRINT*, " "
+      END IF
 
-      return
-      end
+      RETURN
+      END
 !
 !-----------------------------------------------------------------------
 #ifdef PPICLC
@@ -126,7 +139,7 @@
 
       if (ppiclf_npart+npart .gt. PPICLF_LPART .or. npart .lt. 0)
      >   call ppiclf_exittr('Invalid number of particles$',
-     >                      0.0,ppiclf_npart+npart)
+     >                      0.0D0,ppiclf_npart+npart)
 
       call ppiclf_printsi('      -Begin copy particles$',npart)
 
@@ -145,7 +158,7 @@
          call ppiclf_prints('      -Begin ParticleTag$')
             call ppiclf_solve_SetParticleTag(npart)
          call ppiclf_prints('       End ParticleTag$')
-      endif
+      ENDif
 
       if (ppiclf_iglsum(ppiclf_npart,1).gt.0) then
          call ppiclf_prints('      -Begin CreateBin$')
@@ -160,11 +173,11 @@
             call ppiclf_comm_MoveParticle
          call ppiclf_prints('       End MoveParticle$')
 
-      endif
+      ENDif
 
       call ppiclf_prints('    End AddParticles$')
 
-      end
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitParticle(imethod,ndim,iendian,npart,y,
@@ -216,7 +229,7 @@
                print*,'TLJ checking d2chk(2) = ',ppiclf_d2chk(2)
                print*,'TLJ checking d2chk(3) = ',ppiclf_d2chk(3)
                print*,'TLJ checking d2chk(1) = ',ppiclf_d2chk(1)
-            endif
+            ENDif
 
          call ppiclf_prints('    End InitParam$')
 
@@ -237,7 +250,7 @@
             !call ppiclf_prints('   *Begin WriteBinVTU$')
             !   call ppiclf_io_WriteBinVTU('')
             !call ppiclf_prints('    End WriteBinVTU$')
-         endif
+         ENDif
 
       call ppiclf_prints(' End InitParticle$')
 !
@@ -249,8 +262,8 @@
 
       PPICLF_LINIT = .true.
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitParam(imethod,ndim,iendian)
 !
@@ -313,21 +326,13 @@
       ppiclf_n_bins(2) = 1
       ppiclf_n_bins(3) = 1
 
-      ppiclf_bins_set(1) = 0
-      ppiclf_bins_set(2) = 0
-      ppiclf_bins_set(3) = 0
-
-      ppiclf_bins_balance(1) = 0
-      ppiclf_bins_balance(2) = 0
-      ppiclf_bins_balance(3) = 0
-
       ppiclf_nwall    = 0
       ppiclf_iwallm   = 0
 
       PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitNeighborBin(rwidth)
@@ -358,54 +363,10 @@
       ! TLJ added 12/21/2024
       if (ppiclf_nid==0) then
          print*,'TLJ checking d2chk(3) = ',ppiclf_d2chk(3)
-      endif
+      ENDif
 
-      return
-      end
-!-----------------------------------------------------------------------
-#ifdef PPICLC
-      subroutine ppiclf_solve_InitTargetBins(str,n,balance)
-     > bind(C, name="ppiclc_solve_InitTargetBins")
-#else
-      subroutine ppiclf_solve_InitTargetBins(str,n,balance)
-#endif
-!
-      implicit none
-!
-      include "PPICLF"
-!
-! Input:
-!
-      character*1 str
-      integer*4 n
-      integer*4 balance
-!
-      if (.not.PPICLF_LCOMM)
-     >call ppiclf_exittr('InitMPI must be before InitTargetBins$'
-     >                   ,0.0d0,0)
-      if (.not.PPICLF_LINIT)
-     >call ppiclf_exittr('InitParticle must be before InitTargetBins$'
-     >                  ,0.0d0,0)
-
-      if (str == 'x' .or. str == 'X') then 
-         ppiclf_n_bins(1) = n
-         if (n .gt. 1) ppiclf_bins_set(1) = 1
-         ppiclf_bins_balance(1) = balance
-      elseif (str == 'y' .or. str == 'Y') then 
-         ppiclf_n_bins(2) = n
-         if (n .gt. 1) ppiclf_bins_set(2) = 1
-         ppiclf_bins_balance(2) = balance
-      elseif (str == 'z' .or. str == 'Z') then 
-        if (ppiclf_ndim .lt. 3)
-     >   call ppiclf_exittr('Dim must be 3 to use InitTargetBins on z$'
-     >                   ,0.,ppiclf_ndim)
-         ppiclf_n_bins(3) = n
-         if (n .gt. 1) ppiclf_bins_set(3) = 1
-         ppiclf_bins_balance(3) = balance
-      endif
-
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_SetNeighborBin
 !
@@ -426,7 +387,7 @@
          if (ppiclf_ndim .eq. 3)
      >   ppiclf_nb_r(3,i) = floor((ppiclf_cp_map(3,i)-ppiclf_binb(5))/
      >                             ppiclf_d2chk(3))
-      enddo
+      ENDdo
 
       do i=1,ppiclf_npart_gp
          ppiclf_nb_g(1,i) = floor((ppiclf_rprop_gp(1,i)-ppiclf_binb(1))/
@@ -437,10 +398,10 @@
          if (ppiclf_ndim .eq. 3)
      >   ppiclf_nb_g(3,i) = floor((ppiclf_rprop_gp(3,i)-ppiclf_binb(5))/
      >                             ppiclf_d2chk(3))
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitZero
 !
@@ -460,20 +421,20 @@
          ppiclf_ydot (j,i) = 0.0d0
          ppiclf_ydotc(j,i) = 0.0d0
          ppiclf_y1   (ic ) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP
          ppiclf_rprop(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP2
          ppiclf_rprop2(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP3
          ppiclf_rprop3(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LIP
          ppiclf_iprop(j,i) = 0
-      enddo
-      enddo
+      ENDdo
+      ENDdo
       ppiclf_npart = 0
 
       do ie=1,PPICLF_LEE
@@ -482,16 +443,16 @@
       do j=1,PPICLF_LEY
       do i=1,PPICLF_LEX
         ppiclf_int_fld(i,j,k,ic,ie) = 0.0d0
-      enddo
-      enddo
-      enddo
-      enddo
-      enddo
+      ENDdo
+      ENDdo
+      ENDdo
+      ENDdo
+      ENDdo
 
       !!call ppiclf_user_InitZero
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_NearestNeighbor(i)
 !
@@ -535,7 +496,7 @@
          if (j_jj .gt. i_jjp .or. j_jj .lt. i_jjm) cycle
          if (ppiclf_ndim .eq. 3) then
          if (j_kk .gt. i_kkp .or. j_kk .lt. i_kkm) cycle
-         endif
+         ENDif
 
          xdist2 = (ppiclf_cp_map(1,i)-ppiclf_cp_map(1,j))**2
          if (xdist2 .gt. dist2) cycle
@@ -546,7 +507,7 @@
          zdist2 = (ppiclf_cp_map(3,i)-ppiclf_cp_map(3,j))**2
          if (zdist2 .gt. dist2) cycle
          dist_total = dist_total+zdist2
-         endif
+         ENDif
          if (dist_total .gt. dist2) cycle
 
          call ppiclf_user_EvalNearestNeighbor(i,j,ppiclf_cp_map(1,i)
@@ -554,7 +515,7 @@
      >                                 ,ppiclf_cp_map(1,j)
      >                                 ,ppiclf_cp_map(1+PPICLF_LRS,j))
 
-      enddo
+      ENDdo
 
       do j=1,ppiclf_npart_gp
          j_ii = ppiclf_nb_g(1,j)
@@ -565,7 +526,7 @@
          if (j_jj .gt. i_jjp .or. j_jj .lt. i_jjm) cycle
          if (ppiclf_ndim .eq. 3) then
          if (j_kk .gt. i_kkp .or. j_kk .lt. i_kkm) cycle
-         endif
+         ENDif
 
          xdist2 = (ppiclf_cp_map(1,i)-ppiclf_rprop_gp(1,j))**2
          if (xdist2 .gt. dist2) cycle
@@ -576,7 +537,7 @@
          zdist2 = (ppiclf_cp_map(3,i)-ppiclf_rprop_gp(3,j))**2
          if (zdist2 .gt. dist2) cycle
          dist_total = dist_total+zdist2
-         endif
+         ENDif
          if (dist_total .gt. dist2) cycle
 
          jp = -1*j
@@ -585,7 +546,7 @@
      >                                 ,ppiclf_rprop_gp(1,j)
      >                                 ,ppiclf_rprop_gp(1+PPICLF_LRS,j))
 
-      enddo
+      ENDdo
 
       istride = ppiclf_ndim
       do j=1,ppiclf_nwall
@@ -609,14 +570,14 @@
             rpz1 = ppiclf_cp_map(3,i)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
 
          a_sum = 0.0d0
@@ -638,7 +599,7 @@
             if (ppiclf_ndim .eq. 3) then
                rpz1 = ppiclf_wall_c(kk+3,j)
                rpz2 = ppiclf_wall_c(kkp+3,j)
-            endif
+            ENDif
 
             rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -689,9 +650,9 @@
             elseif (ppiclf_ndim .eq. 2) then
                AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
                tri_area = AB_MAG
-            endif
+            ENDif
             a_sum = a_sum + tri_area
-         enddo
+         ENDdo
 
          rthresh = 1.10d0 ! keep it from slipping through crack on edges
          if (a_sum .gt. rthresh*area) cycle
@@ -703,10 +664,10 @@
      >                                 ,rpropdum)
 
  1511 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       SUBROUTINE ppiclf_solve_NearestNeighborSB(i,SBt,SBc,SBm,SBn,iB)
 !
@@ -831,14 +792,14 @@
             rpz1 = ppiclf_cp_map(3,i)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
 
          a_sum = 0.0d0
@@ -860,7 +821,7 @@
             if (ppiclf_ndim .eq. 3) then
                rpz1 = ppiclf_wall_c(kk+3,j)
                rpz2 = ppiclf_wall_c(kkp+3,j)
-            endif
+            ENDif
 
             rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -911,9 +872,9 @@
             elseif (ppiclf_ndim .eq. 2) then
                AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
                tri_area = AB_MAG
-            endif
+            ENDif
             a_sum = a_sum + tri_area
-         enddo
+         ENDdo
 
          rthresh = 1.10d0 ! keep it from slipping through crack on edges
          if (a_sum .gt. rthresh*area) cycle
@@ -925,10 +886,10 @@
      >                                 ,rpropdum)
 
  1519 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
        subroutine ppiclf_solve_InitWall(xp1,xp2,xp3)
 !
@@ -991,7 +952,7 @@
          A(1) = (xp1(1) + xp2(1))/2.0d0
          A(2) = (xp1(2) + xp2(2))/2.0d0
          A(3) = 0.0d0
-      endif
+      ENDif
 
       ! compoute area:
       do k=1,kmax 
@@ -1039,9 +1000,9 @@
          elseif (ppiclf_ndim .eq. 2) then
              AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
              tri_area = AB_MAG
-         endif
+         ENDif
          a_sum = a_sum + tri_area
-      enddo
+      ENDdo
       
       ppiclf_wall_n(ppiclf_ndim+1,ppiclf_nwall) = a_sum
 
@@ -1101,10 +1062,10 @@
          ppiclf_wall_n(3,ppiclf_nwall) = ppiclf_wall_n(3,ppiclf_nwall)
      >                                  /rmag
 
-      endif
+      ENDif
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicX(xl,xr)
@@ -1132,8 +1093,8 @@
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicY(yl,yr)
@@ -1161,8 +1122,8 @@
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicZ(zl,zr)
@@ -1192,8 +1153,8 @@
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitAngularPeriodic(flag,
      >              rin, rout, angle, xangle)
@@ -1255,8 +1216,8 @@
 
       call ppiclf_solve_InitSolve
       
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitAngularPlane(i,rin, rout,
      >                                         angle, xangle,
@@ -1339,8 +1300,8 @@
       dist2 = abs(E*xp + F*yp + G*zp + H)
       dist2 = dist2/sqrt(E**2 + F**2 + G**2)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InvokeLinearPeriodic(i)
 !
@@ -1366,7 +1327,7 @@
           ppiclf_y(jchk,i) = ppiclf_xdrange(2,j+1) - 
      >                  abs(ppiclf_xdrange(1,j+1) - ppiclf_y(jchk,i))
           goto 1512
-        endif
+        ENDif
 
         ! particle leaving max. periodic face -> move it relative to 
         !                                         min periodic face
@@ -1374,15 +1335,15 @@
           ppiclf_y(jchk,i) = ppiclf_xdrange(1,j+1) + 
      >                  abs(ppiclf_y(jchk,i) - ppiclf_xdrange(2,j+1))
           goto 1512
-        endif
+        ENDif
         
         ! Thierry - I'm not sure what this does but this is how it was implemented
         if (ppiclf_iprop(1,i) .eq. 2) then
              in_part(i) = -1 ! only if periodic check fails it will get here
-        endif
+        ENDif
  1512 continue
-        end do ! j=0, ndim-1
-      endif ! Case 1 
+        END do ! j=0, ndim-1
+      ENDif ! Case 1 
 
 ! Case 2 - Linear Periodicity in Z-direction only; WITH Anuglar Periodicity
       if((z_per_flag.eq.1).and.(ang_per_flag.eq.1)) then
@@ -1392,7 +1353,7 @@
      >  (ppiclf_y(1,i).gt.ppiclf_xdrange(2,1))) then
           call ppiclf_solve_MarkForRemoval(i)
           goto 1515
-        endif
+        ENDif
 
         ! particle leaving min. z-periodic face -> move it relative to 
         !                                         max z-periodic face
@@ -1400,7 +1361,7 @@
           ppiclf_y(3,i) = ppiclf_xdrange(2,3) - 
      >                  abs(ppiclf_xdrange(1,3) - ppiclf_y(3,i))
           goto 1515
-        endif
+        ENDif
 
         ! particle leaving max. z-periodic face -> move it relative to 
         !                                         min z-periodic face
@@ -1408,16 +1369,16 @@
           ppiclf_y(3,i) = ppiclf_xdrange(1,3) + 
      >                  abs(ppiclf_y(3,i) - ppiclf_xdrange(2,3))
           goto 1515
-        endif
+        ENDif
         
         if (ppiclf_iprop(1,i) .eq. 2) then
              in_part(i) = -1 ! only if periodic check fails it will get here
-        endif
+        ENDif
  1515 continue
-      endif ! Case 2
+      ENDif ! Case 2
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
        subroutine ppiclf_solve_InvokeAngularPeriodic(i,flag,
      >                                              per_alpha,
@@ -1462,7 +1423,7 @@
         !                    - adjust rotation matrix angle accordingly
         if(ang_case .eq. 3) then
           if(per_alpha .lt. xangle) local_angle = 0.0 
-        end if
+        END if
 
         ! convert from degrees to radians
         ct = cos(local_angle)
@@ -1537,10 +1498,10 @@
             ppiclf_y(PPICLF_JVY,i) = vrot(2)
             ppiclf_y(PPICLF_JVZ,i) = vrot(3)
             
-          end if 
+          END if 
        
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitGaussianFilter(filt,alpha,iwallm)
@@ -1588,7 +1549,7 @@
       if (ppiclf_nid==0) then
          print*,'TLJ recompute d2chk(2) based on Gausian filter = ',
      >     ppiclf_d2chk(2)
-      endif
+      ENDif
 
       PPICLF_LSUBBIN = .true.
       if (ppiclf_ngrids .eq. 0) PPICLF_LSUBBIN = .false.
@@ -1598,8 +1559,8 @@
 
       ppiclf_ngrids = 0 ! for now leave sub bin off
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
@@ -1639,7 +1600,7 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
       ! TLJ added 12/21/2024
       if (ppiclf_nid==0) then
          print*,'TLJ checking d2chk(2) = ',ppiclf_d2chk(2)
-      endif
+      ENDif
 
       PPICLF_LSUBBIN = .true.
       if (ppiclf_ngrids .eq. 0) PPICLF_LSUBBIN = .false.
@@ -1656,8 +1617,8 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
 
       ppiclf_ngrids = 0 ! for now leave sub bin off
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_SetParticleTag(npart)
 !
@@ -1677,10 +1638,10 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
          ppiclf_iprop(5,i) = ppiclf_nid 
          ppiclf_iprop(6,i) = ppiclf_cycle
          ppiclf_iprop(7,i) = i
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_WriteVTU(time)
@@ -1705,7 +1666,7 @@ c----------------------------------------------------------------------
       !if (ppiclf_cycle .ne. 0) then
             call ppiclf_io_WriteParticleVTU('')
             call ppiclf_io_WriteBinVTU('')
-      !endif
+      !ENDif
 
       if (ppiclf_lsubbin)
      >      call ppiclf_io_WriteSubBinVTU('')
@@ -1713,8 +1674,8 @@ c----------------------------------------------------------------------
       ! Output diagnostics
       call ppiclf_io_OutputDiagAll
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_IntegrateParticle(istep,iostep,dt,time)
@@ -1771,8 +1732,8 @@ c----------------------------------------------------------------------
 !      endif
 !      endif
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3(iout)
 !
@@ -1792,7 +1753,7 @@ c----------------------------------------------------------------------
       ndum = PPICLF_NPART*PPICLF_LRS
       do i=1,ndum
          ppiclf_y1(i) = ppiclf_y(i,1)
-      enddo
+      ENDdo
 
       ! get rk3 coeffs
       call ppiclf_solve_SetRK3Coeff(ppiclf_dt)
@@ -1809,13 +1770,13 @@ c----------------------------------------------------------------------
             ppiclf_y(i,1) =  ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
      >                     + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,1)
      >                     + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,1)
-         enddo
-      enddo
+         ENDdo
+      ENDdo
 
       iout = .true.
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3s(iout)
 !
@@ -1851,8 +1812,8 @@ c----------------------------------------------------------------------
       ndum = PPICLF_NPART*PPICLF_LRS
       do i=1,ndum
          ppiclf_y1(i) = ppiclf_y(i,1)
-      enddo
-      endif
+      ENDdo
+      ENDif
 
       ! evaluate ydot
       call ppiclf_solve_SetYdot
@@ -1863,10 +1824,10 @@ c----------------------------------------------------------------------
          ppiclf_y(i,1) =  ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
      >                  + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,1)
      >                  + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,1)
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3s_Rocflu(iout)
 !
@@ -1909,7 +1870,7 @@ c----------------------------------------------------------------------
         !do i=1,ndum
         !  ppiclf_y1(i) = 0.0d0 
         !enddo
-      endif
+      ENDif
 
       ! TLJ comment Dec 7, 2023
       ! The Rocflu RK3 can be found in equation (7) of:
@@ -1929,8 +1890,8 @@ c----------------------------------------------------------------------
          ppiclf_y(i,j) =  -ppiclf_rk3coef(1,istage)*ppiclf_y1   (ndum)
      >                   + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,j)
      >                   + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,j)
-      enddo
-      enddo
+      ENDdo
+      ENDdo
       !ndum = PPICLF_NPART*PPICLF_LRS
       !do i=1,ndum
       !   ppiclf_y(i,1) =  -ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
@@ -1946,8 +1907,8 @@ c----------------------------------------------------------------------
       do i=1,PPICLF_LRS
          ndum = ndum + 1
          ppiclf_y1(ndum) =  ppiclf_ydot(i,j)
-      enddo
-      enddo
+      ENDdo
+      ENDdo
       !ndum = PPICLF_NPART*PPICLF_LRS
       !do i=1,ndum
       !   ppiclf_y1(i) = ppiclf_ydot(i,1)
@@ -1958,8 +1919,8 @@ c----------------------------------------------------------------------
 !          storage
         call ppiclf_solve_RemoveParticle      
 !End Experimental fix
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_SetYdot
 !
@@ -1971,8 +1932,8 @@ c----------------------------------------------------------------------
       call ppiclf_user_SetYdot
       call ppiclf_solve_RemoveParticle
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_InitSolve
 !
@@ -1987,7 +1948,7 @@ c----------------------------------------------------------------------
       call ppiclf_comm_CreateBin
       call ppiclf_comm_FindParticle
       call ppiclf_comm_MoveParticle
-      if (ppiclf_overlap) 
+      if (ppiclf_overlap)
      >   call ppiclf_comm_MapOverlapMesh
       if ((ppiclf_lintp .and. ppiclf_int_icnt .ne. 0) .or.
      >    (ppiclf_lproj .and. ppiclf_sngl_elem))
@@ -1999,9 +1960,9 @@ c----------------------------------------------------------------------
            call ppiclf_comm_CreateGhost
          elseif(ang_per_flag.eq.1) then
            call ppiclf_comm_AngularCreateGhost
-         endif
+         ENDif
          call ppiclf_comm_MoveGhost
-      endif
+      ENDif
 
       if (ppiclf_lproj .and. ppiclf_overlap) 
      >   call ppiclf_solve_ProjectParticleGrid
@@ -2011,11 +1972,11 @@ c----------------------------------------------------------------------
       do i=1,PPICLF_LPART
       do j=1,PPICLF_LRS
          ppiclf_ydotc(j,i) = 0.0d0
-      enddo
-      enddo
+      ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpParticleGrid
 !
@@ -2030,7 +1991,7 @@ c----------------------------------------------------------------------
       call ppiclf_solve_InitInterp
       do j=1,PPICLF_INT_ICNT
          call ppiclf_solve_InterpField(j)
-      enddo
+      ENDdo
       call ppiclf_solve_FinalizeInterp
 
       call ppiclf_solve_LocalInterp
@@ -2040,8 +2001,8 @@ c----------------------------------------------------------------------
       PPICLF_INT_ICNT = 0
 
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpFieldUser(jp,infld)
 !
@@ -2080,8 +2041,8 @@ c----------------------------------------------------------------------
       call ppiclf_copy(ppiclf_int_fldu(1,1,1,1,PPICLF_INT_ICNT)
      >                ,infld(1),n)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitInterp
 !
@@ -2109,7 +2070,7 @@ c----------------------------------------------------------------------
      >                   ,ppiclf_xm1b(1,1,1,2,ie),n)
          call ppiclf_copy(ppiclf_xm1bi(1,1,1,ie,3)
      >                   ,ppiclf_xm1b(1,1,1,3,ie),n)
-      enddo
+      ENDdo
 
       tol     = 5e-13
       bb_t    = 0.01
@@ -2145,10 +2106,10 @@ c     ndum    = ppiclf_neltb*n
       do ie=1,ppiclf_neltbbb
          call ppiclf_icopy(ppiclf_er_mapc(1,ie),ppiclf_er_maps(1,ie)
      >             ,PPICLF_LRMAX)
-      enddo
-
-      return
-      end
+      ENDdo
+      !PRINT*, 'Processor ID, ppiclf_neltbbb', ppiclf_nid, ppiclf_neltbbb
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpField(j)
 !
@@ -2171,10 +2132,10 @@ c     ndum    = ppiclf_neltb*n
          iee = ppiclf_er_mapc(1,ie)
          call ppiclf_copy(ppiclf_int_fld (1,1,1,j  ,ie)
      >                   ,ppiclf_int_fldu(1,1,1,iee,j ),n)
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_FinalizeInterp
 !
@@ -2225,7 +2186,7 @@ c     ndum    = ppiclf_neltb*n
          do ie=1,ppiclf_neltbbb
             call ppiclf_copy(fld(1,1,1,ie)
      >                      ,ppiclf_int_fld(1,1,1,i,ie),nxyz)
-         enddo
+         ENDdo
 
          ! sam commenting out eval nearest neighbor to use Local Interp instead
          ! leaving findpts call to help with projection, where the element id is
@@ -2241,7 +2202,7 @@ c     ndum    = ppiclf_neltb*n
 !     >                                  ,PPICLF_NPART
 !     >                                  ,fld)
 
-      enddo
+      ENDdo
 
       ! free since mapping can change on next call
       call pfgslib_findpts_free(PPICLF_FP_HNDL)
@@ -2250,8 +2211,8 @@ c     ndum    = ppiclf_neltb*n
       ! Sam - commenting out for local routine
       !PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !
 !-----------------------------------------------------------------------
 !
@@ -2268,21 +2229,24 @@ c     ndum    = ppiclf_neltb*n
       REAL*8    d2l, d2i, wsum, eps, A(27,4), d2(28), xp(3),  
      >          center(3,28), b(27,1), w(27),binlength(3),  
      >          d2i_EleLen(3), MaxPoint(3), MinPoint(3),d2Max_EleLen(3),
-     >          centeri(3,ppiclf_neltbbb)
+     >          centeri(3,ppiclf_neltbbb), CellLengthMultiplier
       LOGICAL   added, farAway, LinearPerShift(3)
+      REAL*8, ALLOCATABLE :: test(:)
       !***************************************************************
- 
+      IF(ppiclf_neltbbb .EQ. 0 . AND. ppiclf_npart .GT. 0) PRINT*,
+     >  'No elements. Num Particles/Proc ID: ', ppiclf_npart, ppiclf_nid
       eps = 1.0e-12 !machine epsilon
       nxyz = PPICLF_LEX*PPICLF_LEY*PPICLF_LEZ !number of points in mesh
-                                              !element 
+                                               !element 
       ! Calculate centroid, max cell lengths
       DO ie = 1,ppiclf_neltbbb !Loop fluid cells on this processor
         ! Initialize as zero for each element
         DO l = 1,3
-          centeri(l,ie)   =  0.0 
-          MaxPoint(l)     = -1.0E10 
-          MinPoint(l)     =  1.0E10 
-          d2i_EleLen(l)   =  0.0    
+          centeri(l,ie)    =  0.0D0 
+          MaxPoint(l)      = -1.0D10 
+          MinPoint(l)      =  1.0D10 
+          d2i_EleLen(l)    =  0.0D0  
+          d2Max_EleLen(l) = 0.0D0  
         ENDDO !l
         ! Add all x,y,z mesh points for centroid and find extremes
         DO l = 1,3
@@ -2325,9 +2289,9 @@ c     ndum    = ppiclf_neltb*n
       !
       ! Standard is 1.5*Len, which will give you at least 27 elements
       ! if particle is not near fluid domain boundary.
-
+      CellLengthMultiplier = 1.5D0*1.5D0
       DO l = 1,3 
-        d2Max_EleLen(l) = d2Max_EleLen(l)*(1.5**2)
+        d2Max_EleLen(l) = d2Max_EleLen(l)*CellLengthMultiplier
       END DO
 
       DO ip=1,ppiclf_npart !Loop all particles in this bin
@@ -2382,8 +2346,13 @@ c     ndum    = ppiclf_neltb*n
         END DO ! ie
         nnearest = min(nnearest, 27)
         IF (nnearest .lt. 1) THEN
-          PRINT *, 'nnearest', nnearest, ip, ppiclf_npart, xp
+          PRINT *, 'Added, T/F:', added
+          PRINT *, 'nnearest, neltbbb, num proc, num part, xp(1:3)',
+     >              nnearest, ppiclf_neltbbb,
+     >              ppiclf_nid, ppiclf_npart, xp
+          PRINT *, 'ppiclf_rprop(1:PPICLF_LRP'
           PRINT *, ppiclf_rprop(1:PPICLF_LRP, ip)
+          PRINT *, 'ppiclf_y(1:PPICLF_LRS'
           PRINT *, ppiclf_y(1:PPICLF_LRS, ip)
           CALL ppiclf_exittr('Failed to interpolate',0.0d0,nnearest)
         ELSE
@@ -2462,7 +2431,7 @@ c     ndum    = ppiclf_neltb*n
           centeri(l,ie) =  0.0
           MaxPoint(l)   = -1.0E10 
           MinPoint(l)   =  1.0E10
-        enddo !l
+        ENDdo !l
 
         do l=1,3
         do k=1,PPICLF_LEZ
@@ -2473,22 +2442,22 @@ c     ndum    = ppiclf_neltb*n
      >        MaxPoint(l) = ppiclf_xm1b(i,j,k,l,ie)  
           if (ppiclf_xm1b(i,j,k,l,ie) .lt. MinPoint(l))
      >        MinPoint(l) = ppiclf_xm1b(i,j,k,l,ie)
-        enddo !i
-        enddo !j
-        enddo !k
-        enddo !l
+        ENDdo !i
+        ENDdo !j
+        ENDdo !k
+        ENDdo !l
         
         do l=1,3
           EleSizei = EleSizei + (MaxPoint(l)-MinPoint(l))**2
-        enddo
+        ENDdo
 
         if (EleSizei .gt. MaxEleSize) MaxEleSize = EleSizei
 
         do l=1,3
           centeri(l,ie) = centeri(l,ie) / nxyz
-        enddo !l
+        ENDdo !l
 
-      enddo !ie
+      ENDdo !ie
       ! End Avery Added
       
       ! neighbor search O(Nparticles * Nelements)
@@ -2517,14 +2486,14 @@ c     ndum    = ppiclf_neltb*n
         do ie=1,28
           inearest(ie) = -1 ! index of nearest elements
           d2(ie) = 1E20 ! distance to center of nearest element
-        enddo
+        ENDdo
 
         do ie=1,ppiclf_neltbbb
                    ! get distance from particle to center
           d2i = 0
           do l=1,3
             d2i = d2i + (centeri(l,ie) - xp(l))**2
-          enddo
+          ENDdo
           ! Avery Added if / cycle
           ! Go to next cell if particle is 1.5*largest grid cell diagonal
           ! direction away from neighboring cell centroid
@@ -2540,23 +2509,23 @@ c     ndum    = ppiclf_neltb*n
               inearest(j+1) = inearest(j)
               do l=1,3
                 center(l, j+1) = center(l, j)
-              enddo
+              ENDdo
 
               d2(j) = d2i
               inearest(j) = ie
               do l=1,3
                 center(l, j) = centeri(l,ie)
-              enddo
+              ENDdo
 
               added = .true.
             else ! Avery added else/exit
               exit
-            endif
-          enddo !i
+            ENDif
+          ENDdo !i
 
           if (added) nnearest = nnearest + 1
           
-        enddo ! ie
+        ENDdo ! ie
         ! Avery added if
         ! Check for at least 16 due to cases when one layer of 9 cells
         ! isn't available because the particle is near the bin boundary.
@@ -2576,11 +2545,11 @@ c     ndum    = ppiclf_neltb*n
             do i=1,nnearest
               do j=1,3
                 A(i, j) = xp(j) - center(j, i)
-              end do
+              END do
               A(i, 4) = 1
-            enddo
+            ENDdo
 ! Avery print
-!        write(ppiclf_nid,*) ip, xp, nnearest, ppiclf_nid
+!           write(ppiclf_nid,*) ip, xp, nnearest, ppiclf_nid
             do i=1,PPICLF_INT_ICNT
 
               do k=1,nnearest
@@ -2589,18 +2558,18 @@ c     ndum    = ppiclf_neltb*n
 !                if (i ==1) then
 !                  write(ppiclf_nid,*) ip,
 !     >                     center(1:3,k),indg(k)
-!                endif
+!                ENDif
                 do iz=1,PPICLF_LEZ
                 do iy=1,PPICLF_LEY
                 do ix=1,PPICLF_LEX
                   b(k, 1) = b(k, 1) + ppiclf_int_fld(ix,iy,iz,i,
      >                                inearest(k))
-                enddo
-                enddo
-                enddo
+                ENDdo
+                ENDdo
+                ENDdo
 
                 b(k, 1) = b(k, 1) / nxyz
-              enddo ! nnearest
+              ENDdo ! nnearest
 
               j = PPICLF_INT_MAP(i)
 
@@ -2614,22 +2583,22 @@ c     ndum    = ppiclf_neltb*n
                 w(k) = 1.0d0 / (sqrt(d2(k)) + eps)
                 ppiclf_rprop(j, ip) = ppiclf_rprop(j, ip) + w(k)*b(k, 1)
                 wsum = wsum + w(k)
-              enddo
+              ENDdo
 
               ppiclf_rprop(j, ip) = ppiclf_rprop(j, ip) / wsum
             if (isnan(ppiclf_rprop(j,ip))) then
               PRINT *, ip,ppiclf_nid,xp,nnearest
-            endif
-            enddo
+            ENDif
+            ENDdo
 
-        endif ! nnearest
-      enddo ! ip
+        ENDif ! nnearest
+      ENDdo ! ip
 
       ! reset here instead of in finalize
       !PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_PostInterp
 !
@@ -2661,13 +2630,13 @@ c     ndum    = ppiclf_neltb*n
             npart = npart + 1
             do j=1,ppiclf_ndim
                coord(j,npart) = ppiclf_y(j,i)
-            enddo
-         endif
-      enddo
+            ENDdo
+         ENDif
+      ENDdo
 
       if (ppiclf_iglsum(npart,1) .eq. 0) then
-         return
-      endif
+         RETURN
+      ENDif
 
       ! Copy grid indexing 
       ! TLJ changing loop structure to prevent -fcheck=all error
@@ -2677,18 +2646,18 @@ c     ndum    = ppiclf_neltb*n
       !   xgrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,1,ie)
       !   ygrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,2,ie)
       !   zgrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,3,ie)
-      !enddo
+      !ENDdo
       do k=1,PPICLF_LEZ
       do j=1,PPICLF_LEY
       do i=1,PPICLF_LEX
          xgrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,1,ie)
          ygrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,2,ie)
          zgrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,3,ie)
-      enddo
-      enddo
-      enddo
+      ENDdo
+      ENDdo
+      ENDdo
 
-      enddo
+      ENDdo
 
       tol     = 5e-13
       bb_t    = 0.01
@@ -2746,7 +2715,7 @@ c     ndum    = ppiclf_nee*n
 !     >                                  ,npart
 !     >                                  ,ppiclf_int_fldu(1,1,1,1,i))
 
-      enddo
+      ENDdo
 
       ! free since mapping can change on next call
       call pfgslib_findpts_free(fp_handle)
@@ -2759,20 +2728,20 @@ c     ndum    = ppiclf_nee*n
             k = k + 1
             if (flag(1,k) .lt. 2) then
                copy_back = 1
-            endif
-         endif
+            ENDif
+         ENDif
 
          if (copy_back .eq. 1) then
             ppiclf_iprop(1,i) = flag(1,k)
             do j=1,PPICLF_LRP_INT
                jp = PPICLF_INT_MAP(j)
                ppiclf_rprop(jp,i) = coord(7+j,k)
-            enddo
-         endif
-      enddo
+            ENDdo
+         ENDif
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_SetRK3Coeff(dt)
 !
@@ -2818,10 +2787,10 @@ c----------------------------------------------------------------------
         ppiclf_rk3coef(2,3) = 2.0d0/3.0d0
         ppiclf_rk3coef(3,3) = dt*2.0d0/3.0d0
         !BD: Original Code END
-      end if
+      END if
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_MarkForRemoval(i)
 !
@@ -2835,8 +2804,8 @@ c----------------------------------------------------------------------
 !
       ppiclf_iprop(1,i) = 3
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_RemoveParticle
 !
@@ -2868,7 +2837,7 @@ c----------------------------------------------------------------------
          if (ppiclf_iprop(1,i) .eq. 3) then
             in_part(i) = -1 ! User removed particle
             goto 1513
-         endif
+         ENDif
 !-----------------------------------------------------------------------------------
 !!!!!!!!!!!!!!!        Rotational Periodicity Starts Here     !!!!!!!!!!!!!!!!!!!!
             ! currently only supports angular rotation around z-axis
@@ -2892,8 +2861,8 @@ c----------------------------------------------------------------------
      >                                                ang_per_angle,
      >                                                ang_per_xangle,
      >                                                1)
-            endif ! per_alpha
-           endif ! ang_per_flag
+            ENDif ! per_alpha
+           ENDif ! ang_per_flag
 
         ! Linear Periodicity Invoked
           if((x_per_flag.eq.1) .or. (y_per_flag.eq.1) 
@@ -2915,8 +2884,8 @@ c----------------------------------------------------------------------
 !!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(2,j+1) +
 !!     &                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y1(isl+j))
 !                  goto 1512
-!                endif
-!            endif
+!                ENDif
+!            ENDif
 !            ! Thierry - checks if particle is about to leave max. periodic face
 !            ! moves it relative to the min. periodic face
 !            if (ppiclf_y(jchk,i).gt.ppiclf_xdrange(2,j+1))then
@@ -2928,18 +2897,18 @@ c----------------------------------------------------------------------
 !!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(1,j+1) +
 !!     &                     abs(ppiclf_y1(isl+j) - ppiclf_xdrange(2,j+1))
 !                  goto 1512
-!                endif
-!            endif
+!                ENDif
+!            ENDif
 !            if (ppiclf_iprop(1,i) .eq. 2) then
 !               in_part(i) = -1 ! only if periodic check fails it will get here
-!            endif
+!            ENDif
 ! 1512 continue
-!         enddo ! j=0,ndim-1
+!         ENDdo ! j=0,ndim-1
 !------------------------------------------------------------------------------------------------------
          call ppiclf_solve_InvokeLinearPeriodic(i)
-         endif ! x_per_flag
+         ENDif ! x_per_flag
  1513 continue
-      enddo ! i=1,ppiclf_part
+      ENDdo ! i=1,ppiclf_part
 
       ic = 0
       do i=1,ppiclf_npart
@@ -2964,13 +2933,13 @@ c----------------------------------------------------------------------
      >              (ppiclf_rprop3(1,ic),ppiclf_rprop3(1,i),PPICLF_LRP3)
                call ppiclf_icopy
      >              (ppiclf_iprop(1,ic) ,ppiclf_iprop(1,i) ,PPICLF_LIP)
-            endif
-         endif
-      enddo
+            ENDif
+         ENDif
+      ENDdo
       ppiclf_npart = ic
 
-      return
-      end
+      RETURN
+      END
 !----------------------------------------------------------------------
       subroutine ppiclf_solve_FindWallProject(rx2)
 !
@@ -3008,14 +2977,14 @@ c----------------------------------------------------------------------
             rpz1 = rx2(3)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
          rpx1 = ppiclf_wall_c(1,j)
          rpy1 = ppiclf_wall_c(2,j)
@@ -3027,7 +2996,7 @@ c----------------------------------------------------------------------
          if (ppiclf_ndim .eq. 3) then
             rpz1 = ppiclf_wall_c(3,j)
             rpz2 = ppiclf_wall_c(istride+3,j)
-         endif
+         ENDif
 
          rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -3045,13 +3014,13 @@ c----------------------------------------------------------------------
          ppiclf_xyz_mirror(3,ppiclf_nwall_m) = 0.0d0
          if (ppiclf_ndim .eq. 3) then
             ppiclf_xyz_mirror(3,ppiclf_nwall_m) = rx2(3) - rdist*rnz
-         endif
+         ENDif
 
  1511 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_ProjectParticleGrid
 !
@@ -3117,7 +3086,7 @@ c----------------------------------------------------------------------
          multfci = 1.0d0/(sqrt(2.0d0*pi)**2 * rsig**2) ! in 2D
          if (if3d) multfci = multfci**(1.5d0) ! in 3D
          rdum   = 1.0d0/(-2.0d0*rsig**2)
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          if (ppiclf_sngl_elem) then
@@ -3127,8 +3096,8 @@ c----------------------------------------------------------------------
            multfci = 1.0d0/(PI/4.0d0*ppiclf_filter**2)
            if (if3d) multfci = multfci/(1.0d0/1.5d0*ppiclf_filter)
            rdum = multfci
-         endif
-      endif
+         ENDif
+      ENDif
 
       ! real particles
       do ip=1,ppiclf_npart
@@ -3146,14 +3115,14 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip) = ppiclf_cp_map(j,ip)*multfci
-         enddo
+         ENDdo
                     
          iproj(1,ip)  = ppiclf_iprop(8,ip)
          iproj(2,ip)  = ppiclf_iprop(9,ip)
          if (if3d)
      >   iproj(3,ip)  = ppiclf_iprop(10,ip)
          iproj(4,ip)  = ppiclf_iprop(11,ip)
-      enddo
+      ENDdo
 
       if (.not. ppiclf_sngl_elem) then
   
@@ -3173,14 +3142,14 @@ c----------------------------------------------------------------------
            do j=idum+1,PPICLF_LRP_GP
               ic = ic + 1
               rproj(ic,ip+ppiclf_npart) = ppiclf_rprop_gp(j,ip)*multfci
-           enddo
+           ENDdo
                       
            iproj(1,ip+ppiclf_npart)  = ppiclf_iprop_gp(2,ip)
            iproj(2,ip+ppiclf_npart)  = ppiclf_iprop_gp(3,ip)
            if (if3d)
      >     iproj(3,ip+ppiclf_npart)  = ppiclf_iprop_gp(4,ip)
            iproj(4,ip+ppiclf_npart)  = ppiclf_iprop_gp(5,ip)
-        enddo
+        ENDdo
   
         ndum = ppiclf_npart+ppiclf_npart_gp
   
@@ -3198,7 +3167,7 @@ c----------------------------------------------------------------------
            if (if3d) then
               klow  = kkp-1
               khigh = kkp+1
-           endif
+           ENDif
   
            ! Find if particle near wall and should mirror itself
            if (ppiclf_iwallm .eq. 1) then
@@ -3206,7 +3175,7 @@ c----------------------------------------------------------------------
               rx2(2) = rproj(3,ip)
               rx2(3) = rproj(4,ip)
               call ppiclf_solve_FindWallProject(rx2)
-           endif
+           ENDif
   
            do ie=1,ppiclf_neltb
   
@@ -3220,7 +3189,7 @@ c----------------------------------------------------------------------
                  if (if3d) then
                     if (ppiclf_el_map(7,ie) .gt. khigh) cycle
                     if (ppiclf_el_map(8,ie) .lt. klow)  cycle
-                 endif
+                 ENDif
   
            do k=1,PPICLF_LEZ
            do j=1,PPICLF_LEY
@@ -3250,14 +3219,14 @@ c----------------------------------------------------------------------
                        rz22 = (ppiclf_xm1b(i,j,k,3,ie)
      >                        -ppiclf_xyz_mirror(3,jj))**2
                        rtmp2 = rtmp2 + rz22
-                    endif
+                    ENDif
                     if (ppiclf_lfiltgauss) then
                        rexp = rexp + exp(rtmp2*rproj(1,ip))
                     else
                        rexp = rexp + 1.0d0
-                    endif
-                 enddo
-              endif
+                    ENDif
+                 ENDdo
+              ENDif
   
               
               do jj=1,PPICLF_LRP_PRO
@@ -3265,12 +3234,12 @@ c----------------------------------------------------------------------
                  ppiclf_pro_fldb(i,j,k,jj,ie) = 
      >                           ppiclf_pro_fldb(i,j,k,jj,ie) 
      >                         + rproj(j1,ip)*rexp
-              enddo
-           enddo
-           enddo
-           enddo
-           enddo
-        enddo
+              ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+        ENDdo
       ! sngl elem
       else
 
@@ -3288,10 +3257,10 @@ c----------------------------------------------------------------------
               face_map(ix,iface,i,j,ix) = iface ! constant
               face_map(ix,iface,i,j,ia) = i ! ix
               face_map(ix,iface,i,j,ib) = j ! iy
-            end do
-            end do
-          end do
-        end do
+            END do
+            END do
+          END do
+        END do
 
         do ip=1,ppiclf_npart
            !do ie=1,ppiclf_neltb
@@ -3305,21 +3274,21 @@ c----------------------------------------------------------------------
                ! get centroid of hexahedron
                do ix=1,3
                  centroid(ix) = 0.0
-               end do
+               END do
 
                do ix=1,3
                do k=1,PPICLF_LEZ
                do j=1,PPICLF_LEY
                do i=1,PPICLF_LEX
                  centroid(ix) = centroid(ix) + ppiclf_xm1b(i,j,k,ix,ie)
-               end do
-               end do
-               end do
-               end do
+               END do
+               END do
+               END do
+               END do
 
                do ix=1,3
                  centroid(ix) = centroid(ix) / 8.0
-               end do
+               END do
 
 
                ! calculate volume based on two contributions from each
@@ -3337,14 +3306,14 @@ c----------------------------------------------------------------------
      >                                 face_map(ix,iface,i,j,2),
      >                                 face_map(ix,iface,i,j,3),
      >                                 ix2,ie)
-                   end do
-                   end do
-                   end do
+                   END do
+                   END do
+                   END do
 
                    do ix2=1,3
                      v1(ix2) = face(1,2,ix2) - face(2,1,ix2)
                      v2(ix2) = centroid(ix2) - face(2,1,ix2)
-                   end do ! ix2
+                   END do ! ix2
 
                    ! take cross product
                    cross(1) = v1(2)*v2(3) - v1(3)*v2(2)
@@ -3355,19 +3324,19 @@ c----------------------------------------------------------------------
                    do inode=1,2
                    do ix2=1,3
                      v3(ix2) = face(inode,inode,ix2) - face(2,1,ix2)
-                   end do ! ix2
+                   END do ! ix2
 
                    ! really 6 times the volume of the tet, but we can
                    ! save an operation by dividing at the end
                    voltet = 0.0
                    do ix2=1,3
                      voltet = voltet + v3(ix2)*cross(ix2)
-                   end do ! ix2
+                   END do ! ix2
                    evol = evol + abs(voltet)
-                   end do ! inode
+                   END do ! inode
                    
-                 end do ! iface
-              end do ! ix
+                 END do ! iface
+              END do ! ix
                evol = evol / 6.0
              else
                ! Sam - default to naive solution for 2D. ASSUMES
@@ -3387,7 +3356,7 @@ c----------------------------------------------------------------------
 !               if (if3d) evol = evol
 !     >              * (ppiclf_xm1b(1,1,PPICLF_LEZ,3,ie) 
 !     >               - ppiclf_xm1b(1,1,1,3,ie))
-            end if ! if3d
+            END if ! if3d
 
              rexp = 1.0 / evol
            do k=1,PPICLF_LEZ
@@ -3398,13 +3367,13 @@ c----------------------------------------------------------------------
                  ppiclf_pro_fldb(i,j,k,jj,ie) = 
      >                           ppiclf_pro_fldb(i,j,k,jj,ie) 
      >                         + rproj(j1,ip)*rexp
-              enddo
-           enddo
-           enddo
-           enddo
-           enddo
-        !enddo ! ppiclf_neltb
-      endif ! ppiclf_npart
+              ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+        !ENDdo ! ppiclf_neltb
+      ENDif ! ppiclf_npart
 
       ! now send xm1b to the processors in nek that hold xm1
 
@@ -3414,7 +3383,7 @@ c----------------------------------------------------------------------
       do ie=1,neltbc
          ppiclf_er_mapc(5,ie) = ppiclf_er_mapc(2,ie)
          ppiclf_er_mapc(6,ie) = ppiclf_er_mapc(2,ie)
-      enddo
+      ENDdo
       nl = 0
       nii = PPICLF_LRMAX
       njj = 6
@@ -3455,14 +3424,14 @@ c----------------------------------------------------------------------
            ppiclf_pro_fld(i,j,k,iee,ip) = ppiclf_pro_fld(i,j,k,iee,ip) +
      >                                    ppiclf_pro_fldb(i,j,k,ip,ie)
 
-         enddo
-         enddo
-         enddo
-         enddo
-      enddo
+         ENDdo
+         ENDdo
+         ENDdo
+         ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_ProjectParticleSubBin
 !
@@ -3491,7 +3460,7 @@ c----------------------------------------------------------------------
       nxyzdum = nxyz*PPICLF_LRP_PRO
       do i=1,nxyzdum
          ppiclf_grid_fld(i,1,1,1) = 0.0d0
-      enddo
+      ENDdo
 
       d2chk2_sq = ppiclf_d2chk(2)**2
 
@@ -3508,12 +3477,12 @@ c----------------------------------------------------------------------
          multfci = 1.0d0/(sqrt(2.0d0*pi)**2 * rsig**2) 
          if (if3d) multfci = multfci**(1.5d0)
          rdum   = 1.0d0/(-2.0d0*rsig**2)
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          multfci = 1.0d0/(PI/4.0d0*ppiclf_filter**2)
          if (if3d) multfci = multfci/(1.0d0/1.5d0*ppiclf_filter)
-      endif
+      ENDif
 
       ! real particles
       do ip=1,ppiclf_npart
@@ -3531,7 +3500,7 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip) = ppiclf_cp_map(j,ip)*multfci
-         enddo
+         ENDdo
 
          iproj(1,ip) = 
      >       floor( (rproj(2,ip) - ppiclf_binx(1,1))/ppiclf_rdx)
@@ -3540,7 +3509,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   iproj(3,ip) = 
      >       floor( (rproj(4,ip) - ppiclf_binz(1,1))/ppiclf_rdz)
-      enddo
+      ENDdo
 
       ! ghost particles
       do ip=1,ppiclf_npart_gp
@@ -3558,7 +3527,7 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip+ppiclf_npart) = ppiclf_rprop_gp(j,ip)*multfci
-         enddo
+         ENDdo
                     
          iproj(1,ip+ppiclf_npart) = 
      >     floor((rproj(2,ip+ppiclf_npart)-ppiclf_binx(1,1))/ppiclf_rdx)
@@ -3567,7 +3536,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   iproj(3,ip+ppiclf_npart) = 
      >     floor((rproj(4,ip+ppiclf_npart)-ppiclf_binz(1,1))/ppiclf_rdz)
-      enddo
+      ENDdo
 
       ndum = ppiclf_npart+ppiclf_npart_gp
 
@@ -3580,7 +3549,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   kdum = floor(ppiclf_filter/2.0d0/ppiclf_rdz
      >    *sqrt(-log(ppiclf_alpha)/log(2.0d0)))+1
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          idum = ppiclf_ngrids/2+1
@@ -3588,7 +3557,7 @@ c----------------------------------------------------------------------
          kdum = 999999999
          if (if3d)
      >   kdum = ppiclf_ngrids/2+1
-      endif
+      ENDif
 
       do ip=1,ndum
          iip = iproj(1,ip)
@@ -3605,7 +3574,7 @@ c----------------------------------------------------------------------
          if (if3d) then
          kl  = max(1     ,kkp-kdum)
          kr  = min(ppiclf_bz,kkp+kdum)
-         endif
+         ENDif
 
 c        do k=kl,kr
 c        do j=jl,jr
@@ -3629,14 +3598,14 @@ c        do i=il,ir
                ppiclf_grid_fld(i,j,k,jj) = 
      >                         ppiclf_grid_fld(i,j,k,jj) 
      >                       + sngl(rproj(j1,ip)*rexp)
-            enddo
-         enddo
-         enddo
-         enddo
-      enddo
+            ENDdo
+         ENDdo
+         ENDdo
+         ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_GetProFldIJKEF(i,j,k,e,m,fld)
 !
@@ -3654,6 +3623,6 @@ c        do i=il,ir
 !
       fld = ppiclf_pro_fld(i,j,k,e,m)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------

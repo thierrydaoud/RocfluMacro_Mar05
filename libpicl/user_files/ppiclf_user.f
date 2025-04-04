@@ -296,19 +296,19 @@
      >     (FLOOR((ppiclf_bins_dx(3)+2*ppiclf_d2chk(3))/ppiclf_d2chk(3))
      >       + 1) 
 
-         if (ppiclf_time .EQ. 0.0) then
-         write(*,*) 'Subbin Method used!'
-         write(6,*) 'SUBBIN ', 
-     >     ppiclf_time,
-     >     ppiclf_bins_dx(1:3),
-     >     nsubbin_size,
-     >     tot_SBin,n_SBin(1:3),
-     >     ppiclf_npart,ppiclf_npart_gp,
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
-     >     ' GB: ',nsubbin_size*
-     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
-
-         endif ! end ppiclf_time = 0
+!         if (ppiclf_time .EQ. 0.0) then
+!         write(*,*) 'Subbin Method used!'
+!         write(6,*) 'SUBBIN ', 
+!     >     ppiclf_time,
+!     >     ppiclf_bins_dx(1:3),
+!     >     nsubbin_size,
+!     >     tot_SBin,n_SBin(1:3),
+!     >     ppiclf_npart,ppiclf_npart_gp,
+!     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
+!     >     ' GB: ',nsubbin_size*
+!     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
+!
+!         endif ! end ppiclf_time = 0
 
          if (ppiclf_debug==2) write(7001,*)
      >     ppiclf_time,
