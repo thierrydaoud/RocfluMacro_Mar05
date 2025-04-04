@@ -1,6 +1,6 @@
 #define PPICLF_LPART 20000
 #define PPICLF_LRS 12
-#define PPICLF_LRP 61
+#define PPICLF_LRP 64
 #define PPICLF_LEE 30000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
@@ -86,9 +86,12 @@
 #define PPICLF_R_FVUY 56
 #define PPICLF_R_FVUZ 57
 #define PPICLF_R_QQ 58
-#define PPICLF_R_JSDOX 59
-#define PPICLF_R_JSDOY 60
-#define PPICLF_R_JSDOZ 61
+#define PPICLF_R_FPGX 59 
+#define PPICLF_R_FPGY 60 
+#define PPICLF_R_FPGZ 61 
+#define PPICLF_R_JSDOX 62
+#define PPICLF_R_JSDOY 63
+#define PPICLF_R_JSDOZ 64
 
 ! map: PPICLF_LRP_PRO
 #define PPICLF_P_JPHIP 1

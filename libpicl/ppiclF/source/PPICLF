@@ -1,13 +1,13 @@
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 c Computational particles
       REAL*8 PPICLF_Y (12 ,20000) ! Solution
      > ,PPICLF_YDOT (12 ,20000) ! Total solution RHS
      > ,PPICLF_YDOTC (12 ,20000) ! Coupled solution RHS
-     > ,PPICLF_RPROP (61 ,20000) ! Real particle properties
+     > ,PPICLF_RPROP (64 ,20000) ! Real particle properties
      > ,PPICLF_RPROP2(4,20000) ! Secondary real particle properties
      > ,PPICLF_RPROP3(6*5,20000) ! Third real particle properties
       COMMON /PPICLF_SLN_CURRENT_R/ PPICLF_Y
@@ -33,7 +33,7 @@ c Previous time step solutions, may grow later
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 C Grid
       REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,30000)
@@ -84,7 +84,7 @@ C Grid
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 c Particle options
       LOGICAL PPICLF_RESTART, PPICLF_OVERLAP, PPICLF_LCOMM
@@ -117,7 +117,7 @@ c Particle options
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 c Communication
       COMMON /PPICLF_PARALLEL_COMM_I/ PPICLF_COMM, PPICLF_NP, PPICLF_NID
@@ -152,8 +152,8 @@ c Bins
       COMMON /PPICLF_PARALLEL_BIN_LOCAL_N/ PPICLF_BX, PPICLF_BY
      > ,PPICLF_BZ
 C Ghost particles
-      REAL*8 PPICLF_RPROP_GP(12 +61 +10,26*20000)
-     > ,PPICLF_CP_MAP(12 +61 +10,20000)
+      REAL*8 PPICLF_RPROP_GP(12 +64 +10,26*20000)
+     > ,PPICLF_CP_MAP(12 +64 +10,20000)
       COMMON /PPICLF_PARALLEL_GHOST_R/ PPICLF_RPROP_GP, PPICLF_CP_MAP
       INTEGER*4 PPICLF_NB_R(3,20000)
      > ,PPICLF_NB_G(3,26*20000)
@@ -165,7 +165,7 @@ C Ghost particles
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 !
 ! General useage
@@ -264,7 +264,7 @@ C Ghost particles
 ! number of timesteps kept in history kernels
 ! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 61
+! rprop: 64
 ! map: 10
 C Wall support
       REAL*8 PPICLF_WALL_C(9,20),PPICLF_WALL_N(4,20)
