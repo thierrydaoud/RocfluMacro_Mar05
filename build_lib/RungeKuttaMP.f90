@@ -233,7 +233,7 @@ SUBROUTINE RungeKuttaMP( regions )
 ! ----- add source terms ------------------------------------------------------
 
         CALL SourceTermsMP( regions(iReg) )
-        
+
         pRegion => regions(iReg)
         IF ( global%piclUsed .EQV. .TRUE. ) THEN
           CALL PICL_TEMP_Runge(pRegion)!(regions)

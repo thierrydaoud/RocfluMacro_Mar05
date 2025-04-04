@@ -475,6 +475,12 @@
          ppiclf_iprop(j,i) = 0
       enddo
       enddo
+      do i=1,PPICLF_LPART_GP
+      do j=1,PPICLF_LRP_GP
+         ppiclf_rprop_gp(j,i) = 0.0d0
+      enddo
+      enddo
+
       ppiclf_npart = 0
 
       do ie=1,PPICLF_LEE
@@ -994,7 +1000,7 @@
          A(3) = 0.0d0
       endif
 
-      ! compoute area:
+      ! compute area:
       do k=1,kmax 
          kp = k+1
          if (kp .gt. kmax) kp = kp-kmax ! cycle
@@ -1954,7 +1960,7 @@ c----------------------------------------------------------------------
       !   ppiclf_y1(i) = ppiclf_ydot(i,1)
       !enddo
 
-!WAARNING: Experimental fix to keep particles unsure where to place this
+!WARNING: Experimental fix to keep particles unsure where to place this
 !          command. Either before or after the storing of the current 
 !          storage
         call ppiclf_solve_RemoveParticle      

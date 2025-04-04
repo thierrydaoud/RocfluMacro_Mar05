@@ -1,11 +1,12 @@
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 c Computational particles
-      REAL*8 PPICLF_Y (18 ,20000) ! Solution
-     > ,PPICLF_YDOT (18 ,20000) ! Total solution RHS
-     > ,PPICLF_YDOTC (18 ,20000) ! Coupled solution RHS
+      REAL*8 PPICLF_Y (12 ,20000) ! Solution
+     > ,PPICLF_YDOT (12 ,20000) ! Total solution RHS
+     > ,PPICLF_YDOTC (12 ,20000) ! Coupled solution RHS
      > ,PPICLF_RPROP (61 ,20000) ! Real particle properties
      > ,PPICLF_RPROP2(4,20000) ! Secondary real particle properties
      > ,PPICLF_RPROP3(6*5,20000) ! Third real particle properties
@@ -20,7 +21,7 @@ c Computational particles
       COMMON /PPICLF_SLN_CURRENT_N/ PPICLF_NPART
       INTEGER*4 PPICLF_NPART
 c Previous time step solutions, may grow later
-      REAL*8 PPICLF_Y1(18*20000)
+      REAL*8 PPICLF_Y1(12*20000)
       COMMON /PPICLF_SLN_PREVIOUS_R/ PPICLF_Y1
 c Previous time step solutions, may grow later
       REAL*8 PPICLF_TIMEBH(5)
@@ -29,35 +30,36 @@ c Previous time step solutions, may grow later
       COMMON /PPICLF_SLN_UNSTEADY/ PPICLF_TIMEBH
      > ,PPICLF_DRUDTPLAG
      > ,PPICLF_DRUDTMIXT
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 C Grid
-      REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,100000)
+      REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,30000)
       COMMON /PPICLF_GRID_RANGE_R/ PPICLF_XDRANGE, PPICLF_XERANGE
       COMMON /PPICLF_GRID_FLD_R/ PPICLF_PRO_FLD, PPICLF_INT_FLD
      > ,PPICLF_INT_FLDU ,PPICLF_PRO_FLDB
      > ,PPICLF_XM1B ,PPICLF_XM1BS, PPICLF_XM1BI
      > ,PPICLF_XM1BG, PPICLF_INT_FLDG
-      REAL*8 PPICLF_PRO_FLD (2,2,2,100000
+      REAL*8 PPICLF_PRO_FLD (2,2,2,30000
      > ,10),
      > PPICLF_INT_FLDU(2,2,2
-     > ,100000,27),
+     > ,30000,30),
      > PPICLF_INT_FLD (2,2,2
-     > ,27,100000),
+     > ,30,30000),
      > PPICLF_INT_FLDG(2,2,2
-     > ,27,100000),
+     > ,30,30000),
      > PPICLF_PRO_FLDB(2,2,2
-     > ,10,100000),
+     > ,10,30000),
      > PPICLF_XM1B (2,2,2,3
-     > ,100000),
+     > ,30000),
      > PPICLF_XM1BS (2,2,2
-     > ,3,100000),
+     > ,3,30000),
      > PPICLF_XM1BI (2,2,2
-     > ,100000,3),
+     > ,30000,3),
      > PPICLF_XM1BG (2,2,2
-     > ,3,100000)
+     > ,3,30000)
       COMMON /PPICLF_GRID_BIN_MAP_I/ PPICLF_ER_MAP,PPICLF_ER_MAPC
      > ,PPICLF_ER_MAPS,PPICLF_ER_MAPG
      > ,PPICLF_EL_MAP,PPICLF_ER_MAPGS
@@ -65,23 +67,24 @@ C Grid
      > ,PPICLF_MODGP,PPICLF_NELTB,PPICLF_NELTBB
      > ,PPICLF_NELTBBB,PPICLF_NELTBG
      > ,PPICLF_NELTBBG
-      INTEGER*4 PPICLF_ER_MAP (6,100000),
-     > PPICLF_ER_MAPC(6,100000),
-     > PPICLF_ER_MAPS(6,100000),
-     > PPICLF_ER_MAPG(6,100000),
-     > PPICLF_ER_MAPGS(6,100000),
-     > PPICLF_ER_MAPGC(6,100000),
+      INTEGER*4 PPICLF_ER_MAP (6,30000),
+     > PPICLF_ER_MAPC(6,30000),
+     > PPICLF_ER_MAPS(6,30000),
+     > PPICLF_ER_MAPG(6,30000),
+     > PPICLF_ER_MAPGS(6,30000),
+     > PPICLF_ER_MAPGC(6,30000),
      > PPICLF_MODGP (2,2,2
-     > ,100000,4),
-     > PPICLF_EL_MAP (8,100000), PPICLF_NELTB,PPICLF_NELTBB,
+     > ,30000,4),
+     > PPICLF_EL_MAP (8,30000), PPICLF_NELTB,PPICLF_NELTBB,
      > PPICLF_NELTBBB,PPICLF_NELTBG, PPICLF_NELTBBG
       INTEGER*4 PPICLF_NEE
       COMMON /PPICLF_GRID_ORIG_CELL_N/ PPICLF_NEE
-      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(27)
+      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(30)
       COMMON /PPICLF_INTERP_I/ PPICLF_INT_ICNT, PPICLF_INT_MAP
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 c Particle options
       LOGICAL PPICLF_RESTART, PPICLF_OVERLAP, PPICLF_LCOMM
@@ -111,9 +114,10 @@ c Particle options
      > ,PPICLF_RK3COEF, PPICLF_DT
      > ,PPICLF_TIME, PPICLF_D2CHK
      > ,PPICLF_RK3ARK
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 c Communication
       COMMON /PPICLF_PARALLEL_COMM_I/ PPICLF_COMM, PPICLF_NP, PPICLF_NID
@@ -148,8 +152,8 @@ c Bins
       COMMON /PPICLF_PARALLEL_BIN_LOCAL_N/ PPICLF_BX, PPICLF_BY
      > ,PPICLF_BZ
 C Ghost particles
-      REAL*8 PPICLF_RPROP_GP(18 +61 +10,26*20000)
-     > ,PPICLF_CP_MAP(18 +61 +10,20000)
+      REAL*8 PPICLF_RPROP_GP(12 +61 +10,26*20000)
+     > ,PPICLF_CP_MAP(12 +61 +10,20000)
       COMMON /PPICLF_PARALLEL_GHOST_R/ PPICLF_RPROP_GP, PPICLF_CP_MAP
       INTEGER*4 PPICLF_NB_R(3,20000)
      > ,PPICLF_NB_G(3,26*20000)
@@ -158,9 +162,10 @@ C Ghost particles
       COMMON /PPICLF_PARALLEL_GHOST_I/ PPICLF_IPROP_GP
       INTEGER*4 PPICLF_NPART_GP
       COMMON /PPICLF_PARALLEL_GHOST_N/ PPICLF_NPART_GP
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 !
 ! General useage
@@ -187,6 +192,11 @@ C Ghost particles
      > vx,vy,vz,
      > rcp_part,rpr
 !
+! For misc values
+!
+      real*8 OneThird
+      common /ppiclf_misc01/ OneThird
+!
 ! For ppiclf_user_Fluctuations.f
 !
       integer*4 icpmean
@@ -210,7 +220,7 @@ C Ghost particles
      > fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      > fqsx_total_max,fqsy_total_max,fqsz_total_max,
      > fvux_max,fvuy_max,fvuz_max,
-     > qq_max,tau_max
+     > qq_max,tau_max,lift_max
       common /user_debug/ phimax,
      > fqsx_max,fqsy_max,fqsz_max,
      > famx_max,famy_max,famz_max,
@@ -221,7 +231,7 @@ C Ghost particles
      > fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      > fqsx_total_max,fqsy_total_max,fqsz_total_max,
      > fvux_max,fvuy_max,fvuz_max,
-     > qq_max,tau_max
+     > qq_max,tau_max,lift_max
 !
 ! For ppiclf_user_AddedMass.f
 !
@@ -251,17 +261,18 @@ C Ghost particles
      > xrot, vrot
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
      > y_per_min, y_per_max, z_per_min, z_per_max
-! y, y1, ydot, ydotc: 18
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+! y, y1, ydot, ydotc: 12
 ! rprop: 61
-        ! force dumping
 ! map: 10
 C Wall support
-      REAL*8 PPICLF_WALL_C(9,1000),PPICLF_WALL_N(4,1000)
+      REAL*8 PPICLF_WALL_C(9,20),PPICLF_WALL_N(4,20)
       COMMON /PPICLF_WALL_R/ PPICLF_WALL_C,PPICLF_WALL_N
       INTEGER*4 PPICLF_NWALL
       COMMON /PPICLF_WALL_N/ PPICLF_NWALL
 C Mirror wall particles
-      REAL*8 PPICLF_XYZ_MIRROR(3,1000)
+      REAL*8 PPICLF_XYZ_MIRROR(3,20)
       COMMON /PPICLF_WALL_MIRROR_R/ PPICLF_XYZ_MIRROR
       INTEGER*4 PPICLF_NWALL_M
       COMMON /PPICLF_WALL_MIRROR_N/ PPICLF_NWALL_M

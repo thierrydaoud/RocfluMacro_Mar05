@@ -379,11 +379,44 @@ SUBROUTINE CellGradientsMP(region)
     pRegion%mixt%cv(CV_MIXT_DENS,:) = pRegion%mixt%cv(CV_MIXT_DENS,:)*&
                                       pRegion%mixt%piclVFg(1,:)
 
+    ! Thierry - kept them in the code if needed for future use.
+!           relevant variable declarations and allocation have to be
+!           uncommented in other parts of the code.
+!------------------Gradient of Phi^g--------------------------------
+!
+!    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,1,1,1,varInfoPicl, &
+!                                      pRegion%mixt%piclVFg,&
+!                                      pRegion%mixt%piclgradVFg)
+!
+!    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,1, &
+!                                      pRegion%mixt%piclgradVFg)
+!
+!    CALL RFLU_LimitGradCellsSimple(pRegion,1,1,1,1, &
+!                                   pRegion%mixt%piclVFg,&
+!                                   piclcvInfo,&
+!                                   pRegion%mixt%piclgradVFg)
+!
+!------------------Gradient of Phi^g Rho^g--------------------------
+!
+!    CALL RFLU_ComputeGradCellsWrapper(pRegion,1,1,1,1,varInfoPicl, &
+!                                      pRegion%mixt%cv,&
+!                                      pRegion%mixt%piclgradVFRhog)
+!
+!    CALL RFLU_WENOGradCellsXYZWrapper(pRegion,1,1, &
+!                                      pRegion%mixt%piclgradVFRhog)
+!
+!    CALL RFLU_LimitGradCellsSimple(pRegion,1,1,1,1, &
+!                                   pRegion%mixt%cv,&
+!                                   piclcvInfo,&
+!                                   pRegion%mixt%piclgradVFRhog)
+!--------------------------------------------------------------------
+
+
     DEALLOCATE(varInfoPicl,STAT=errorFlag)
     DEALLOCATE(piclcvInfo,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN 
-      CALL ErrorStop(global,ERR_DEALLOCATE,395,'varInfoPicl')
+      CALL ErrorStop(global,ERR_DEALLOCATE,428,'varInfoPicl')
     END IF ! global%error
   END IF ! global%piclUsed
 ! 03/19/2025 - ends here

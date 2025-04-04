@@ -237,7 +237,7 @@ SUBROUTINE RungeKuttaMP( regions )
 ! ----- add source terms ------------------------------------------------------
 
         CALL SourceTermsMP( regions(iReg) )
-        
+
 #ifdef PICL
         pRegion => regions(iReg)
         IF ( global%piclUsed .EQV. .TRUE. ) THEN
