@@ -105,7 +105,7 @@ SUBROUTINE RFLU_SetDependentVars(pRegion,icgBeg,icgEnd)
 
 ! y, y1, ydot, ydotc: 12
 
-! rprop: 61
+! rprop: 64
 
 ! map: 10
 

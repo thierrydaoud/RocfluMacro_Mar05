@@ -736,22 +736,25 @@
 !
 ! Step 13: Store forces
 !
-         ppiclf_rprop(PPICLF_R_FQSX,i) = fqsx
-         ppiclf_rprop(PPICLF_R_FQSY,i) = fqsy
-         ppiclf_rprop(PPICLF_R_FQSZ,i) = fqsz
-         ppiclf_rprop(PPICLF_R_FAMX,i) = famx
-         ppiclf_rprop(PPICLF_R_FAMY,i) = famy
-         ppiclf_rprop(PPICLF_R_FAMZ,i) = famz
+         ppiclf_rprop(PPICLF_R_FQSX,i)  = fqsx
+         ppiclf_rprop(PPICLF_R_FQSY,i)  = fqsy
+         ppiclf_rprop(PPICLF_R_FQSZ,i)  = fqsz
+         ppiclf_rprop(PPICLF_R_FAMX,i)  = famx
+         ppiclf_rprop(PPICLF_R_FAMY,i)  = famy
+         ppiclf_rprop(PPICLF_R_FAMZ,i)  = famz
          ppiclf_rprop(PPICLF_R_FAMBX,i) = FamBinary(1)
          ppiclf_rprop(PPICLF_R_FAMBY,i) = FamBinary(2)
          ppiclf_rprop(PPICLF_R_FAMBZ,i) = FamBinary(3)
-         ppiclf_rprop(PPICLF_R_FCX,i) = fcx
-         ppiclf_rprop(PPICLF_R_FCY,i) = fcy
-         ppiclf_rprop(PPICLF_R_FCZ,i) = fcz
-         ppiclf_rprop(PPICLF_R_FVUX,i) = fvux
-         ppiclf_rprop(PPICLF_R_FVUY,i) = fvuy
-         ppiclf_rprop(PPICLF_R_FVUZ,i) = fvuz
-         ppiclf_rprop(PPICLF_R_QQ,i) = qq
+         ppiclf_rprop(PPICLF_R_FCX,i)   = fcx
+         ppiclf_rprop(PPICLF_R_FCY,i)   = fcy
+         ppiclf_rprop(PPICLF_R_FCZ,i)   = fcz
+         ppiclf_rprop(PPICLF_R_FVUX,i)  = fvux
+         ppiclf_rprop(PPICLF_R_FVUY,i)  = fvuy
+         ppiclf_rprop(PPICLF_R_FVUZ,i)  = fvuz
+         ppiclf_rprop(PPICLF_R_QQ,i)    = qq
+         ppiclf_rprop(PPICLF_R_FPGX,i)  = fdpdx
+         ppiclf_rprop(PPICLF_R_FPGY,i)  = fdpdy
+         ppiclf_rprop(PPICLF_R_FPGZ,i)  = fdpdz
 
 !
 ! Step 14: If debug mode is ON, calculate and print the max values.

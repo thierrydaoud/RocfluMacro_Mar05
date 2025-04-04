@@ -117,7 +117,7 @@ USE RFLU_ModConvertCv, ONLY: RFLU_ConvertCvCons2Prim, &
 
 ! y, y1, ydot, ydotc: 12
 
-! rprop: 61
+! rprop: 64
 
 ! map: 10
 
@@ -760,9 +760,9 @@ pGc => pRegion%mixt%gradCell
       CALL ppiclf_solve_InterpFieldUser(40,dpvxF)
       CALL ppiclf_solve_InterpFieldUser(41,dpvyF)
       CALL ppiclf_solve_InterpFieldUser(42,dpvzF)
-      CALL ppiclf_solve_InterpFieldUser(59,SDOX)  
-      CALL ppiclf_solve_InterpFieldUser(60,SDOY)  
-      CALL ppiclf_solve_InterpFieldUser(61,SDOZ)  
+      CALL ppiclf_solve_InterpFieldUser(62,SDOX)  
+      CALL ppiclf_solve_InterpFieldUser(63,SDOY)  
+      CALL ppiclf_solve_InterpFieldUser(64,SDOZ)  
 
 
 !FEED BACK TERM
