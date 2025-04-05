@@ -740,6 +740,7 @@ c     current box coordinates
 !                 IF (ppiclf_er_map(4,il) .EQ. nrank) THEN
 !                    PRINT*, 'AVERY - NELTB Loop remover still used!'
 !                    ppiclf_neltb = ppiclf_neltb - 1
+!                     CYCLE
 !                 END IF
 !                 END IF
 !              END DO
