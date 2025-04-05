@@ -75,10 +75,6 @@ SUBROUTINE PICL_TEMP_InitSolver( pRegion)
 !  USE 
 
 !USE ModInterfaces, ONLY: 
-                           !begin BRAD
-!                           RFLU_InitFlowHardCode_JG,&
-!                           SPEC_RFLU_InitFlowHardCode_JG&
-                           !end BRAD
  USE ModDataTypes
   USE ModDataStruct, ONLY : t_level,t_region
   USE ModGlobal, ONLY     : t_global
@@ -121,7 +117,7 @@ INTEGER :: errorFlag,icg
               wall_exists, fexists, foundMat
    INTEGER :: i,npart,nCells,lx,ly,lz,vi,vii,ii,jj,kk,loopCounter,ipart,icl
    INTEGER :: PPC,numPclCells,npart_local,i_global,i_global_min,i_global_max,&
-              iFile,iMat
+              iFile,iMat, k, j, l, m
    REAL(RFREAL) :: dp_min,dp_max,rhop,tester,ratio,total_vol,filter,xMinCurt,&
                    xMaxCurt,yMinCurt,yMaxCurt,xMinCell,xMaxCell,yMinCell,&
                    yMaxCell,zMinCell,zMaxCell,x,vFrac,volpclsum,xLoc,yLoc,zLoc,yL, &
@@ -166,6 +162,8 @@ INTEGER :: errorFlag,icg
           ang_per_angle, ang_per_xangle, &
           ang_per_rin, ang_per_rout
    ! 08/19/24 - Thierry - added for Periodicity - ends here
+   REAL :: MaxPoint(3), MinPoint(3), EleLen(3), Max_EleLen(3)
+   
 #endif
 
    
@@ -192,7 +190,7 @@ INTEGER :: errorFlag,icg
 #ifdef PICL
 
 IF (global%rkscheme /= RK_SCHEME_3_WRAY) THEN
-  CALL ErrorStop(global,ERR_PICL_WRONG_RK,__LINE__,'Wrong RK Scheme')
+  CALL ErrorStop(global,ERR_PICL_WRONG_RK,__LINE__,'Wrong RK Scheme for ppiclf. Needs RK3')
 END IF
 
 stationary = global%piclStationaryFlag
@@ -325,10 +323,7 @@ IF (global%restartFromScratch) THEN
 
    BACKSPACE(iFile, IOSTAT=ErrorFlag)
   
-   ! TLJ - do not use formatted read statements
-   !READ(iFile,'(I16)') npart ! global number of particles
    READ(iFile,*) npart ! global number of particles
-  
    IF (npart .gt. PPICLF_LPART*global%nProcs) THEN
       CALL ErrorStop(global,ERR_ILLEGAL_VALUE,__LINE__,'PPICLF:too &
         many particles to initialize')
@@ -339,19 +334,14 @@ IF (global%restartFromScratch) THEN
    i_global = 1
    i_global_min = npart_local*global%myProcid
    i_global_max = npart_local*(global%myProcid+1)
-
-   !IF ( global%myProcid == MASTERPROC) then
-      print*,global%myProcid,npart,i_global_min,i_global_max
-   !ENDIF
+   IF(i_global_max > npart) i_global_max = npart
+   print*,global%myProcid,npart,i_global_min,i_global_max
   
    dp_max = 0.0d0
-   xp_min_l = +1000.0
-   xp_max_l = -1000.0
+   xp_min_l = +17400000.0
+   xp_max_l = -17400000.0
    do i_global=1,npart
-      ! ASSUME: PPICLF_JX=1, PPICLF_JY=2, ...
-      ! TLJ - do not use formatted read statements
-      !READ(iFile,'((A16),(4E23.16))') matName, (y(ii,i),ii=PPICLF_JX,PPICLF_JZ),dp
-      READ(iFile,*) matName, (y(ii,i),ii=PPICLF_JX,PPICLF_JZ),dp
+      READ(iFile,*) matName, (y(ii,i),ii=PPICLF_JX,PPICLF_JZ),dp !points.dat not formated
 
       dp_max = max(dp_max,dp)
       xp_min_l = min(xp_min_l,y(1,i)-dp/2.0)!sqrt(y(1,i)*y(1,i)+y(2,i)*y(2,i)))
@@ -427,7 +417,7 @@ IF (global%restartFromScratch) THEN
          i = i + 1
       endif
    enddo
-
+   npart_local = i - 1
    CALL MPI_Allreduce(xp_min_l,xp_min,1,MPI_RFREAL,MPI_MIN, &
       global%mpiComm,global%mpierr )
    CALL MPI_Allreduce(xp_max_l,xp_max,1,MPI_RFREAL,MPI_MAX, &
@@ -500,46 +490,6 @@ END IF ! global%restartFromScratch
 
 CALL MPI_Barrier(global%mpiComm,errorFlag)
 
-! TLJ compute ppcilf_d2chk here in rocpicl
-!     this is needed to have the bin at t=0 be
-!     the correct size
-!
-! TLJ: Here we need dp_min to be defined
-! Sam - switching to dp_max which is the worst case
-neighborWidth = 4.0_RFREAL*dp_max
-if ((neighborWidth .gt. global%piclNeighborWidth) &
-    .and. (global%myProcid == MASTERPROC)) then
-    WRITE(STDOUT, '(A)') &
-        '*** WARNING *** PICL NEIGHBORWIDTH too small, defaulting to 4*dp_max'
-end if
-neighborWidth = MAX(neighborWidth, global%piclNeighborWidth)
-filter = global%piclFilterWidth
-filter=filter/2.0d0
-
-if (global%myProcid == MASTERPROC)  then
-   print*,' '
-   print*,'PPICLF: '
-   print*,'  Inputs FILTERWIDTH    : ',global%piclFilterWidth
-   print*,'  Inputs NEIGHBORWIDTH  : ',global%piclNeighborWidth
-   print*,'  dp_max (points.dat)               : ',dp_max
-   print*,'  d2chk(2) = FILTERWIDTH/2          : ',filter
-   print*,'  d2chk(3) = max(4dp,NEIGHBORWIDTH) : ',neighborWidth
-   print*,'  d2chk(1) = max(d2chk(2),d2chk(3)) : ',max(filter,neighborWidth)
-   print*,'    d2chk(1) = max(d2chk(1),d2chk(2); used in CreateBin'
-   print*,'    d2chk(2) = filter; used in filters'
-   print*,'    d2chk(3) = neighborWidth; used in nearestNeighbor'
-   print*,' '
-endif
-
-! TLJ after computing d2chk, we can initialize bins, etc.
-call ppiclf_solve_InitParticle(2,3,0,i-1,y,rprop,filter,neighborWidth) 
-
-! TLJ: CAUTION - Gaussian filter needs to be fixed
-! TLJ: Initialize Box Filter
-!      This sets ppiclf_d2chk(2) used in Nearest Neighbors
-! subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
-call ppiclf_solve_InitBoxFilter(global%piclFilterWidth,0,1)
-
 !BRAD STARTS HERE
 !Taking what was already done and building 1-way coupled first
 !NEED TO BUILD overlap mesh 
@@ -610,6 +560,86 @@ DO i = 1, nCells
             zGrid(2,2,2,i) = pRegion%grid%xyz(ZCOORD,vi) 
 
 END DO !nCells
+! Max cell lengths
+DO i = 1,nCells
+  ! Initialize as zero for each element
+  DO l = 1,3
+    MaxPoint(l) = -1.0E10 
+    MinPoint(l) =  1.0E10 
+    EleLen(l)   =  0.0   
+    Max_EleLen(l)  =  1.23456789D-10
+  ENDDO !l
+  ! Add all x,y,z mesh points for centroid and find extremes
+  ! AVERY FUTURE WORK - update filter to be 3 dimensional.
+    DO k = 1,2!PPICLF_LEZ
+      DO j = 1,2!PPICLF_LEY
+        DO m = 1,2!PPICLF_LEX
+          IF (xGrid(k,j,m,i) > MaxPoint(1)) &
+            MaxPoint(1) = xGrid(k,j,m,i)
+          IF (xGrid(k,j,m,i) < MinPoint(1)) &
+            MinPoint(1) = xGrid(k,j,m,i)
+          IF (yGrid(k,j,m,i) > MaxPoint(2)) &
+            MaxPoint(2) = yGrid(k,j,m,i)  
+          IF (yGrid(k,j,m,i) < MinPoint(2)) &
+            MinPoint(2) = yGrid(k,j,m,i)
+          IF (zGrid(k,j,m,i) > MaxPoint(3)) &
+            MaxPoint(3) = zGrid(k,j,m,i)  
+          IF (zGrid(k,j,m,i) < MinPoint(3)) &
+            MinPoint(3) = zGrid(k,j,m,i)
+        ENDDO !i
+      ENDDO !j
+    ENDDO !k
+  DO l = 1,3
+    ! Find max element length in all dimensions
+    EleLen(l) = ABS(MaxPoint(l)-MinPoint(l))
+    ! Find max lengths for all mesh elements in all directions
+    IF (EleLen(l) > 1D-2 .OR. EleLen(l) < 1D-7) THEN
+      WRITE(*,*) 'AVERY - Extreme points:', MaxPoint(l), MinPoint(l), 'Dimension:',l
+      CYCLE
+    END IF
+    IF (EleLen(l) .GT. Max_EleLen(l)) Max_EleLen(l) = EleLen(l)
+  ENDDO !l
+ENDDO !i
+filter = 4*MAXVAL(Max_EleLen) ! Minimum two cells per ppiclf_bin
+! TLJ compute ppcilf_d2chk here in rocpicl
+!     this is needed to have the bin at t=0 be
+!     the correct size
+!
+! TLJ: Here we need dp_min to be defined
+! Sam - switching to dp_max which is the worst case
+neighborWidth = 4.0_RFREAL*dp_max
+if ((neighborWidth .gt. global%piclNeighborWidth) &
+    .and. (global%myProcid == MASTERPROC)) then
+    WRITE(STDOUT, '(A)') &
+        '*** WARNING *** PICL NEIGHBORWIDTH too small, defaulting to 4*dp_max'
+end if
+neighborWidth = MAX(neighborWidth, global%piclNeighborWidth)
+!filter = global%piclFilterWidth
+filter=filter/2.0d0
+
+if (global%myProcid == MASTERPROC)  then
+   print*,' '
+   print*,'PPICLF: '
+   print*,'  Inputs FILTERWIDTH    : ',global%piclFilterWidth
+   print*,'  Inputs NEIGHBORWIDTH  : ',global%piclNeighborWidth
+   print*,'  dp_max (points.dat)               : ',dp_max
+   print*,'  d2chk(2) = FILTERWIDTH/2          : ',filter
+   print*,'  d2chk(3) = max(4dp,NEIGHBORWIDTH) : ',neighborWidth
+   print*,'  d2chk(1) = max(d2chk(2),d2chk(3)) : ',max(filter,neighborWidth)
+   print*,'    d2chk(1) = max(d2chk(1),d2chk(2); used in CreateBin'
+   print*,'    d2chk(2) = filter; used in filters'
+   print*,'    d2chk(3) = neighborWidth; used in nearestNeighbor'
+   print*,' '
+endif
+
+! TLJ after computing d2chk, we can initialize bins, etc.
+call ppiclf_solve_InitParticle(2,3,0,npart_local,y,rprop,filter,neighborWidth) 
+
+! TLJ: CAUTION - Gaussian filter needs to be fixed
+! TLJ: Initialize Box Filter
+!      This sets ppiclf_d2chk(2) used in Nearest Neighbors
+! subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
+call ppiclf_solve_InitBoxFilter(filter,0,1)!global%piclFilterWidth,0,1)
 
 
 ! Sam - must call initneighborbin before initoverlap for new interpolation scheme

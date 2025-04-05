@@ -200,9 +200,7 @@
 
       ppiclf_npart = npart
 
-      ! TLJ - for restarts we need dp_max
-      ! For the moment we assume monodispersed packs
-      dp_max = ppiclf_rprop(PPICLF_R_JDP,1)
+      dp_max = MAXVAL(ppiclf_rprop(PPICLF_R_JDP,:))
       call ppiclf_printsi('  End ReadParticleVTU$',npt_total)
 
       return
