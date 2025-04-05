@@ -74,7 +74,10 @@
       INTEGER*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
      >          npt_total, j, i, idum, jdum, kdum, total_bin, 
      >          sum_value, count, targetTotBin, idealBin(3), iBin(3),
-     >          iBinTot, temp,nBinMax, nBinMed,nBinSmall, m, l, k
+
+     >          iBinTot, temp,nBinMax, nBinMed,nBinSmall, m, l, k,
+     >          tempBinDiff
+
       REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
      >       rmiddle, rdiff, binb_length(3)
       INTEGER*4 ppiclf_iglsum
@@ -250,6 +253,9 @@
               ! These loops are to make sure the dimension with the longest
               ! ppiclf_binb length gets more bins in the case where two or
               ! more dimensions are within 1 bin division of each other.
+
+              DO i = 1,2
+
               temp = 0
               nBinMax = 0
               nBinMed = 0
@@ -272,33 +278,72 @@
                 END IF
               END DO
               ! Compare Max with Medium. Shift Max->Med if met
-              IF((idealBin(nBinMax)-idealBin(nBinMed)) .EQ. 1) THEN
+              IF((idealBin(nBinMax)-idealBin(nBinMed)) .LE. 2) THEN
                 IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
-                  idealBin(nBinMax) = idealBin(nBinMax) - 1
-                  idealBin(nBinMed) = idealBin(nBinMed) + 1
-                  nBinMax = nBinMed
-                  nBinMed = nBinMax
+                  tempBinDiff = idealBin(nBinMax) - idealBin(nBinMed)
+                  idealBin(nBinMax) = idealBin(nBinMax) - tempBinDiff
+                  idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
                 END IF         
               END IF
+              temp = 0
+              nBinMax = 0
+              nBinMed = 0
+              DO l = 1,3
+                IF(idealBin(l).GT.temp) THEN
+                  nBinMax = l
+                  temp = idealBin(l)
+                END IF
+              END DO
+              temp = 0
+              DO l = 1,3
+                IF(l.NE.nBinMax .AND. idealBin(l).GT.temp) THEN
+                  nBinMed = l
+                  temp = idealBin(l)
+                END IF
+              END DO
+              DO l = 1,3
+                IF(l.NE.nBinMax .AND. l.NE.nBinMed) THEN
+                  nBinSmall = l
+                END IF
+              END DO
               ! Compare Medium with Small. Shift Med->Small if met
-              IF((idealBin(nBinMed)-idealBin(nBinSmall)) .EQ. 1) THEN
+              IF((idealBin(nBinMed)-idealBin(nBinSmall)) .LE. 2) THEN
                 IF(binb_length(nBinMed).LT.binb_length(nBinSmall)) THEN
-                  idealBin(nBinMed) = idealBin(nBinMed) - 1
-                  idealBin(nBinSmall) = idealBin(nBinSmall) + 1
-                  nBinMed = nBinSmall
-                  nBinSmall = nBinMed
+                  tempBinDiff = idealBin(nBinMed) - idealBin(nBinSmall)
+                  idealBin(nBinMed) = idealBin(nBinMed) - tempBinDiff
+                  idealBin(nBinSmall) =idealBin(nBinSmall)+tempBinDiff
                 END IF         
               END IF
+              temp = 0
+              nBinMax = 0
+              nBinMed = 0
+              DO l = 1,3
+                IF(idealBin(l).GT.temp) THEN
+                  nBinMax = l
+                  temp = idealBin(l)
+                END IF
+              END DO
+              temp = 0
+              DO l = 1,3
+                IF(l.NE.nBinMax .AND. idealBin(l).GT.temp) THEN
+                  nBinMed = l
+                  temp = idealBin(l)
+                END IF
+              END DO
+              DO l = 1,3
+                IF(l.NE.nBinMax .AND. l.NE.nBinMed) THEN
+                  nBinSmall = l
+                END IF
+              END DO
               ! Compare possible new Max with Medium. Shift if met.
-              IF((idealBin(nBinMax)-idealBin(nBinMed)) .EQ. 1) THEN
+              IF((idealBin(nBinMax)-idealBin(nBinMed)) .LE. 2) THEN
                 IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
-                  idealBin(nBinMax) = idealBin(nBinMax) - 1
-                  idealBin(nBinMed) = idealBin(nBinMed) + 1
-                  nBinMax = nBinMed
-                  nBinMed = nBinMax
+                  tempBinDiff = idealBin(nBinMax) - idealBin(nBinMed)
+                  idealBin(nBinMax) = idealBin(nBinMax) - tempBinDiff
+                  idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
                 END IF         
               END IF
- 
+              END DO !i       
             END IF
           END DO !iz
         END DO !iy
