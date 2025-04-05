@@ -251,6 +251,7 @@
               ! These loops are to make sure the dimension with the longest
               ! ppiclf_binb length gets more bins in the case where two or
               ! more dimensions are within 1 bin division of each other.
+              DO i = 1,2
               temp = 0
               nBinMax = 0
               nBinMed = 0
@@ -338,6 +339,7 @@
                   idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
                 END IF         
               END IF
+              END DO !i
             END IF
           END DO !iz
         END DO !iy
