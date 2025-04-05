@@ -276,8 +276,9 @@
                 IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
                   idealBin(nBinMax) = idealBin(nBinMax) - 1
                   idealBin(nBinMed) = idealBin(nBinMed) + 1
+                  temp = nBinMax
                   nBinMax = nBinMed
-                  nBinMed = nBinMax
+                  nBinMed = temp
                 END IF         
               END IF
               ! Compare Medium with Small. Shift Med->Small if met
@@ -285,8 +286,9 @@
                 IF(binb_length(nBinMed).LT.binb_length(nBinSmall)) THEN
                   idealBin(nBinMed) = idealBin(nBinMed) - 1
                   idealBin(nBinSmall) = idealBin(nBinSmall) + 1
+                  temp = nBinMed
                   nBinMed = nBinSmall
-                  nBinSmall = nBinMed
+                  nBinSmall = temp
                 END IF         
               END IF
               ! Compare possible new Max with Medium. Shift if met.
@@ -294,11 +296,11 @@
                 IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
                   idealBin(nBinMax) = idealBin(nBinMax) - 1
                   idealBin(nBinMed) = idealBin(nBinMed) + 1
+                  temp = nBinMax
                   nBinMax = nBinMed
-                  nBinMed = nBinMax
+                  nBinMed = temp
                 END IF         
               END IF
- 
             END IF
           END DO !iz
         END DO !iy
