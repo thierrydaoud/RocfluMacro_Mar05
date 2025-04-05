@@ -74,12 +74,10 @@
       INTEGER*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
      >          npt_total, j, i, idum, jdum, kdum, total_bin, 
      >          sum_value, count, targetTotBin, idealBin(3), iBin(3),
-
-     >          iBinTot, temp,nBinMax, nBinMed,nBinSmall, m, l, k,
-     >          tempBinDiff
-
+     >          iBinTot, temp,nBinMax,nBinMed,nBinMin, m, l, k,
+     >          LBMax,LBMin
       REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
-     >       rmiddle, rdiff, binb_length(3)
+     >       rmiddle, rdiff, binb_length(3),temp1,temp2
       INTEGER*4 ppiclf_iglsum
       EXTERNAL ppiclf_iglsum
       REAL*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
@@ -172,11 +170,23 @@
 
       ! End subroutine if no particles present      
       IF(npt_total .LT. 1) RETURN
-
+      LBMax = 0
+      LBMin = 0
+      temp1 = 1.0D-10
+      temp2 = 1.0D10
       ! Find ppiclf bin domain lengths
+      ! and Max,Med,Min dimensions
       DO l = 1,3
         binb_length(l) = ppiclf_binb(2*l) -
      >                         ppiclf_binb(2*l-1)
+        IF(binb_length(l).GT.temp1) THEN
+          temp1 = binb_length(l)
+          LBMax = l
+        END IF
+        IF(binb_length(l).LT.temp2) THEN
+          temp2 = binb_length(l)
+          LBMin = l
+        END IF
       END DO
 
       IF(ppiclf_ndim .LT. 3)
@@ -253,97 +263,34 @@
               ! These loops are to make sure the dimension with the longest
               ! ppiclf_binb length gets more bins in the case where two or
               ! more dimensions are within 1 bin division of each other.
-
-              DO i = 1,2
-
               temp = 0
-              nBinMax = 0
-              nBinMed = 0
+              nBinMax = MAX(idealBin(1),idealBin(2),idealBin(3))
+              nBinMin = MIN(idealBin(1),idealBin(2),idealBin(3))
+              nBinMed = -99
               DO l = 1,3
-                IF(idealBin(l).GT.temp) THEN
-                  nBinMax = l
-                  temp = idealBin(l)
-                END IF
+                IF(idealBin(l).LT.nBinMax .AND. idealBin(l).GT.nBinMin)
+     >             nBinMed = idealBin(l)
               END DO
-              temp = 0
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. idealBin(l).GT.temp) THEN
-                  nBinMed = l
-                  temp = idealBin(l)
+              IF(nBinMed.EQ. -99) THEN !two number of bins are equal
+                DO l = 1,3
+                  IF(idealBin(l).EQ.nBinMax) temp = temp + 1
+                  IF(idealBin(l).EQ.nBinMin) temp = temp + 10
+                END DO
+                IF(temp .EQ. 2) THEN
+                  nBinMed = nBinMax
+                ELSE ! Either two nBinMin or all 3 equal
+                  nBinMed = nBinMin
                 END IF
-              END DO
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. l.NE.nBinMed) THEN
-                  nBinSmall = l
-                END IF
-              END DO
-              ! Compare Max with Medium. Shift Max->Med if met
-              IF((idealBin(nBinMax)-idealBin(nBinMed)) .LE. 2) THEN
-                IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
-                  tempBinDiff = idealBin(nBinMax) - idealBin(nBinMed)
-                  idealBin(nBinMax) = idealBin(nBinMax) - tempBinDiff
-                  idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
-                END IF         
               END IF
-              temp = 0
-              nBinMax = 0
-              nBinMed = 0
               DO l = 1,3
-                IF(idealBin(l).GT.temp) THEN
-                  nBinMax = l
-                  temp = idealBin(l)
+                IF(l.EQ.LBMax) THEN
+                  idealBin(l)=nBinMax
+                ELSE IF(l.EQ.LBMin) THEN
+                  idealBin(l)=nBinMin
+                ELSE
+                  idealBin(l)=nBinMed 
                 END IF
-              END DO
-              temp = 0
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. idealBin(l).GT.temp) THEN
-                  nBinMed = l
-                  temp = idealBin(l)
-                END IF
-              END DO
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. l.NE.nBinMed) THEN
-                  nBinSmall = l
-                END IF
-              END DO
-              ! Compare Medium with Small. Shift Med->Small if met
-              IF((idealBin(nBinMed)-idealBin(nBinSmall)) .LE. 2) THEN
-                IF(binb_length(nBinMed).LT.binb_length(nBinSmall)) THEN
-                  tempBinDiff = idealBin(nBinMed) - idealBin(nBinSmall)
-                  idealBin(nBinMed) = idealBin(nBinMed) - tempBinDiff
-                  idealBin(nBinSmall) =idealBin(nBinSmall)+tempBinDiff
-                END IF         
-              END IF
-              temp = 0
-              nBinMax = 0
-              nBinMed = 0
-              DO l = 1,3
-                IF(idealBin(l).GT.temp) THEN
-                  nBinMax = l
-                  temp = idealBin(l)
-                END IF
-              END DO
-              temp = 0
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. idealBin(l).GT.temp) THEN
-                  nBinMed = l
-                  temp = idealBin(l)
-                END IF
-              END DO
-              DO l = 1,3
-                IF(l.NE.nBinMax .AND. l.NE.nBinMed) THEN
-                  nBinSmall = l
-                END IF
-              END DO
-              ! Compare possible new Max with Medium. Shift if met.
-              IF((idealBin(nBinMax)-idealBin(nBinMed)) .LE. 2) THEN
-                IF(binb_length(nBinMax).LT.binb_length(nBinMed)) THEN
-                  tempBinDiff = idealBin(nBinMax) - idealBin(nBinMed)
-                  idealBin(nBinMax) = idealBin(nBinMax) - tempBinDiff
-                  idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
-                END IF         
-              END IF
-              END DO !i       
+              END DO 
             END IF
           END DO !iz
         END DO !iy
@@ -359,17 +306,17 @@
       ! Loop to see if we can add one to dimension with largest number of bins
       ! Choose this dimension because it is smallest incremental increase to total bins 
       DO
-        IF((total_bin/ppiclf_n_bins(nBinMax))*
-     >      (ppiclf_n_bins(nBinMax)+1) .LT. targetTotBin) THEN
+        IF((total_bin/ppiclf_n_bins(LBMax))*
+     >      (ppiclf_n_bins(LBMax)+1) .LT. targetTotBin) THEN
           ! Add a bin and set new bin dx length
-          ppiclf_n_bins(nBinMax) = ppiclf_n_bins(nBinMax)+1
-          ppiclf_bins_dx(nBinMax) = binb_length(nBinMax)/
-     >                              ppiclf_n_bins(nBinMax)
-          IF(ppiclf_bins_dx(nBinMax) .LT. ppiclf_d2chk(1)) THEN
+          ppiclf_n_bins(LBMax) = ppiclf_n_bins(LBMax)+1
+          ppiclf_bins_dx(LBMax) = binb_length(LBMax)/
+     >                              ppiclf_n_bins(LBMax)
+          IF(ppiclf_bins_dx(LBMax) .LT. ppiclf_d2chk(1)) THEN
             ! If ppiclf_d2chk criteria violated, return to previous bin configuration
-            ppiclf_n_bins(nBinMax) = ppiclf_n_bins(nBinMax)-1
-            ppiclf_bins_dx(nBinMax) = binb_length(nBinMax)/
-     >                                ppiclf_n_bins(nBinMax)
+            ppiclf_n_bins(LBMax) = ppiclf_n_bins(LBMax)-1
+            ppiclf_bins_dx(LBMax) = binb_length(LBMax)/
+     >                                ppiclf_n_bins(LBMax)
             EXIT
           END IF
           total_bin = 1
