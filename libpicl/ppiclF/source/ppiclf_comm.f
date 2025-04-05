@@ -204,14 +204,7 @@
       END DO
 
       iBinTot = 0
-! AVERY - REMOVE
-      IF(ppiclf_nid .EQ. 0) THEN
-        PRINT*, 'Proc & nBins from initial calc:', ppiclf_nid, 
-     >    ppiclf_n_bins(1), ppiclf_n_bins(2), ppiclf_n_bins(3)
-        PRINT*, 'Bin Lengths:', binb_length(1), binb_length(2),
-     >           binb_length(3)
-      END IF
-!
+
       ! Filterwidth criteria check.  ppiclf_d2chk(2) automatically
       ! set to be at least 2 fluid cell widths in
       ! PICL_TEMP_InitSolver.F90
@@ -229,12 +222,7 @@
       ! ideal number of bins will be max value while less than number of total target of bins.
       ! Will not check total bin value (cycle do loop) if
       ! ppiclf_d2chk(1) criteria is violated or ppiclf_n_bins < 1
-!AVERY - REMOVE
-      IF(ppiclf_nid .EQ. 0) THEN
-        PRINT*, 'Proc & nBins before -1/+1 LOOP:', ppiclf_nid, 
-     >    ppiclf_n_bins(1), ppiclf_n_bins(2), ppiclf_n_bins(3)
-      END IF
-!
+
       total_bin = 0 
       DO ix = 1,3
         iBin(1) = ppiclf_n_bins(1) + (ix-2)
@@ -322,14 +310,6 @@
         ppiclf_bins_dx(l) = binb_length(l)/ppiclf_n_bins(l)
       END DO
 
-! AVERY - REMOVE
-      IF(ppiclf_nid .EQ. 0) THEN
-        PRINT*, 'Bin Lengths:', binb_length(1), binb_length(2),
-     >             binb_length(3)
-        PRINT*, 'Proc & Bins from -1/+0/+1 loop:', ppiclf_nid, 
-     >   ppiclf_n_bins(1), ppiclf_n_bins(2), ppiclf_n_bins(3)
-      END IF
-! 
 
       ! Loop to see if we can add one to dimension with largest number of bins
       ! Choose this dimension because it is smallest incremental increase to total bins 
@@ -590,7 +570,7 @@ c     current box coordinates
      >          nl, nii, njj, nrr, ilow, jlow, klow, nxyz, il,
      >          ihigh, jhigh, khigh, ierr
       INTEGER*4 ix, iy, iz, ixLow, ixHigh, iyLow,
-     >          iyHigh, izLow, izHigh,tempCheck1, tempCheck2 
+     >          iyHigh, izLow, izHigh 
       REAL*8    rxval, ryval, rzval, EleSizei(3), MaxPoint(3),
      >          MinPoint(3), ppiclf_vlmin, ppiclf_vlmax,
      >          centeri(3)
@@ -643,14 +623,14 @@ c     current box coordinates
       
         ! Exits if fluid cell vertex is outside of all bin 
         ! boundaries + Exchange Ghost Fluid Cell Buffer (EleSizei)
-        IF (rxval .GT. (ppiclf_binb(2))) GOTO 1255
-        IF (rxval .LT. (ppiclf_binb(1))) GOTO 1255
-        IF (ryval .GT. (ppiclf_binb(4))) GOTO 1255
-        IF (ryval .LT. (ppiclf_binb(3))) GOTO 1255
+        IF (rxval .GT. (ppiclf_binb(2))) CYCLE
+        IF (rxval .LT. (ppiclf_binb(1))) CYCLE
+        IF (ryval .GT. (ppiclf_binb(4))) CYCLE
+        IF (ryval .LT. (ppiclf_binb(3))) CYCLE
         IF (ppiclf_ndim .GT. 2 .AND. rzval .GT. 
-     >      (ppiclf_binb(6))) GOTO 1255
+     >      (ppiclf_binb(6))) CYCLE
         IF (ppiclf_ndim.GT.2 .AND. rzval .LT.
-     >      (ppiclf_binb(5))) GOTO 1255
+     >      (ppiclf_binb(5))) CYCLE
  
         ! Determines what bin the fluid cell is nominally mapped to
         ii    = FLOOR((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
@@ -679,7 +659,6 @@ c     current box coordinates
 
         IF (FLOOR((rxval - EleSizei(1) - ppiclf_binb(1))
      >       /ppiclf_bins_dx(1)) .NE. ii)  ixLow = 1
-
         IF (FLOOR((ryval + EleSizei(2) - ppiclf_binb(3))
      >       /ppiclf_bins_dx(2)) .NE. jj)  iyHigh = 3
 
@@ -701,7 +680,6 @@ c     current box coordinates
               rzval = 0.0D0
               IF(ppiclf_ndim.GT.2) rzval = centeri(3)
      >                + (iz-2)*EleSizei(3)
-
               ! Find bin for adjusted rval
               ii    = FLOOR((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
               jj    = FLOOR((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
@@ -724,15 +702,11 @@ c     current box coordinates
                 IF (kk .EQ. ppiclf_n_bins(3)) kk = 0
                 IF (kk .EQ. -1) kk = ppiclf_n_bins(3) - 1
               END IF
-        
-
-              ! If periodicity isn't on, move to closest bin.
-              !IF (ii .EQ. ppiclf_n_bins(1)) ii = ppiclf_n_bins(1) - 1
-              !IF (jj .EQ. ppiclf_n_bins(2)) jj = ppiclf_n_bins(2) - 1
-              !IF (kk .EQ. ppiclf_n_bins(3)) kk = ppiclf_n_bins(3) - 1
-              !IF (ii .EQ. -1) ii = 0
-              !IF (jj .EQ. -1) jj = 0
-              !IF (kk .EQ. -1) kk = 0
+              
+              ! Ensures duplicate cells don't get sent to same processor
+              IF (ii .LT. 0 .OR. ii .GT. ppiclf_n_bins(1)-1) CYCLE
+              IF (jj .LT. 0 .OR. jj .GT. ppiclf_n_bins(2)-1) CYCLE
+              IF (kk .LT. 0 .OR. kk .GT. ppiclf_n_bins(3)-1) CYCLE
 
 
               ! Calculates processor rank
@@ -740,12 +714,10 @@ c     current box coordinates
      >                     ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
               nrank = ndum
 
-              IF (ii .LT. 0 .OR. ii .GT. ppiclf_n_bins(1)-1) GOTO 1233
-              IF (jj .LT. 0 .OR. jj .GT. ppiclf_n_bins(2)-1) GOTO 1233
-              IF (kk .LT. 0 .OR. kk .GT. ppiclf_n_bins(3)-1) GOTO 1233
-
-              ppiclf_neltb = ppiclf_neltb + 1
+                            ppiclf_neltb = ppiclf_neltb + 1
               IF(ppiclf_neltb .GT. PPICLF_LEE) THEN
+                PRINT*, 'PPICLF LEE error (in MapOverlapMesh).Must',
+     >                   ' increase it in PPICLF_USER.h file'
                 CALL ppiclf_exittr('Increase PPICLF_LEE$ (MapOverlap)',0.0D0
      >               ,ppiclf_neltb)
               END IF
@@ -761,69 +733,26 @@ c     current box coordinates
 !              Replaced with tempCheck below, since cell would 
 !              be duplicated in sequential order. It shouldn't happen,
 !              so implemented as error vs standard fix in loop.
-!
+
 !              IF (ppiclf_neltb .GT. 1) THEN
 !              DO il=1,ppiclf_neltb-1
 !                 IF (ppiclf_er_map(1,il) .EQ. ie) THEN
 !                 IF (ppiclf_er_map(4,il) .EQ. nrank) THEN
 !                    PRINT*, 'AVERY - NELTB Loop remover still used!'
 !                    ppiclf_neltb = ppiclf_neltb - 1
-!                    GOTO 1233
 !                 END IF
 !                 END IF
 !              END DO
 !              END IF
 
- 1233 continue
             END DO !iz
           END DO !iy
         END DO !ix
- 1255 continue ! When a cell is outside the bin boundary
       END DO !ie
-      tempCheck1 = -1
-      tempCheck2 = -1
-      ErrorFound = .FALSE.
       nxyz = PPICLF_LEX*PPICLF_LEY*PPICLF_LEZ
       DO ie=1,ppiclf_neltb !Number of fluid cells in ppiclf bin domain
-       iee = ppiclf_er_map(1,ie)
-       IF(tempCheck1.EQ.iee .AND.tempCheck2.EQ.ppiclf_er_map(4,ie))
-     >                                                          THEN
-         ErrorFound = .TRUE.
-       END IF
-       IF(ie+1 .LE. ppiclf_neltb) THEN
-       IF(tempCheck1.EQ.iee.AND.tempCheck2.EQ.ppiclf_er_map(4,ie+1))
-     >                                                          THEN
-         ErrorFound = .TRUE.
-       END IF
-       END IF
-       IF(ie+2 .LE. ppiclf_neltb) THEN
-       IF(tempCheck1.EQ.iee .AND.tempCheck2.EQ.ppiclf_er_map(4,ie+2))
-     >                                                          THEN
-         ErrorFound = .TRUE.
-       END IF
-       END IF
-       IF(ErrorFound) THEN
-         PRINT*,'MapOverlapMesh temp check condition tripped,',
-     >           ' processor:', ppiclf_nid
-         PRINT*,'Fluid cell mapped to same bin twice! Cell:',
-     >           ppiclf_er_map(1,ie)
-         PRINT*, 'A cell corner locatoin (x,y,z)',
-     >             ppiclf_xm1bs(1,1,1,1,ie),
-     >             ppiclf_xm1bs(1,1,1,2,ie),
-     >             ppiclf_xm1bs(1,1,1,3,ie)
-         PRINT*, 'Min Binb (x,y,z):', ppiclf_binb(1),
-     >            ppiclf_binb(3), ppiclf_binb(5)
-         PRINT*, 'Bin dx (x,y,z):', ppiclf_bins_dx(1),
-     >           ppiclf_bins_dx(2), ppiclf_bins_dx(3)
-         CALL ppiclf_exittr('Fluid cell mapped to same bin twice:',
-     >                       0.0D0,tempCheck1)
-       END IF
-       !Cell Number
-       tempCheck1 = iee
-       !Cell to rank mapping
-       tempCheck2 = ppiclf_er_map(4,ie)
-       
        ! These copy all nxyz vertecies since Fortran is column-major
+       iee = ppiclf_er_map(1,ie)
        CALL ppiclf_copy(ppiclf_xm1b(1,1,1,1,ie)
      >                 ,ppiclf_xm1bs(1,1,1,1,iee),nxyz)
        CALL ppiclf_copy(ppiclf_xm1b(1,1,1,2,ie)
