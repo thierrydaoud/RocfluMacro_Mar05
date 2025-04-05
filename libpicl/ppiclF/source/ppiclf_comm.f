@@ -74,8 +74,10 @@
       INTEGER*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
      >          npt_total, j, i, idum, jdum, kdum, total_bin, 
      >          sum_value, count, targetTotBin, idealBin(3), iBin(3),
+
      >          iBinTot, temp,nBinMax, nBinMed,nBinSmall, m, l, k,
      >          tempBinDiff
+
       REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
      >       rmiddle, rdiff, binb_length(3)
       INTEGER*4 ppiclf_iglsum
@@ -251,7 +253,9 @@
               ! These loops are to make sure the dimension with the longest
               ! ppiclf_binb length gets more bins in the case where two or
               ! more dimensions are within 1 bin division of each other.
+
               DO i = 1,2
+
               temp = 0
               nBinMax = 0
               nBinMed = 0
@@ -339,7 +343,7 @@
                   idealBin(nBinMed) = idealBin(nBinMed) + tempBinDiff
                 END IF         
               END IF
-              END DO !i
+              END DO !i       
             END IF
           END DO !iz
         END DO !iy
