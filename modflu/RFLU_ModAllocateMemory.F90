@@ -513,9 +513,19 @@ SUBROUTINE RFLU_AllocateMemorySolCv(pRegion)
 #ifdef PICL
   IF ( global%piclUsed .EQV. .TRUE. ) THEN
      ALLOCATE(pRegion%mixt%piclVF(pGrid%nCellsTot),STAT=errorFlag)
+     ! 03/19/2025 - Thierry - begins here
+     ALLOCATE(pRegion%mixt%piclVFg(1,pGrid%nCellsTot),STAT=errorFlag)
+     ALLOCATE(pRegion%mixt%piclgradRhog(3,1,pGrid%nCellsTot),STAT=errorFlag)
      global%error = errorFlag
      IF (global%error /= ERR_NONE) THEN
         CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'pRegion%mixt%piclfVF')
+     END IF ! global%error
+     ! 04/01/2025 - TLJ - begins here
+     ALLOCATE(pRegion%mixt%piclFeedback(3,pGrid%nCellsTot),STAT=errorFlag)
+     ALLOCATE(pRegion%mixt%piclgradFeedback(3,3,pGrid%nCellsTot),STAT=errorFlag)
+     global%error = errorFlag
+     IF (global%error /= ERR_NONE) THEN
+        CALL ErrorStop(global,ERR_ALLOCATE,__LINE__,'pRegion%mixt%piclFeedback')
      END IF ! global%error
    END IF
 #endif

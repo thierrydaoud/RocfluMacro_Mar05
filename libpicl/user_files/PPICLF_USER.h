@@ -1,13 +1,17 @@
 #define PPICLF_LPART 20000
-#define PPICLF_LWALL 1000
 #define PPICLF_LRS 12
-#define PPICLF_LRP 36
-#define PPICLF_LEE 100000
+#define PPICLF_LRP 64
+#define PPICLF_LEE 30000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
 #define PPICLF_LEZ 2
-#define PPICLF_LRP_INT 21
+#define PPICLF_LRP_INT 30
 #define PPICLF_LRP_PRO 10
+
+! number of timesteps kept in history kernels
+#define PPICLF_VU 5
+! maximum number of triangular patch boundaries
+#define PPICLF_LWALL 20
 
 ! y, y1, ydot, ydotc: PPICLF_LRS
 #define PPICLF_JX 1
@@ -60,6 +64,34 @@
 #define PPICLF_R_JIDP 34
 #define PPICLF_R_JBRNT 35
 #define PPICLF_R_JP 36
+#define PPICLF_R_JRHOGX 37
+#define PPICLF_R_JRHOGY 38
+#define PPICLF_R_JRHOGZ 39
+#define PPICLF_R_JDPVDX 40
+#define PPICLF_R_JDPVDY 41
+#define PPICLF_R_JDPVDZ 42
+#define PPICLF_R_FQSX 43
+#define PPICLF_R_FQSY 44
+#define PPICLF_R_FQSZ 45
+#define PPICLF_R_FAMX 46
+#define PPICLF_R_FAMY 47
+#define PPICLF_R_FAMZ 48
+#define PPICLF_R_FAMBX 49
+#define PPICLF_R_FAMBY 50
+#define PPICLF_R_FAMBZ 51
+#define PPICLF_R_FCX 52
+#define PPICLF_R_FCY 53
+#define PPICLF_R_FCZ 54
+#define PPICLF_R_FVUX 55
+#define PPICLF_R_FVUY 56
+#define PPICLF_R_FVUZ 57
+#define PPICLF_R_QQ 58
+#define PPICLF_R_FPGX 59 
+#define PPICLF_R_FPGY 60 
+#define PPICLF_R_FPGZ 61 
+#define PPICLF_R_JSDOX 62
+#define PPICLF_R_JSDOY 63
+#define PPICLF_R_JSDOZ 64
 
 ! map: PPICLF_LRP_PRO
 #define PPICLF_P_JPHIP 1
@@ -72,4 +104,3 @@
 #define PPICLF_P_JPHIPV 8
 #define PPICLF_P_JPHIPW 9
 #define PPICLF_P_JPHIPT 10
-

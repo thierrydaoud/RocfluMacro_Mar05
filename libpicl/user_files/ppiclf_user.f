@@ -50,7 +50,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -58,7 +58,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -71,14 +71,16 @@
       real*8 fqs_fluct(3)
       real*8 famx, famy, famz 
       real*8 fdpdx, fdpdy, fdpdz
+      real*8 fdpvdx, fdpvdy, fdpvdz
       real*8 fcx, fcy, fcz
       real*8 fbx, fby, fbz 
       real*8 fvux, fvuy, fvuz
 
+      real*8 ug, vg, wg
+
       real*8 beta,cd
 
-      real*8 factor, One, OneThird, rcp_fluid,
-     >   rmass_add
+      real*8 factor, rcp_fluid, rmass_add
 
       real*8 gkern
   
@@ -88,7 +90,9 @@
       real*8 SDrho
 !-----------------------------------------------------------------------
 
+      real*8 vgradrhog
       integer*4 i, n, ic, k
+      integer*4 store_forces
 
 ! Needed for heat transfer
       real*8 qq, rmass_therm, temp
@@ -101,6 +105,8 @@
 ! Needed for angular velocity
       real*8 taux, tauy, tauz, rmass_omega
       real*8 tau
+      real*8 liftx, lifty, liftz
+      real*8 lift
 
 ! Finite Diff Material derivative Variables
       integer*4 nstage, istage
@@ -122,7 +128,6 @@
 !
 !-----------------------------------------------------------------------
 !   
-
 
       ! Avery added 10/10/2024 for subbin nearest neighbor search
       
@@ -182,16 +187,12 @@
          endif
       endif
 
-      !print*,'burnrate_flag',burnrate_flag
-      !print*,'ppiclf_matname',TRIM(ppiclf_matname)
-      !print*,'burnrate_model',burnrate_model
-
-      rpi        = 4.0*atan(1.0)
+      rpi        = acos(-1.0d0)
       rcp_part   = ppiclf_rcp_part
-      rpr        = 0.70
-      rcp_fluid  = 1004.64
+      rpr        = 0.70d0
+      rcp_fluid  = 1004.64d0
 
-      fac = ppiclf_rk3ark(iStage)*PPICLF_DT
+      fac = ppiclf_rk3ark(iStage)*ppiclf_dt
       if (1==2) then
          if (ppiclf_nid==0) print*,'dt,fac=',
      >      istage,ppiclf_dt,fac,
@@ -201,44 +202,7 @@
      >      ppiclf_nUnsteadyData
       endif
 
-      One = 1.d0
       OneThird = 1.0d0/3.0d0
-
-      ! Set initial max values
-      phimax    = 0.d0
-
-      fqsx_max  = 0.d0
-      fqsy_max  = 0.d0
-      fqsz_max  = 0.d0
-      famx_max  = 0.d0
-      famy_max  = 0.d0
-      famz_max  = 0.d0
-      fdpdx_max = 0.d0
-      fdpdy_max = 0.d0
-      fdpdz_max = 0.d0
-      fcx_max   = 0.d0
-      fcy_max   = 0.d0
-      fcz_max   = 0.d0
-      fvux_max  = 0.d0
-      fvuy_max  = 0.d0
-      fvuz_max  = 0.d0
-      qq_max    = 0.d0
-
-      fqsx_fluct_max = 0.d0
-      fqsy_fluct_max = 0.d0
-      fqsz_fluct_max = 0.d0
-      fqsx_total_max = 0.d0
-      fqsy_total_max = 0.d0
-      fqsz_total_max = 0.d0
-
-      fqs_mag = 0.0
-      fam_mag = 0.0
-      fdp_mag = 0.0
-      fc_mag  = 0.0
-
-      umean_max = 0.d0
-      vmean_max = 0.d0
-      wmean_max = 0.d0
 
 !
 !-----------------------------------------------------------------------
@@ -261,7 +225,7 @@
 ! Reset arrays for Viscous Unsteady Force
 !
       if (ViscousUnsteady_flag>=1) then
-         call ppiclf_user_prop2plag(ppiclf_nUnsteadyData)
+         call ppiclf_user_prop2plag
       endif
 !
 !-----------------------------------------------------------------------
@@ -281,7 +245,7 @@
             call ppiclf_user_subbinMap(i_Bin, n_SBin, tot_SBin 
      >                               ,SBin_counter ,SBin_map)
 
-         endif ! Collisions, QS Fluct, or Brinery AM flags on
+         endif ! Collisions, QS Fluct, or Briney AM flags on
       
          ! Print out relevant information about subbin
          if (ppiclf_nid==0) then
@@ -307,23 +271,35 @@
 !     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
 !     >     ' GB: ',nsubbin_size*
 !     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
+!         write(6,*) 'Viscous Unsteady',
+!     >     ppiclf_nUnsteadyData,ppiclf_nTimeBH,
+!     >     ppiclf_dt
 !
 !         endif ! end ppiclf_time = 0
-
-         if (ppiclf_debug==2) write(7001,*)
-     >     ppiclf_time,
-     >     ppiclf_bins_dx(1:3),
-     >     nsubbin_size,
-     >     tot_SBin,n_SBin(1:3),
-     >     ppiclf_npart,ppiclf_npart_gp,
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp)*4/1e9 
-         ! last entry in GB; assuming 4 bytes for integer*4
 
          endif ! end iStage = 1
          endif ! end ppiclf_nid = 0
 
       endif ! end sbNearest_flag = 1
+
+      ! Set initial max values - must be done npart loop
+      if (ppiclf_debug >= 1) then
+         phimax    = 0.d0
+         fqsx_max  = 0.d0; fqsy_max  = 0.d0; fqsz_max  = 0.d0
+         famx_max  = 0.d0; famy_max  = 0.d0; famz_max  = 0.d0
+         fdpdx_max = 0.d0; fdpdy_max = 0.d0; fdpdz_max = 0.d0
+         fcx_max   = 0.d0; fcy_max   = 0.d0; fcz_max   = 0.d0
+         fvux_max  = 0.d0; fvuy_max  = 0.d0; fvuz_max  = 0.d0
+         qq_max    = 0.d0;
+         fqsx_fluct_max = 0.d0; fqsy_fluct_max = 0.d0
+         fqsz_fluct_max = 0.d0
+         fqsx_total_max = 0.d0; fqsy_total_max = 0.d0
+         fqsz_total_max = 0.d0
+         fqs_mag = 0.0d0; fam_mag = 0.0d0; fdp_mag = 0.0d0
+         fc_mag  = 0.0d0
+         umean_max = 0.d0; vmean_max = 0.d0; wmean_max = 0.d0
+      endif
+
 
 !
 !-----------------------------------------------------------------------
@@ -335,30 +311,6 @@
 
       do i=1,ppiclf_npart
 
-!         ! TLJ - not yet tested
-!         Pres   = PPICLF_RPROP(PPICLF_R_JP,i)
-!         if ((Pres .gt. ppiclf_p0).or.(Pres .lt. ppiclf_p0*0.99)) then
-!            ppiclf_moveparticle = 1
-!         endif
-!
-!         if (ppiclf_moveparticle == 0) then
-!            ppiclf_ydot(PPICLF_JX ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JY ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JZ, i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVX,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVY,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVZ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JT,i)   = 0.0d0
-!            ppiclf_ydot(PPICLF_JOX,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JOY,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JOZ,i)  = 0.0d0
-!            ppiclf_ydotc(PPICLF_JVX,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JVY,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JVZ,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JT,i)  = 0.0d0
-!            goto 999
-!         endif
-
          ! Choose viscosity law
          if (rmu_flag==rmu_fixed_param) then
             ! Constant viscosity law
@@ -367,7 +319,7 @@
             ! Sutherland law
             temp    = ppiclf_rprop(PPICLF_R_JT,i)
             rmu     = rmu_ref*sqrt(temp/tref)
-     >                   *(1.0+suth/tref)/(1.0+suth/temp)
+     >                   *(1.0d0+suth/tref)/(1.0d0+suth/temp)
          else
              call ppiclf_exittr('Unknown viscosity law$', 0.0d0, 0)
          endif
@@ -385,10 +337,15 @@
          dp     = ppiclf_rprop(PPICLF_R_JDP,i)
          rep    = vmag*dp*rhof/rmu
          rphip  = ppiclf_rprop(PPICLF_R_JPHIP,i)
-         rphif  = 1.0-ppiclf_rprop(PPICLF_R_JPHIP,i)
+         rphif  = 1.0d0-ppiclf_rprop(PPICLF_R_JPHIP,i)
          asndf  = ppiclf_rprop(PPICLF_R_JCS,i)
          rmachp = vmag/asndf
          rhop   = ppiclf_rprop(PPICLF_R_JRHOP,i)
+
+         ! TLJ - 04/03/2025; Do not calculate forces if vmag = 0
+         !       Otherwise the particles might move before the 
+         !       shock arrives
+         if (vmag <= 1.d-8) cycle
 
          ! TLJ - redefined rprop(PPICLF_R_JSPT,i) to be the particle
          !   velocity magnitude for plotting purposes - 01/03/2025
@@ -397,48 +354,39 @@
      >       ppiclf_y(PPICLF_JVY,i)**2 +
      >       ppiclf_y(PPICLF_JVZ,i)**2)
 
-         rep = max(0.1,rep)
+         rep = max(0.1d0,rep)
 
          ! Redefine volume fractions
          ! Need to make sure phi_p + phi_f = 1
          rphip = ppiclf_rprop(PPICLF_R_JPHIP,i)
-         rphip = min(rphip,0.62)
-         rphif = 1.0-rphip
+         rphip = min(rphip,0.62d0)
+         rphif = 1.0d0-rphip
 
          ! TLJ: Needed for viscous unsteady force
-         rhoMixt = rhof/(1.0d0-rphip)
-         reyL = dp*vmag*rhoMixt/rmu
-         rnu = rmu/rhoMixt
-
-         phimax = max(phimax,abs(rphip))
-
-         if (ppiclf_debug==2 .and. ppiclf_nid==0) then
-            if (iStage==3) then
-               if (i==1) then
-                  write(7010,*) i,ppiclf_time,rmass,vmag,rhof,dp,
-     >             rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
-     >             rmu,rnu,rkappa
-               endif
-               if (i==ppiclf_npart) then
-                  write(7011,*) i,ppiclf_time,rmass,vmag,rhof,dp,
-     >             rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
-     >             rmu,rnu,rkappa
-               endif
-            endif
-         endif
+         !      Using same nomenclature as rocinteract subroutines
+         reyL = dp*vmag*rhof/rmu
+         rnu = rmu/rhof
 
          ! Zero out for each particle i
          famx = 0.0d0; famy = 0.0d0; famz = 0.0d0; rmass_add = 0.0d0;
+         Fam(1) = 0.0d0; Fam(2) = 0.0d0; Fam(3) = 0.0d0
+         FamUnary(1)=0.0d0;FamUnary(2)=0.0d0;FamUnary(3)=0.0d0;
+         FamBinary(1)=0.0d0;FamBinary(2)=0.0d0;FamBinary(3)=0.0d0;
+         Wdot_neighbor_mean(1) = 0.0d0; Wdot_neighbor_mean(2) = 0.0d0;
+         Wdot_neighbor_mean(3) = 0.0d0; nneighbors = 0.0d0
          fqsx = 0.0d0; fqsy = 0.0d0; fqsz = 0.0d0; beta = 0.0d0;
-         fqs_fluct = 0.0d0
+         fqs_fluct(1)=0.0d0;fqs_fluct(2)=0.0d0;fqs_fluct(3)=0.0d0;
          fdpdx = 0.0d0; fdpdy = 0.0d0; fdpdz = 0.0d0;
          fcx = 0.0d0; fcy = 0.0d0; fcz = 0.0d0;
          taux = 0.0d0; tauy = 0.0d0; tauz = 0.0d0;
+         liftx = 0.0d0; lifty = 0.0d0; liftz = 0.0d0;
          fvux = 0.0d0; fvuy = 0.0d0; fvuz = 0.0d0;
          qq=0.0d0
          mdot_me = 0.0d0; mdot_ox = 0.0d0;
          upmean = 0.0; vpmean = 0.0; wpmean = 0.0;
          u2pmean = 0.0; v2pmean = 0.0; w2pmean = 0.0;
+         fdpvdx = 0.0d0; fdpvdy = 0.0d0; fdpvdz = 0.0d0;
+
 
 !
 ! Step 1a: New Added-Mass model of Briney
@@ -451,20 +399,11 @@
          ! before looping over particle j (j neq i)
          ! Briney Added Mass flag
          if (am_flag == 2) then 
-            ! zero variables initially
-            nneighbors = 0
-            do j=1,3
-               Fam(j) = 0.0
-               Wdot_neighbor_mean(j) = 0.0
-            enddo
-
             ! 07/14/24 - Thierry - If Briney Algorithm flag and fluct_flag
             !   are ON -> evaluate added-mass unary term before evaluating
             !   neighbor-induced acceleration in EvalNearestNeighbor
-
             call ppiclf_user_AM_Briney_Unary(i,iStage,
      >           famx,famy,famz,rmass_add)
-
          endif ! end am_flag = 2
 
 !
@@ -535,12 +474,6 @@
          fqsy = beta*vy
          fqsz = beta*vz
 
-         fqsx_max = max(fqsx_max,abs(fqsx))
-         fqsy_max = max(fqsy_max,abs(fqsy))
-         fqsz_max = max(fqsz_max,abs(fqsz))
-
-         fqs_mag  = max(fqs_mag,sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
-
 !
 ! Step 3: Force fluctuation for quasi-steady force
 !
@@ -561,19 +494,6 @@
          ppiclf_rprop(PPICLF_R_FLUCTFX,i) = fqs_fluct(1)
          ppiclf_rprop(PPICLF_R_FLUCTFY,i) = fqs_fluct(2)
          ppiclf_rprop(PPICLF_R_FLUCTFZ,i) = fqs_fluct(3)
-
-
-         fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
-         fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
-         fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
-
-         fqsx_total_max = max(fqsx_total_max, abs(fqsx))
-         fqsy_total_max = max(fqsy_total_max, abs(fqsy))
-         fqsz_total_max = max(fqsz_total_max, abs(fqsz))
-
-         umean_max = max(umean_max, abs(upmean))
-         vmean_max = max(vmean_max, abs(vpmean))
-         wmean_max = max(wmean_max, abs(wpmean))
 
 !
 ! Step 4: Force component added mass
@@ -602,28 +522,19 @@
             if (nneighbors .gt. 0) then
                call ppiclf_user_AM_Briney_Binary(i,iStage,
      >              famx,famy,famz,rmass_add)
+               FamBinary(1) = famx - FamUnary(1)
+               FamBinary(2) = famy - FamUnary(2)
+               FamBinary(3) = famz - FamUnary(3)
             else
             ! if particle has no neighbors, need to multiply added mass forces
             ! by volume, as this is taken care of in Binary subroutine
                famx = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famy = famy*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famz = famz*ppiclf_rprop(PPICLF_R_JVOLP,i)
-
             endif
-
-         else
-           famx = 0.0
-           famy = 0.0
-           famz = 0.0 
-           !call ppiclf_exittr('Unknown Added-Mass Law$', 0.0d0, 0)
          endif
 
 !-----------------------------------------------------------------------
-
-         famx_max = max(famx_max,abs(famx))
-         famy_max = max(famy_max,abs(famy))
-         famz_max = max(famz_max,abs(famz))
-         fam_mag =  max(fam_mag,sqrt(famx*famx+famy*famy+famz*famz))
 
 !
 ! Step 5: Force component pressure gradient
@@ -635,13 +546,21 @@
      >               ppiclf_rprop(PPICLF_R_JDPDY,i)
             fdpdz = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
      >               ppiclf_rprop(PPICLF_R_JDPDZ,i)
+
+            if (flow_model == 1) then ! Navier-Stokes Flow Model
+               fdpvdx = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDX,i)
+               fdpvdy = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDY,i)
+               fdpvdz = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDZ,i)
+            endif ! flow_model
+
+            fdpdx = fdpdx + fdpvdx
+            fdpdy = fdpdy + fdpvdy
+            fdpdz = fdpdz + fdpvdz
          endif ! end pg_flag = 1
 
-         fdpdx_max = max(fdpdx_max,abs(fdpdx))
-         fdpdy_max = max(fdpdy_max,abs(fdpdy))
-         fdpdz_max = max(fdpdz_max,abs(fdpdz))
-         fdp_mag =  max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
-     >                  +fdpdz*fdpdz))
 
 !
 ! Step 6: Force component collisional force, ie, particle-particle
@@ -661,23 +580,13 @@
 
          endif ! collisional_flag >= 1
 
-         fcx_max = max(fcx_max, abs(fcx))
-         fcy_max = max(fcy_max, abs(fcy))
-         fcz_max = max(fcz_max, abs(fcz))
-         fc_mag =  max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
-
 !
 ! Step 7: Viscous unsteady force with history kernel
 !
          if (ViscousUnsteady_flag==1) then
             call ppiclf_user_VU_Rocflu(i,iStage,fvux,fvuy,fvuz)
-         elseif (ViscousUnsteady_flag==2) then
-            call ppiclf_user_VU_Hinsberg(i,iStage,fvux,fvuy,fvuz)
          endif
 
-         fvux_max = max(fvux_max, abs(fvux))
-         fvuy_max = max(fvuy_max, abs(fvuy))
-         fvuz_max = max(fvuz_max, abs(fvuz))
 !
 ! Step 8a: Combustion model for reactive particles
 !
@@ -695,10 +604,8 @@
             call ppiclf_user_HT_driver(i,qq)
          endif ! heattransfer_flag >= 1
 
-         qq_max = max(qq_max, abs(qq))
-
 !
-! Step 9: Angular velocity model
+! Step 9a: Angular velocity model
 !
          rmass_omega = rmass*dp*dp/10.0d0
 
@@ -709,8 +616,14 @@
             call ppiclf_user_Torque_driver(i,iStage,taux,tauy,tauz)
          endif ! collisional_flag >= 2
 
-         tau = sqrt(taux*taux + tauy*tauy + tauz*tauz)
-         tau_max = max(tau_max, abs(tau))
+!
+! Step 9b: Saffman and Magnus Lift models
+!          Lift models requires gas-phase vorticity and
+!          particle angular velocity
+!
+         if (collisional_flag == 4) then
+            call ppiclf_user_Lift_driver(i,iStage,liftx,lifty,liftz)
+         endif ! collisional_flag == 4
 
 !
 ! Step 10: Set ydot for all PPICLF_SLN number of equations
@@ -718,11 +631,11 @@
          ppiclf_ydot(PPICLF_JX ,i) = ppiclf_y(PPICLF_JVX,i)
          ppiclf_ydot(PPICLF_JY ,i) = ppiclf_y(PPICLF_JVY,i)
          ppiclf_ydot(PPICLF_JZ, i) = ppiclf_y(PPICLF_JVZ,i)
-         ppiclf_ydot(PPICLF_JVX,i) = (fqsx+famx+fdpdx+fcx+fvux)/
+         ppiclf_ydot(PPICLF_JVX,i) = (fqsx+famx+fdpdx+fvux+liftx+fcx)/
      >                               (rmass+rmass_add)
-         ppiclf_ydot(PPICLF_JVY,i) = (fqsy+famy+fdpdy+fcy+fvuy)/
+         ppiclf_ydot(PPICLF_JVY,i) = (fqsy+famy+fdpdy+fvuy+lifty+fcy)/
      >                               (rmass+rmass_add)
-         ppiclf_ydot(PPICLF_JVZ,i) = (fqsz+famz+fdpdz+fcz+fvuz)/
+         ppiclf_ydot(PPICLF_JVZ,i) = (fqsz+famz+fdpdz+fvuz+liftz+fcz)/
      >                               (rmass+rmass_add)
          ppiclf_ydot(PPICLF_JT,i)  = qq/rmass_therm
          ppiclf_ydot(PPICLF_JOX,i) = taux/rmass_omega
@@ -732,7 +645,7 @@
          ppiclf_ydot(PPICLF_JOXIDE,i)  = mdot_ox
 
 !
-! Update and Shift data for viscous unsteady case
+! Update data for viscous unsteady case
 !
          if (ViscousUnsteady_flag>=1) then
             call ppiclf_user_UpdatePlag(i)
@@ -767,20 +680,22 @@
          if (feedback_flag==1) then
             ! Momentum equations feedback terms
             ppiclf_ydotc(PPICLF_JVX,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVX,i)*(rmass+0.*rmass_add) - fcx)
+     >         (ppiclf_ydot(PPICLF_JVX,i)*rmass - fcx)
             ppiclf_ydotc(PPICLF_JVY,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVY,i)*(rmass+0.*rmass_add) - fcy)
+     >         (ppiclf_ydot(PPICLF_JVY,i)*rmass - fcy)
             ppiclf_ydotc(PPICLF_JVZ,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVZ,i)*(rmass+0.*rmass_add) - fcz)
+     >         (ppiclf_ydot(PPICLF_JVZ,i)*rmass - fcz)
 
             ! Energy equation feedback term
-            !ppiclf_ydotc(PPICLF_JT,i)  = 0.0d0
             ppiclf_ydotc(PPICLF_JT,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         ( ppiclf_ydotc(PPICLF_JVX,i)*ppiclf_y(PPICLF_JVX,i) + 
-     >           ppiclf_ydotc(PPICLF_JVY,i)*ppiclf_y(PPICLF_JVY,i) + 
-     >           ppiclf_ydotc(PPICLF_JVZ,i)*ppiclf_y(PPICLF_JVZ,i) +
+     >         ( (fqsx+fvux)*ppiclf_y(PPICLF_JVX,i) + 
+     >           (fqsy+fvuy)*ppiclf_y(PPICLF_JVY,i) + 
+     >           (fqsz+fvuz)*ppiclf_y(PPICLF_JVZ,i) +
+     >                  famx*ppiclf_rprop(PPICLF_R_JUX,i) +
+     >                  famy*ppiclf_rprop(PPICLF_R_JUY,i) +
+     >                  famz*ppiclf_rprop(PPICLF_R_JUZ,i) +
      >           qq )
-            ppiclf_ydotc(PPICLF_JT,i) = -1.0d0*ppiclf_ydotc(PPICLF_JT,i)
+            !ppiclf_ydotc(PPICLF_JT,i) = -1.0d0*ppiclf_ydotc(PPICLF_JT,i)
          endif 
 
 !
@@ -816,10 +731,145 @@
             ppiclf_ydot(PPICLF_JOZ,i) = 0.0d0
          endif
 
- 999     continue
+!
+! Step 13: Store forces
+!
+         ppiclf_rprop(PPICLF_R_FQSX,i)  = fqsx
+         ppiclf_rprop(PPICLF_R_FQSY,i)  = fqsy
+         ppiclf_rprop(PPICLF_R_FQSZ,i)  = fqsz
+         ppiclf_rprop(PPICLF_R_FAMX,i)  = famx
+         ppiclf_rprop(PPICLF_R_FAMY,i)  = famy
+         ppiclf_rprop(PPICLF_R_FAMZ,i)  = famz
+         ppiclf_rprop(PPICLF_R_FAMBX,i) = FamBinary(1)
+         ppiclf_rprop(PPICLF_R_FAMBY,i) = FamBinary(2)
+         ppiclf_rprop(PPICLF_R_FAMBZ,i) = FamBinary(3)
+         ppiclf_rprop(PPICLF_R_FCX,i)   = fcx
+         ppiclf_rprop(PPICLF_R_FCY,i)   = fcy
+         ppiclf_rprop(PPICLF_R_FCZ,i)   = fcz
+         ppiclf_rprop(PPICLF_R_FVUX,i)  = fvux
+         ppiclf_rprop(PPICLF_R_FVUY,i)  = fvuy
+         ppiclf_rprop(PPICLF_R_FVUZ,i)  = fvuz
+         ppiclf_rprop(PPICLF_R_QQ,i)    = qq
+         ppiclf_rprop(PPICLF_R_FPGX,i)  = fdpdx
+         ppiclf_rprop(PPICLF_R_FPGY,i)  = fdpdy
+         ppiclf_rprop(PPICLF_R_FPGZ,i)  = fdpdz
+
+!
+! Step 14: If debug mode is ON, calculate and print the max values.
+!          The user should not have this ON for production runs.
+!
+         if (ppiclf_debug .ge. 1) then
+            if (sbNearest_flag.eq.1 .and. ppiclf_debug.eq.2) then
+               write(7001,*) ppiclf_time, ppiclf_bins_dx(1:3),
+     >            nsubbin_size, tot_SBin,n_SBin(1:3),
+     >            ppiclf_npart, ppiclf_npart_gp,
+     >            nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
+     >            nsubbin_size*(ppiclf_npart+ppiclf_npart_gp)*4/1e9 
+                  ! last entry in GB; assuming 4 bytes for integer*4
+            endif
+            phimax = max(phimax,abs(rphip))
+
+            fqsx_max = max(fqsx_max,abs(fqsx))
+            fqsy_max = max(fqsy_max,abs(fqsy))
+            fqsz_max = max(fqsz_max,abs(fqsz))
+            fqs_mag  = max(fqs_mag,
+     >                 sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
+
+            fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
+            fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
+            fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
+
+            fqsx_total_max = max(fqsx_total_max, abs(fqsx))
+            fqsy_total_max = max(fqsy_total_max, abs(fqsy))
+            fqsz_total_max = max(fqsz_total_max, abs(fqsz))
+
+            umean_max = max(umean_max, abs(upmean))
+            vmean_max = max(vmean_max, abs(vpmean))
+            wmean_max = max(wmean_max, abs(wpmean))
+
+            famx_max = max(famx_max,abs(famx))
+            famy_max = max(famy_max,abs(famy))
+            famz_max = max(famz_max,abs(famz))
+            fam_mag  = max(fam_mag,
+     >                 sqrt(famx*famx+famy*famy+famz*famz))
+
+            fdpdx_max = max(fdpdx_max,abs(fdpdx))
+            fdpdy_max = max(fdpdy_max,abs(fdpdy))
+            fdpdz_max = max(fdpdz_max,abs(fdpdz))
+            fdp_mag   = max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
+     >                  +fdpdz*fdpdz))
+
+            fcx_max = max(fcx_max, abs(fcx))
+            fcy_max = max(fcy_max, abs(fcy))
+            fcz_max = max(fcz_max, abs(fcz))
+            fc_mag  = max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
+
+            fvux_max = max(fvux_max, abs(fvux))
+            fvuy_max = max(fvuy_max, abs(fvuy))
+            fvuz_max = max(fvuz_max, abs(fvuz))
+
+            qq_max = max(qq_max, abs(qq))
+ 
+            tau = sqrt(taux*taux + tauy*tauy + tauz*tauz)
+            tau_max = max(tau_max, abs(tau))
+
+            lift = sqrt(liftx**2 + lifty**2 + liftz**2)
+            lift_max = max(lift_max,lift)
+
+            if (ppiclf_debug.eq.2 .and. ppiclf_nid.eq.0) then
+               if (iStage==3) then
+                  if (i==1) then
+                     write(7010,*) i,ppiclf_time,rmass,vmag,rhof,dp,
+     >                rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
+     >             rmu,rnu,rkappa
+                  endif
+                  if (i==ppiclf_npart) then
+                     write(7011,*) i,ppiclf_time,rmass,vmag,rhof,dp,
+     >                rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
+     >                rmu,rnu,rkappa
+                  endif
+               endif
+            endif
+
+         endif ! ppiclf_debug .ge. 1
+          
+         ! write out for debug
+         if (ppiclf_debug==3) then
+         if (ppiclf_nid==0 .and. iStage==1) then
+         if (mod(idebug,1)==0) then
+            if (i<=5) then
+               write(7020+i,*) i, ppiclf_time, rhof,
+     >             ppiclf_rprop(PPICLF_R_JSDRX,i),                   
+     >             ppiclf_rprop(PPICLF_R_JSDRY,i), 
+     >             ppiclf_rprop(PPICLF_R_JSDRZ,i),
+     >             ppiclf_ydot(PPICLF_JVX,i),
+     >             ppiclf_ydot(PPICLF_JVY,i),
+     >             ppiclf_ydot(PPICLF_JVZ,i),
+     >             ppiclf_y(PPICLF_JVX,i),
+     >             ppiclf_y(PPICLF_JVY,i),
+     >             ppiclf_y(PPICLF_JVZ,i),
+     >             ppiclf_y(PPICLF_JOX,i),
+     >             ppiclf_y(PPICLF_JOY,i),
+     >             ppiclf_y(PPICLF_JOZ,i)
+
+               write(7040+i,*) i, ppiclf_time, 
+     >              ppiclf_rprop(PPICLF_R_JSDRX:PPICLF_R_JSDRZ,i), ! Du/Dt
+     >              ppiclf_rprop(PPICLF_R_JSDOX:PPICLF_R_JSDOZ,i)  ! DOmega/Dt
+
+               write(7050+i,*) i, ppiclf_time, 
+     >              fqs_mag,fam_mag,fdp_mag,fc_mag,tau_max
+
+               write(7060+i,*) i, ppiclf_time, 
+     >              fcx,fcy,fcz,
+     >              liftx,lifty,liftz,
+     >              taux,tauy,tauz
+            endif
+         endif
+         endif
+         endif
+
 
       enddo ! do i=1,ppiclf_npart
-
 
 !
 !-----------------------------------------------------------------------
@@ -836,28 +886,44 @@
      >         + ppiclf_y(PPICLF_JVX,i) * ppiclf_rprop(PPICLF_R_JPGCX,i)
      >         + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >         + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
+            
+            ! material derivative is phi weighted in Rocflu
+            ! drho/dt
+            SDrho = SDrho / (rphif)  
+            vgradrhog = vx * ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >                  vy * ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >                  vz * ppiclf_rprop(PPICLF_R_JRHOGZ,i)
       
             ! Fluid density
             rhof   = ppiclf_rprop(PPICLF_R_JRHOF,i)
 
+            vx = ppiclf_rprop(PPICLF_R_JUX,i) - ppiclf_y(PPICLF_JVX,i)
+            vy = ppiclf_rprop(PPICLF_R_JUY,i) - ppiclf_y(PPICLF_JVY,i)
+            vz = ppiclf_rprop(PPICLF_R_JUZ,i) - ppiclf_y(PPICLF_JVZ,i)
+            ug = ppiclf_rprop(PPICLF_R_JUX,i)
+            vg = ppiclf_rprop(PPICLF_R_JUY,i)
+            wg = ppiclf_rprop(PPICLF_R_JUZ,i)
+            ! Unary added mass solves rho^g d(u^p)/dt implicitly
+            ! Binary added mass solves it explicitly and not implicitly
+            ! WDOTX = D(rho^g u^g)/Dt - d(rho^g u^p)/dt)
             ! X-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTX,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRX,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVX,i)) 
-     >                 -(ppiclf_y(PPICLF_JVX,i)*SDrho)
+            ppiclf_rprop(PPICLF_R_WDOTX,i) =
+     >                vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >              + ug*vgradrhog
+     >              - rhof*ppiclf_ydot(PPICLF_JVX,i)
           
             ! Y-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTY,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRY,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVY,i))
-     >                 -(ppiclf_y(PPICLF_JVY,i)*SDrho)
-          
-            ! Z-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTZ,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRZ,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVZ,i))
-     >                 -(ppiclf_y(PPICLF_JVZ,i)*SDrho)
+            ppiclf_rprop(PPICLF_R_WDOTY,i) =
+     >                vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >              + vg*vgradrhog 
+     >              - rhof*ppiclf_ydot(PPICLF_JVY,i)
 
+            ! Z-acceleration
+            ppiclf_rprop(PPICLF_R_WDOTZ,i) =
+     >                vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >              + wg*vgradrhog
+     >              - rhof*ppiclf_ydot(PPICLF_JVZ,i)
+          
             ! write out for debug
             if (ppiclf_debug==2) then
             if (ppiclf_nid==0 .and. iStage==1) then
@@ -876,6 +942,7 @@
 
                   write(7030+i,*) i, ppiclf_time, 
      >              ppiclf_rprop(PPICLF_R_WDOTX:PPICLF_R_WDOTZ,i)
+
                endif
             endif
             endif
@@ -894,9 +961,7 @@
       if (ppiclf_debug   .ge. 1) then
       if (iStage         .eq. 1) then
       if (mod(idebug,10) .eq. 0) then
-
          call ppiclf_user_debug
-
       endif
       endif
       endif
@@ -911,7 +976,7 @@
       !
       if (ViscousUnsteady_flag>=1) then
          if (iStage==3) call ppiclf_user_ShiftUnsteadyData
-         call ppiclf_user_plag2prop(ppiclf_nUnsteadyData)
+         call ppiclf_user_plag2prop
       endif
 
 

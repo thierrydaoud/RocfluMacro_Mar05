@@ -73,8 +73,9 @@
       END IF
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      IF((x_per_flag.EQ.1).or.(y_per_flag.EQ.1).and.(ang_per_flag.EQ.1))
-     >   CALL ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
+      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
+     >                     .and.(ang_per_flag.eq.1))
+     >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       ! Thierry - compute ang_case
 
@@ -433,8 +434,14 @@
       ENDdo
       do j=1,PPICLF_LIP
          ppiclf_iprop(j,i) = 0
-      ENDdo
-      ENDdo
+      enddo
+      enddo
+      do i=1,PPICLF_LPART_GP
+      do j=1,PPICLF_LRP_GP
+         ppiclf_rprop_gp(j,i) = 0.0d0
+      enddo
+      enddo
+
       ppiclf_npart = 0
 
       do ie=1,PPICLF_LEE
@@ -954,7 +961,7 @@
          A(3) = 0.0d0
       ENDif
 
-      ! compoute area:
+      ! compute area:
       do k=1,kmax 
          kp = k+1
          if (kp .gt. kmax) kp = kp-kmax ! cycle
@@ -1914,7 +1921,7 @@ c----------------------------------------------------------------------
       !   ppiclf_y1(i) = ppiclf_ydot(i,1)
       !enddo
 
-!WAARNING: Experimental fix to keep particles unsure where to place this
+!WARNING: Experimental fix to keep particles unsure where to place this
 !          command. Either before or after the storing of the current 
 !          storage
         call ppiclf_solve_RemoveParticle      
@@ -2319,6 +2326,7 @@ c     ndum    = ppiclf_neltb*n
             d2i = d2i + d2l
             IF (d2l > d2Max_EleLen(l)) farAway = .TRUE.
           END DO !l
+
           ! skip to next fluid cell if greater than 1.5*max cell
           ! distance in respective x,y,z direction.
           IF (farAWAY) CYCLE !ie

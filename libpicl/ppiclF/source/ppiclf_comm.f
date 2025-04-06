@@ -154,19 +154,46 @@
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
 
+      if (npt_total .gt. 0) then
+      do i=1,ppiclf_ndim
+         if (ppiclf_bins_balance(i) .eq. 1) then
+            rmiddle = 0.0
+            do j=1,ppiclf_npart
+               rmiddle = rmiddle + ppiclf_y(i,j)
+            enddo
+            rmiddle = ppiclf_glsum(rmiddle,1)
+            rmiddle = rmiddle/npt_total
 
-! Look into xdrange here***
-      ! Thierry - we make the bins in z-direction as big as the fluid mesh
-      !           this is also needed for the bin calculation
-      IF(ppiclf_ndim .GT. 2) THEN
-        IF(ppiclf_xdrange(2,3) .LT. ppiclf_binb(6) .OR.
-     >      ppiclf_xdrange(1,3) .GT. ppiclf_binb(5) .OR. 
-     >      iperiodicz .eq. 0) THEN
-          ppiclf_binb(5) = ppiclf_xdrange(1,3)
-          ppiclf_binb(6) = ppiclf_xdrange(2,3)
-        END IF! ndim
-      END IF! xdrange
-! END LOOK
+            rdiff =  max(abs(rmiddle-ppiclf_binb(2*(i-1)+1)),
+     >                   abs(ppiclf_binb(2*(i-1)+2)-rmiddle))
+            ppiclf_binb(2*(i-1)+1) = rmiddle - rdiff
+            ppiclf_binb(2*(i-1)+2) = rmiddle + rdiff
+         endif
+      enddo
+      endif
+
+      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
+     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
+     >    iperiodicx .eq. 0) then
+         ppiclf_binb(1) = ppiclf_xdrange(1,1)
+         ppiclf_binb(2) = ppiclf_xdrange(2,1)
+      endif
+
+      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
+     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
+     >    iperiodicy .eq. 0) then
+         ppiclf_binb(3) = ppiclf_xdrange(1,2)
+         ppiclf_binb(4) = ppiclf_xdrange(2,2)
+      endif
+      
+      if (ppiclf_ndim .gt. 2) then
+      if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
+     >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 
+     >    iperiodicz .eq. 0) then
+         ppiclf_binb(5) = ppiclf_xdrange(1,3)
+         ppiclf_binb(6) = ppiclf_xdrange(2,3)
+      endif ! ndim
+      endif ! xdrange
 
       ! End subroutine if no particles present      
       IF(npt_total .LT. 1) RETURN

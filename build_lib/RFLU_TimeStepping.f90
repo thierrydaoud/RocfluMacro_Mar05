@@ -156,12 +156,14 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
 
 !DEC$ NOFREEFORM
 
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+
 ! y, y1, ydot, ydotc: 12
 
-! rprop: 36
+! rprop: 64
 
 ! map: 10
-
 
 
 
@@ -230,6 +232,8 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
 !CRN - begin
   REAL(RFREAL) :: timerStart, timerEnd
 !CRN - end
+  ! 03/24/2025 - Thierry - variable used to store max time and dt 
+  LOGICAL, SAVE :: initialized = .FALSE.
 
 ! ******************************************************************************
 ! Start
@@ -482,7 +486,6 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
     !!global%dtMin = 1.d-6
     ! TLJ: Set dt fixed for unit test problems
     if (global%piclStationaryFlag<0) global%dtMin = 5.d-8
-
 
 ! ==============================================================================
 !   Move or generate new grid

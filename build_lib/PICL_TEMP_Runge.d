@@ -8,4 +8,7 @@ PICL_TEMP_Runge.o: \
  ModMixture.o \
  ModParameters.o \
  RFLU_ModConvertCv.o \
+ RFLU_ModDifferentiationCells.o \
+ RFLU_ModLimiters.o \
+ RFLU_ModWENO.o \
 
