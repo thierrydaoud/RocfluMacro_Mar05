@@ -1,3 +1,13 @@
+# RocfluMP build files
 build_lib/*.f90
 build_lib/*.d
 build_lib/*.o
+
+# Vim swap files
+## RocfluMP
+*.swp
+*/*.swp
+## ppiclF
+libpicl/ppiclf/source/*.swp
+libpicl/user_files/*.swp
+libpicl/ppiclF/3rd_party/gslib/gslib/src/*.swp
