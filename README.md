@@ -46,9 +46,10 @@ cd your-repo-name
    cat ~/.ssh/id_ed25519.pub
    ```
    Go to GitHub → Settings → SSH and GPG keys → New SSH key
+   
    Paste the copied key into the field and give it a descriptive title (e.g., My Laptop or HiPerGator).
 
-4. **Clone your fork using SSH**:
+5. **Clone your fork using SSH**:
    ```bash
    git clone git@github.com:your-username/your-repo-name.git
    cd your-repo-name
