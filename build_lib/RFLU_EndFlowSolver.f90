@@ -170,7 +170,6 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
   REAL(KIND=8) :: timerEnd
   REAL(KIND=8) :: elapsedtime
   REAL(KIND=8) :: elapsedtime_hour
-  REAL(KIND=8) :: grindtime, niter
 
 ! ******************************************************************************
 ! Start, initialize some variables
@@ -515,7 +514,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
     CLOSE(IF_CONVER,IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= 0 ) THEN 
-      CALL ErrorStop(global,ERR_FILE_CLOSE,580)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,579)
     END IF ! global%error
   END IF ! global%myProcid
 
@@ -523,7 +522,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
     CLOSE(IF_MASS,IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= 0 ) THEN 
-      CALL ErrorStop(global,ERR_FILE_CLOSE,588)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,587)
     END IF ! global%error
   END IF ! global%myProcid  
 
@@ -540,7 +539,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
     CLOSE(IF_PM,IOSTAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= 0 ) THEN
-      CALL ErrorStop(global,ERR_FILE_CLOSE,605)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,604)
     END IF ! global%error
   END IF ! global%myProcid
 
@@ -548,11 +547,23 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
 !    CLOSE(IF_INTEG,IOSTAT=errorFlag)
 !    global%error = errorFlag
 !    IF ( global%error /= 0 ) THEN
-!      CALL ErrorStop(global,ERR_FILE_CLOSE,613)
+!      CALL ErrorStop(global,ERR_FILE_CLOSE,612)
 !    END IF ! global%error
 !  END IF ! global%myProcid
 !end BBR
 
+! ******************************************************************************
+! Print Simulation (rflump only) Run Time
+! ******************************************************************************
+
+  IF(global%myProcid == MASTERPROC) THEN
+     timerStart  = global%timingSubRout(1)
+     timerEnd    = MPI_Wtime()
+     elapsedtime = (timerEnd - timerStart) / 60.0_RFREAL
+     elapsedtime_hour = elapsedtime / 60.0_RFREAL
+     print*,"*** Total rflump timing = ",elapsedtime," minutes"
+     print*,"*** Total rflump timing = ",elapsedtime_hour," hours"
+  ENDIF
 
 ! ******************************************************************************
 ! Print info about warnings
@@ -577,7 +588,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
   CALL MPI_Finalize(errorFlag)
   global%error = errorFlag
   IF ( global%error /= ERR_NONE ) THEN 
-    CALL ErrorStop(global,ERR_MPI_OUTPUT,653)
+    CALL ErrorStop(global,ERR_MPI_OUTPUT,664)
   END IF ! global%error
 
 ! ******************************************************************************
@@ -591,27 +602,6 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
     WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Program finished.'
     WRITE(STDOUT,'(A)') SOLVER_NAME         
   END IF ! global%myProcid 
-
-  IF(global%myProcid == 0) THEN
-     timerStart  = global%timingSubRout(1)
-     timerEnd    = MPI_Wtime()
-     elapsedtime = (timerEnd - timerStart) / 60.0_RFREAL
-     elapsedtime_hour = elapsedtime / 60.0_RFREAL
-     print*,"*** Total rflump timing = ",elapsedtime," minutes"
-     print*,"*** Total rflump timing = ",elapsedtime_hour," hours"
-
-     niter = NINT(global%MMaxTTime / global%dttMinn) ! number of iterations
-     !grindtime = elapsedtime / (global%ttotccells * niter)
-     !print*, elapsedtime/niter
-     print*, elapsedtime, global%ttotccells, niter
-     !print*, "*** Grind time =", grindtime, "minutes"
-     !grindtime = elapsedtime_hour / (pRegion%grid%nCellsTot * niter)
-     !print*, "*** Grind time =", grindtime, "hour"
-     print*, "*** niter =", niter
-     !print*, "pRegion%grid%nCells =", pRegion%grid%nCells
-     !print*, "pRegion%grid%nCellsTot =", pRegion%grid%nCellsTot
-  
-  ENDIF
 
 
   CALL DeregisterFunction(global)
