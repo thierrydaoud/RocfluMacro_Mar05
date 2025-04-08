@@ -1,10 +1,10 @@
 # The following code is the most recent version of combined Hydrocode <u>RocfluMP</u> and particle-tracker <u>ppiclF</u>.
 
 ## 📘 **Documentations**: 
-*RocfluMP*
+### RocfluMP
 You can find the full RocfluMP manual [here](docs/Rocflu_manual.pdf).
 
-*ppiclF*
+### ppiclF
 [Documentation Website for ppiclF](https://dpzwick.github.io/ppiclF-doc/user/external.html).
 
 ## Getting Started:
