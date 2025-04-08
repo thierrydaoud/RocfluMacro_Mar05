@@ -1,0 +1,138 @@
+# FORMATS 
+GRID      0	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF 
+SOLUTION  0	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF 
+GRIDSRC   0	! 0 - CENTAUR ASCII, 1 - VGRIDNS, 2 - MESH3D 
+# 
+ 
+# FLOWMODEL 
+MODEL    0 	! 0 - Euler, 1 - Navier-Stokes 
+MOVEGRID 0	! 0 - static grid, 1 - moving grid 
+# 
+ 
+# NUMERICS 
+CFL      0.5    ! CFL number
+DISCR    5      ! Type of space discretization (1-Roe,2-MAPS,3-HLLC,4-AUSM+,5-AUSM+UP)
+ORDER    2      ! Order of accuracy (1 - first, 2 - second)
+ENTROPY  0.05   ! Entropy correction coefficient (if DISCR=1)
+DIMENS   3      ! Run 3D computations (1 - 1D, 2 - 2D, 3 - 3D)
+AXIFLAG  0      ! Axisymmetric computation
+SIGMA    1.000  ! Used in AUSUPlusUp (default is 1.0 if not specified)
+KP       0.2500 ! Used in AUSUPlusUp (default is 0.25 if not specified)
+KU       0.7500 ! Used in AUSUPlusUp (default is 0.75 if not specified)
+MINF     15.9325 ! Used in AUSUPlusUp (default is 0.1 if not specified, or 15.9325)
+RECONST    2    ! Reconstruction method of gradients (0 - OFF,  1 - WENO Simple , 2 - WENO XYZ (default) , 10 - LIM BARTHJESP , 11 - LIM VENKAT)
+CRECONSTF  1    ! Constrained reconstruction to compute face gradients (0 - OFF (default), 1 - ON )
+CRECONSTC  1    ! Constrained reconstruction to compute cell gradients (0 - OFF (default), 1 - ON )
+CRECONSTCW 1    ! Weight for constrained cell-gradient reconstruction (0 - OFF, 1 - ON (default and recommended), can take arbitrary value if need be.)
+CRECONSTFW 1    ! Weight for constrained face-gradient reconstruction (0 - OFF, 1 - ON (default and recommended), can take arbitrary value if need be.)
+# 
+ 
+# TIMESTEP 
+FLOWTYPE   1        ! 0=steady flow, 1=unsteady flow
+SOLVERTYPE 1        ! 1-dissipative, 3-nondissipative
+MAXTIME    1.0E-03  ! Simulation runtime [s]
+RUNTIME    1.0E-03  ! Maximum runtime [s]
+WRITIME    1.0E-05  ! Solution write frequency [s]
+PRNTIME    1.0E-05  ! time offset [s] to print convergence
+FOMWRITIME 2.5E-07    ! time offset [s] to store fom solution
+TIMESTEP   1.0E-10  ! max. physical time step [s]
+DTMINLIMIT 1.0E-10  ! sets smallest dt that overrides CFL limit
+STARTTIME  0.0E-00  ! current time
+WALLTIME   432000   ! 11:59:00 in seconds; 432000/3600/24 = 5 days
+SAFEWRTIME 360      ! to dump 1 hr before walltime
+RKSCHEME    2       ! 1-RK4 2-RK3
+PRNTENDTIME 2       ! 1-soln at final RUNTIME; 2-soln at last CFL step
+# 
+
+# REFERENCE 
+! The following are set in libflu/RFLU_InitFlobal.F90
+! This is where you can override them, or other ref values, if you want
+GAMMA    1.4 ! ratio of specific heats
+CP       1004.65 ! specific heat coeff. at constant pressure [J/kgK]
+LENGTH   1.000000000000000 ! length [m]
+ABSVEL   1.000000000000000 ! velocity [m/s]
+DENS     1.200000000000000 ! density [kg/m^3]
+PRESS    101325.0000000000 ! pressure [Pa]
+# 
+
+# FORCES 
+FLAG       0 
+# 
+
+# MIXTURE
+GASMODEL    1 ! (1-TCPERF, 3-MIXT_TCPERF, 7-MIXT_JWL) <== JWL needs Model 7
+#
+
+# SPECIES
+USED     0 ! 0 - Not used, 1 - Used
+NSPECIES 2 ! Number of species
+#
+
+# INITFLOW                                                  
+FLAG   3                                                    
+RVAL1  0.00350000000       ! Location of shock at time zero 
+RVAL2  12.534789165758195  ! rho2 (Ma=2.6, T=1020K)         
+RVAL3  0.0000000000000000  ! u2                             
+RVAL4  3669993.8708803397  ! P2 (Ma=2.6)                    
+RVAL5  1.2047608838503114  ! rho1                           
+RVAL6  101325.00000000000  ! P1                             
+#                                                           
+
+# VISCMODEL
+MODEL       0         ! 0 = sutherland, 1 = fixed
+VISCOSITY   1.7160E-5 ! reference viscosity (kg/m-s)
+REFTEMP     273.15    ! reference temperature (K)
+SUTHCOEF    110.4     ! sutherland coefficient (K)
+#
+
+# MATERIAL
+NAME     AL                 ! <== Name of particle material
+PHASE    S                  ! <== Solid
+DENS     2710.0             ! Density
+MOLW     1                  ! Molecular Weight (not used with ppiclf)
+SPHT     1                  ! Specific heat (not used with ppiclf)
+#
+
+# PICL
+USED             1      ! 0 = not used; 1 = used
+STATIONARY       0      ! 1 = particles do not move; negative = unit test cases
+QSFORCE          2      ! 0 = none; 1 = Parmar; 2 = Osnes
+AMFORCE          2      ! 0 = none; 1 = Parmar; 2 = Briney
+PGFORCE          1      ! 0 = none; 1 = on
+COLLISIONS 	     4      ! 0 = none; 1 = Fn; 2: +(Ft+Tc); 3: +(Th+Tr); 4: +(Fl+Tu)
+VISCOUSUNSTEADY  0      ! not yet implemented
+HEATTRANSFER     0      ! 0 = none; 1 = Stokes; 2 = RM; 3 = Gunn; 4 = Fox
+FEEDBACK         1      ! 0 = none; 1 = on
+QSFLUCT          2      ! 0 = none; 1 = Lattanzi; 2 = Osnes
+QSFLUCTFILT      0      ! 0 = box filter; 1 = gaussian. For fluctuation QS force only.
+QSFLUCTFILTADAPT 0      ! 0 = not adaptive; 1 = adaptive
+TEMP             288.15 ! temperature; must be consistent with ambient air conditions
+FILTERWIDTH      0.0005 ! meters; roughly 1.5 times cell size
+NEIGHBORWIDTH    0.000  ! Actual neighbor width = max(4*dp_max, neighborwidth)
+KSP              100.0  ! collisional spring constant; [kg/s^2]
+EREST            0.7    ! Coefficient of restitution
+PICLDEBUG        0      ! 0 = turn off ppiclf-specific print statements
+PERIODICX        0      ! 0 = turn off ; 1 = turn on
+PERIODICY        0      ! 0 = turn off ; 1 = turn on
+PERIODICZ        1      ! 0 = turn off ; 1 = turn on
+ANGULARPERIODIC  0      ! 0=turn off ; 1=Z-Axis
+ANGLE            90.0   ! angle between the two wedge faces, degrees
+XANGLE           0.0    ! angle between x-axis and lower wedge face, CCW +ve, degrees
+RIN              0.0    ! inner wedge radius
+ROUT             0.3    ! outer wedge radius
+SUBBIN           1      ! 0 = Zwick subbin; 1 = Avery subbin
+#
+
+# POST 
+INTERTYPE  0 
+MERGEFLAG  1 
+EXTRFLAG   0 ! Turn it 'ON' while running MVFRAME 
+DISCFLAG   0 
+PLTVOLFLAG 1 
+OUTFORMAT  1 
+# 
+ 
+# MISC # 
+NBVECFACT  2 
+CYCLETIME  1
+# 

@@ -1,0 +1,163 @@
+# FORMATS 
+GRID      0	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF 
+SOLUTION  0	! 0 - ROCFLU ASCII, 1 - ROCFLU binary, 2 - ROCFLU HDF 
+GRIDSRC   0	! 0 - CENTAUR ASCII, 1 - VGRIDNS, 2 - MESH3D 
+# 
+ 
+# FLOWMODEL 
+MODEL    0 	! 0 - Euler, 1 - Navier-Stokes (needs RK4)
+MOVEGRID 0	! 0 - static grid, 1 - moving grid 
+# 
+ 
+# NUMERICS 
+CFL      0.5	! CFL number 
+DISCR    5      ! Type of space discretization (1 - ROE, 3 - HLLC, 4 - AUSM+, 5-AUSM+UP) 
+ORDER    2      ! Order of accuracy (1 - first, 2 - second) 
+ENTROPY  0.05   ! Entropy correction coefficient (if DISCR=1) 
+DIMENS   3      ! Computations Dimension (1 - 1D, 2 - 2D, 3 - 3D)
+AXIFLAG  0      ! Axisymmetric computation 
+SIGMA    1.000  ! Used in AUSUPlusUp (default is 1.0 if not specified)
+KP       0.2500 ! Used in AUSUPlusUp (default is 0.25 if not specified)
+KU       0.7500 ! Used in AUSUPlusUp (default is 0.75 if not specified)
+MINF     0.1000 ! Used in AUSUPlusUp (default is 0.1 if not specified, or 15.9325)
+RECONST    2    ! Reconstruction method of gradients (0 - OFF,  1 - WENO Simple , 2 - WENO XYZ (default) , 10 - LIM BARTHJESP , 11 - LIM VENKAT)
+CRECONSTF  1    ! Constrained reconstruction to compute face gradients (0 - OFF (default), 1 - ON )
+CRECONSTC  1    ! Constrained reconstruction to compute cell gradients (0 - OFF (default), 1 - ON )
+CRECONSTCW 1    ! Weight for constrained cell-gradient reconstruction (0 - OFF, 1 - ON (default and recommended), can take arbitrary value if need be.)
+CRECONSTFW 1    ! Weight for constrained face-gradient reconstruction (0 - OFF, 1 - ON (default and recommended), can take arbitrary value if need be.)
+# 
+ 
+# TIMESTEP 
+FLOWTYPE   1        ! 0=steady flow, 1=unsteady flow 
+SOLVERTYPE 1        ! 1-dissipative, 3-nondissipative 
+MAXTIME    1.5E-03  ! time [s] at which computation is stopped, relevant if FLOWTYPE=1 
+RUNTIME    1.5E-03  ! Simulation runtime 
+WRITIME    1.0E-05  ! Offset time [s] at which flow files are written, relevant if FLOWTYPE=1
+PRNTIME    1.0E-05  ! time offset [s] to print convergence 
+FOMWRITIME 1.0E-05  ! time offset [s] to store fom solution 
+TIMESTEP   1.0E-09  ! max. time step for computation [s], relevant if FLOWTYPE=1
+DTMINLIMIT 2.0E-10  ! sets smallest dt that overrides CFL limit
+STARTTIME  0.0E-00  ! time from which computation to be started, relevant if FLOWTYPE=1 
+WALLTIME   432000   ! 11:59:00 in seconds 
+SAFEWRTIME 360      ! to dump 1 hr before walltime 
+RKSCHEME    2       ! 1-RK4 2-RK3
+PRNTENDTIME 2       ! 1-soln at final RUNTIME; 2-print only last CFL step
+# 
+
+# REFERENCE 
+GAMMA         1.4 
+CP            1004.64 
+!LENGTH        1.000000000  ! Radius of sphere
+!ABSVEL        1.000000000  ! Ms  
+!DENS          1.000000000  ! Density behind shock
+!PRESS         1.000000000  ! Pressure behind shock
+# 
+
+# FORCES 
+!FLAG       0
+!PATCHFLAG  0
+# 
+
+# MIXTURE
+GASMODEL    1 !7 ! (1-TCPERF, 3-MIXT_TCPERF, 7-MIXT_JWL)     <== JWL needs Model 7
+#
+
+# SPECIES
+USED        0 ! Whether ot use species module
+#
+
+# INITFLOW 
+FLAG   3
+RVAL1     -0.005000000                ! Location of shock at time zero
+RVAL2              2.0725901075834   ! rho2
+RVAL3            304.1461483936438   ! u2
+RVAL4         252082.2060022760706   ! P2
+RVAL5              0.9721771595969   ! rho1
+RVAL6          82700.0000000000000   ! P1
+#
+
+# VISCMODEL
+MODEL       0 ! 0 = sutherland, 1 = fixed
+VISCOSITY   1.716E-5
+REFTEMP     273.15
+SUTHCOEF    110.4
+#
+
+# MATERIAL
+NAME     AL                 ! <== Name of species
+PHASE    S                  ! <== Solid
+DENS     2520.0             ! Density
+MOLW     1
+SPHT     840.0              ! Specific heat
+#
+
+# PICL
+USED             1      ! 0 = not used; 1 = used
+STATIONARY       0      ! 1 = particles do not move; negative = unit test cases
+QSFORCE 	       2      ! 0 = none; 1 = Parmar; 2 = Osnes
+AMFORCE 	       2      ! 0 = none; 1 = Parmar; 2 = Briney
+PGFORCE 	       1      ! 0 = none; 1 = on
+COLLISIONS 	     4      ! 0 = none; 1 = Fn; 2: +(Ft+Tc); 3: +(Th+Tr); 4: +(Fl+Tu)
+VISCOUSUNSTEADY  1      ! 0 = none; 1 = Rocflu Method
+HEATTRANSFER 	   0      ! 0 = none; 1 = Stokes; 2 = RM; 3 = Gunn; 4 = Fox
+FEEDBACK         1      ! 0 = none; 1 = particles affecting fluid
+QSFLUCT 	       2      ! 0 = none; 1 = Lattanzi; 2 = Osnes  
+QSFLUCTFILT      0      ! 0 = box filter; 1 = gaussian. For fluctuation QS force only.
+QSFLUCTFILTADAPT 0      ! 0 = not adaptive; 1 = adaptive
+TEMP             296.40 ! temperature; must be consistent with Ambient air conditions
+FILTERWIDTH      0.002  ! meters
+NEIGHBORWIDTH    0.0    ! Actual neighbor width = max(4*dp_max, neighborwidth)
+KSP              10     ! Number of collisional time steps 
+EREST            0.7    ! Coefficient of restitution
+PICLDEBUG        0      ! 0 = turn off ppiclf-specific print statements
+PERIODICX        0      ! 0 = turn off ; 1 = turn on
+PERIODICY        1      ! 0 = turn off ; 1 = turn on
+PERIODICZ        1      ! 0 = turn off ; 1 = turn on
+ANGULARPERIODIC  0      ! 0=turn off ; 1=Z-Axis
+ANGLE            90.0   ! angle between the two wedge faces, degrees
+XANGLE           0.0    ! angle between x-axis and lower wedge face, CCW +ve, degrees
+RIN              0.0    ! inner wedge radius
+ROUT             0.075  ! outer wedge radius
+SUBBIN           1      ! 0 = Zwick subbin; 1 = Avery subbin
+REACTIVE         0      ! 0 = inert; 1 = reactive particle
+#
+
+# POST 
+INTERTYPE  0 
+MERGEFLAG  1 
+EXTRFLAG   0 ! Turn it 'ON' while running MVFRAME 
+DISCFLAG   0 
+PLTVOLFLAG 1 
+OUTFORMAT  1 
+# 
+ 
+# MISC # 
+NBVECFACT  2 
+CYCLETIME  1
+# 
+
+
+! uncommment this if you need to print out Probes
+! columns are x, y, z coordinates of Probes
+!# PROBE
+!NUMBER 14
+!   -0.1200000000  0.002000000  0.002000000
+!   -0.1180000000  0.002000000  0.002000000
+!   -0.1160000000  0.002000000  0.002000000
+!   -0.1140000000  0.002000000  0.002000000
+!   -0.1120000000  0.002000000  0.002000000
+!   -0.1100000000  0.002000000  0.002000000
+!   -0.1080000000  0.002000000  0.002000000
+!   -0.1060000000  0.002000000  0.002000000
+!   -0.1040000000  0.002000000  0.002000000
+!   -0.1020000000  0.002000000  0.002000000
+!   -0.1000000000  0.002000000  0.002000000
+!   -0.0996000000  0.002000000  0.002000000
+!   -0.0686000000  0.002000000  0.002000000
+!    0.0642000000  0.002000000  0.002000000
+!#
+!WRITIME   0.2E-6  ! Time between probe dumps
+!OPENCLOSE  1 ! Open and close probe files each write
+!#
+
+
