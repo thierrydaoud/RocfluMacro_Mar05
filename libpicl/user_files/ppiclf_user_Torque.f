@@ -34,7 +34,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -42,11 +42,12 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i,iStage
       real*8 taux, tauy, tauz
       real*8 taux_hydro, tauy_hydro, tauz_hydro
+      real*8 taux_undist, tauy_undist, tauz_undist
       real*8 rmass_local
 
 !
@@ -55,14 +56,20 @@
       taux_hydro = 0.0d0
       tauy_hydro = 0.0d0
       tauz_hydro = 0.0d0
+      taux_undist = 0.0d0
+      tauy_undist = 0.0d0
+      tauz_undist = 0.0d0
 
-      if (collisional_flag == 3) then
+      if (collisional_flag >= 3) then
          call Torque_Hydro(i,taux_hydro,tauy_hydro,tauz_hydro)
       endif
+      if (collisional_flag == 4) then
+         call Torque_Undisturbed(i,taux_undist,tauy_undist,tauz_undist)
+      endif
 
-      taux = taux + taux_hydro
-      tauy = tauy + tauy_hydro
-      tauz = tauz + tauz_hydro
+      taux = taux + taux_hydro + taux_undist
+      tauy = tauy + tauy_hydro + tauy_undist
+      tauz = tauz + tauz_hydro + tauz_undist
 
       return
       end
@@ -145,6 +152,48 @@
       taux_hydro = factor*omgrx
       tauy_hydro = factor*omgry
       tauz_hydro = factor*omgrz
+
+
+      return
+      end
+!
+!
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!
+! Created April 01, 2025
+!
+! Subroutine for undisturbed torque
+!
+!
+!-----------------------------------------------------------------------
+!
+      subroutine Torque_Undisturbed(i, 
+     >           taux_undist,tauy_undist,tauz_undist)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i
+      real*8 taux_undist, tauy_undist, tauz_undist
+      real*8 rIf
+
+!
+! Code:
+!
+
+      ! Moment of interia with respect to gas
+      rIf = rhof*dp*dp*ppiclf_rprop(PPICLF_R_JVOLP,i)/10.0d0
+
+      ! Undisturbed torque component
+      ! Written using angular velocity = 0.5*vorticity
+      taux_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOX,i)
+      tauy_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOY,i)
+      tauz_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOZ,i)
 
 
       return

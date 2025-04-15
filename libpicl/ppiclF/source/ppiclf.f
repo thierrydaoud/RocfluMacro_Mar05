@@ -52,7 +52,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -60,7 +60,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: ppiclf_rcp_part, ppiclf_p0
       integer :: ppiclf_moveparticle
       CHARACTER(12) :: ppiclf_matname
@@ -73,14 +73,16 @@
       real*8 fqs_fluct(3)
       real*8 famx, famy, famz 
       real*8 fdpdx, fdpdy, fdpdz
+      real*8 fdpvdx, fdpvdy, fdpvdz
       real*8 fcx, fcy, fcz
       real*8 fbx, fby, fbz 
       real*8 fvux, fvuy, fvuz
 
+      real*8 ug, vg, wg
+
       real*8 beta,cd
 
-      real*8 factor, One, OneThird, rcp_fluid,
-     >   rmass_add
+      real*8 factor, rcp_fluid, rmass_add
 
       real*8 gkern
   
@@ -90,7 +92,9 @@
       real*8 SDrho
 !-----------------------------------------------------------------------
 
+      real*8 vgradrhog
       integer*4 i, n, ic, k
+      integer*4 store_forces
 
 ! Needed for heat transfer
       real*8 qq, rmass_therm, temp
@@ -103,6 +107,8 @@
 ! Needed for angular velocity
       real*8 taux, tauy, tauz, rmass_omega
       real*8 tau
+      real*8 liftx, lifty, liftz
+      real*8 lift
 
 ! Finite Diff Material derivative Variables
       integer*4 nstage, istage
@@ -124,7 +130,6 @@
 !
 !-----------------------------------------------------------------------
 !   
-
 
       ! Avery added 10/10/2024 for subbin nearest neighbor search
       
@@ -184,16 +189,12 @@
          endif
       endif
 
-      !print*,'burnrate_flag',burnrate_flag
-      !print*,'ppiclf_matname',TRIM(ppiclf_matname)
-      !print*,'burnrate_model',burnrate_model
-
-      rpi        = 4.0*atan(1.0)
+      rpi        = acos(-1.0d0)
       rcp_part   = ppiclf_rcp_part
-      rpr        = 0.70
-      rcp_fluid  = 1004.64
+      rpr        = 0.70d0
+      rcp_fluid  = 1004.64d0
 
-      fac = ppiclf_rk3ark(iStage)*PPICLF_DT
+      fac = ppiclf_rk3ark(iStage)*ppiclf_dt
       if (1==2) then
          if (ppiclf_nid==0) print*,'dt,fac=',
      >      istage,ppiclf_dt,fac,
@@ -203,44 +204,7 @@
      >      ppiclf_nUnsteadyData
       endif
 
-      One = 1.d0
       OneThird = 1.0d0/3.0d0
-
-      ! Set initial max values
-      phimax    = 0.d0
-
-      fqsx_max  = 0.d0
-      fqsy_max  = 0.d0
-      fqsz_max  = 0.d0
-      famx_max  = 0.d0
-      famy_max  = 0.d0
-      famz_max  = 0.d0
-      fdpdx_max = 0.d0
-      fdpdy_max = 0.d0
-      fdpdz_max = 0.d0
-      fcx_max   = 0.d0
-      fcy_max   = 0.d0
-      fcz_max   = 0.d0
-      fvux_max  = 0.d0
-      fvuy_max  = 0.d0
-      fvuz_max  = 0.d0
-      qq_max    = 0.d0
-
-      fqsx_fluct_max = 0.d0
-      fqsy_fluct_max = 0.d0
-      fqsz_fluct_max = 0.d0
-      fqsx_total_max = 0.d0
-      fqsy_total_max = 0.d0
-      fqsz_total_max = 0.d0
-
-      fqs_mag = 0.0
-      fam_mag = 0.0
-      fdp_mag = 0.0
-      fc_mag  = 0.0
-
-      umean_max = 0.d0
-      vmean_max = 0.d0
-      wmean_max = 0.d0
 
 !
 !-----------------------------------------------------------------------
@@ -263,7 +227,7 @@
 ! Reset arrays for Viscous Unsteady Force
 !
       if (ViscousUnsteady_flag>=1) then
-         call ppiclf_user_prop2plag(ppiclf_nUnsteadyData)
+         call ppiclf_user_prop2plag
       endif
 !
 !-----------------------------------------------------------------------
@@ -283,7 +247,7 @@
             call ppiclf_user_subbinMap(i_Bin, n_SBin, tot_SBin 
      >                               ,SBin_counter ,SBin_map)
 
-         endif ! Collisions, QS Fluct, or Brinery AM flags on
+         endif ! Collisions, QS Fluct, or Briney AM flags on
       
          ! Print out relevant information about subbin
          if (ppiclf_nid==0) then
@@ -298,34 +262,46 @@
      >     (FLOOR((ppiclf_bins_dx(3)+2*ppiclf_d2chk(3))/ppiclf_d2chk(3))
      >       + 1) 
 
-         if (ppiclf_time .EQ. 0.0) then
-         write(*,*) 'Subbin Method used!'
-         write(6,*) 'SUBBIN ', 
-     >     ppiclf_time,
-     >     ppiclf_bins_dx(1:3),
-     >     nsubbin_size,
-     >     tot_SBin,n_SBin(1:3),
-     >     ppiclf_npart,ppiclf_npart_gp,
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
-     >     ' GB: ',nsubbin_size*
-     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
-
-         endif ! end ppiclf_time = 0
-
-         if (ppiclf_debug==2) write(7001,*)
-     >     ppiclf_time,
-     >     ppiclf_bins_dx(1:3),
-     >     nsubbin_size,
-     >     tot_SBin,n_SBin(1:3),
-     >     ppiclf_npart,ppiclf_npart_gp,
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
-     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp)*4/1e9 
-         ! last entry in GB; assuming 4 bytes for integer*4
+!         if (ppiclf_time .EQ. 0.0) then
+!         write(*,*) 'Subbin Method used!'
+!         write(6,*) 'SUBBIN ', 
+!     >     ppiclf_time,
+!     >     ppiclf_bins_dx(1:3),
+!     >     nsubbin_size,
+!     >     tot_SBin,n_SBin(1:3),
+!     >     ppiclf_npart,ppiclf_npart_gp,
+!     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
+!     >     ' GB: ',nsubbin_size*
+!     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
+!         write(6,*) 'Viscous Unsteady',
+!     >     ppiclf_nUnsteadyData,ppiclf_nTimeBH,
+!     >     ppiclf_dt
+!
+!         endif ! end ppiclf_time = 0
 
          endif ! end iStage = 1
          endif ! end ppiclf_nid = 0
 
       endif ! end sbNearest_flag = 1
+
+      ! Set initial max values - must be done npart loop
+      if (ppiclf_debug >= 1) then
+         phimax    = 0.d0
+         fqsx_max  = 0.d0; fqsy_max  = 0.d0; fqsz_max  = 0.d0
+         famx_max  = 0.d0; famy_max  = 0.d0; famz_max  = 0.d0
+         fdpdx_max = 0.d0; fdpdy_max = 0.d0; fdpdz_max = 0.d0
+         fcx_max   = 0.d0; fcy_max   = 0.d0; fcz_max   = 0.d0
+         fvux_max  = 0.d0; fvuy_max  = 0.d0; fvuz_max  = 0.d0
+         qq_max    = 0.d0;
+         fqsx_fluct_max = 0.d0; fqsy_fluct_max = 0.d0
+         fqsz_fluct_max = 0.d0
+         fqsx_total_max = 0.d0; fqsy_total_max = 0.d0
+         fqsz_total_max = 0.d0
+         fqs_mag = 0.0d0; fam_mag = 0.0d0; fdp_mag = 0.0d0
+         fc_mag  = 0.0d0
+         umean_max = 0.d0; vmean_max = 0.d0; wmean_max = 0.d0
+      endif
+
 
 !
 !-----------------------------------------------------------------------
@@ -337,30 +313,6 @@
 
       do i=1,ppiclf_npart
 
-!         ! TLJ - not yet tested
-!         Pres   = PPICLF_RPROP(PPICLF_R_JP,i)
-!         if ((Pres .gt. ppiclf_p0).or.(Pres .lt. ppiclf_p0*0.99)) then
-!            ppiclf_moveparticle = 1
-!         endif
-!
-!         if (ppiclf_moveparticle == 0) then
-!            ppiclf_ydot(PPICLF_JX ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JY ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JZ, i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVX,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVY,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JVZ,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JT,i)   = 0.0d0
-!            ppiclf_ydot(PPICLF_JOX,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JOY,i)  = 0.0d0
-!            ppiclf_ydot(PPICLF_JOZ,i)  = 0.0d0
-!            ppiclf_ydotc(PPICLF_JVX,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JVY,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JVZ,i) = 0.0d0 
-!            ppiclf_ydotc(PPICLF_JT,i)  = 0.0d0
-!            goto 999
-!         endif
-
          ! Choose viscosity law
          if (rmu_flag==rmu_fixed_param) then
             ! Constant viscosity law
@@ -369,7 +321,7 @@
             ! Sutherland law
             temp    = ppiclf_rprop(PPICLF_R_JT,i)
             rmu     = rmu_ref*sqrt(temp/tref)
-     >                   *(1.0+suth/tref)/(1.0+suth/temp)
+     >                   *(1.0d0+suth/tref)/(1.0d0+suth/temp)
          else
              call ppiclf_exittr('Unknown viscosity law$', 0.0d0, 0)
          endif
@@ -387,10 +339,15 @@
          dp     = ppiclf_rprop(PPICLF_R_JDP,i)
          rep    = vmag*dp*rhof/rmu
          rphip  = ppiclf_rprop(PPICLF_R_JPHIP,i)
-         rphif  = 1.0-ppiclf_rprop(PPICLF_R_JPHIP,i)
+         rphif  = 1.0d0-ppiclf_rprop(PPICLF_R_JPHIP,i)
          asndf  = ppiclf_rprop(PPICLF_R_JCS,i)
          rmachp = vmag/asndf
          rhop   = ppiclf_rprop(PPICLF_R_JRHOP,i)
+
+         ! TLJ - 04/03/2025; Do not calculate forces if vmag = 0
+         !       Otherwise the particles might move before the 
+         !       shock arrives
+         if (vmag <= 1.d-8) cycle
 
          ! TLJ - redefined rprop(PPICLF_R_JSPT,i) to be the particle
          !   velocity magnitude for plotting purposes - 01/03/2025
@@ -399,48 +356,39 @@
      >       ppiclf_y(PPICLF_JVY,i)**2 +
      >       ppiclf_y(PPICLF_JVZ,i)**2)
 
-         rep = max(0.1,rep)
+         rep = max(0.1d0,rep)
 
          ! Redefine volume fractions
          ! Need to make sure phi_p + phi_f = 1
          rphip = ppiclf_rprop(PPICLF_R_JPHIP,i)
-         rphip = min(rphip,0.62)
-         rphif = 1.0-rphip
+         rphip = min(rphip,0.62d0)
+         rphif = 1.0d0-rphip
 
          ! TLJ: Needed for viscous unsteady force
-         rhoMixt = rhof/(1.0d0-rphip)
-         reyL = dp*vmag*rhoMixt/rmu
-         rnu = rmu/rhoMixt
-
-         phimax = max(phimax,abs(rphip))
-
-         if (ppiclf_debug==2 .and. ppiclf_nid==0) then
-            if (iStage==3) then
-               if (i==1) then
-                  write(7010,*) i,ppiclf_time,rmass,vmag,rhof,dp,
-     >             rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
-     >             rmu,rnu,rkappa
-               endif
-               if (i==ppiclf_npart) then
-                  write(7011,*) i,ppiclf_time,rmass,vmag,rhof,dp,
-     >             rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
-     >             rmu,rnu,rkappa
-               endif
-            endif
-         endif
+         !      Using same nomenclature as rocinteract subroutines
+         reyL = dp*vmag*rhof/rmu
+         rnu = rmu/rhof
 
          ! Zero out for each particle i
          famx = 0.0d0; famy = 0.0d0; famz = 0.0d0; rmass_add = 0.0d0;
+         Fam(1) = 0.0d0; Fam(2) = 0.0d0; Fam(3) = 0.0d0
+         FamUnary(1)=0.0d0;FamUnary(2)=0.0d0;FamUnary(3)=0.0d0;
+         FamBinary(1)=0.0d0;FamBinary(2)=0.0d0;FamBinary(3)=0.0d0;
+         Wdot_neighbor_mean(1) = 0.0d0; Wdot_neighbor_mean(2) = 0.0d0;
+         Wdot_neighbor_mean(3) = 0.0d0; nneighbors = 0.0d0
          fqsx = 0.0d0; fqsy = 0.0d0; fqsz = 0.0d0; beta = 0.0d0;
-         fqs_fluct = 0.0d0
+         fqs_fluct(1)=0.0d0;fqs_fluct(2)=0.0d0;fqs_fluct(3)=0.0d0;
          fdpdx = 0.0d0; fdpdy = 0.0d0; fdpdz = 0.0d0;
          fcx = 0.0d0; fcy = 0.0d0; fcz = 0.0d0;
          taux = 0.0d0; tauy = 0.0d0; tauz = 0.0d0;
+         liftx = 0.0d0; lifty = 0.0d0; liftz = 0.0d0;
          fvux = 0.0d0; fvuy = 0.0d0; fvuz = 0.0d0;
          qq=0.0d0
          mdot_me = 0.0d0; mdot_ox = 0.0d0;
          upmean = 0.0; vpmean = 0.0; wpmean = 0.0;
          u2pmean = 0.0; v2pmean = 0.0; w2pmean = 0.0;
+         fdpvdx = 0.0d0; fdpvdy = 0.0d0; fdpvdz = 0.0d0;
+
 
 !
 ! Step 1a: New Added-Mass model of Briney
@@ -453,20 +401,11 @@
          ! before looping over particle j (j neq i)
          ! Briney Added Mass flag
          if (am_flag == 2) then 
-            ! zero variables initially
-            nneighbors = 0
-            do j=1,3
-               Fam(j) = 0.0
-               Wdot_neighbor_mean(j) = 0.0
-            enddo
-
             ! 07/14/24 - Thierry - If Briney Algorithm flag and fluct_flag
             !   are ON -> evaluate added-mass unary term before evaluating
             !   neighbor-induced acceleration in EvalNearestNeighbor
-
             call ppiclf_user_AM_Briney_Unary(i,iStage,
      >           famx,famy,famz,rmass_add)
-
          endif ! end am_flag = 2
 
 !
@@ -537,12 +476,6 @@
          fqsy = beta*vy
          fqsz = beta*vz
 
-         fqsx_max = max(fqsx_max,abs(fqsx))
-         fqsy_max = max(fqsy_max,abs(fqsy))
-         fqsz_max = max(fqsz_max,abs(fqsz))
-
-         fqs_mag  = max(fqs_mag,sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
-
 !
 ! Step 3: Force fluctuation for quasi-steady force
 !
@@ -563,19 +496,6 @@
          ppiclf_rprop(PPICLF_R_FLUCTFX,i) = fqs_fluct(1)
          ppiclf_rprop(PPICLF_R_FLUCTFY,i) = fqs_fluct(2)
          ppiclf_rprop(PPICLF_R_FLUCTFZ,i) = fqs_fluct(3)
-
-
-         fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
-         fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
-         fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
-
-         fqsx_total_max = max(fqsx_total_max, abs(fqsx))
-         fqsy_total_max = max(fqsy_total_max, abs(fqsy))
-         fqsz_total_max = max(fqsz_total_max, abs(fqsz))
-
-         umean_max = max(umean_max, abs(upmean))
-         vmean_max = max(vmean_max, abs(vpmean))
-         wmean_max = max(wmean_max, abs(wpmean))
 
 !
 ! Step 4: Force component added mass
@@ -604,28 +524,19 @@
             if (nneighbors .gt. 0) then
                call ppiclf_user_AM_Briney_Binary(i,iStage,
      >              famx,famy,famz,rmass_add)
+               FamBinary(1) = famx - FamUnary(1)
+               FamBinary(2) = famy - FamUnary(2)
+               FamBinary(3) = famz - FamUnary(3)
             else
             ! if particle has no neighbors, need to multiply added mass forces
             ! by volume, as this is taken care of in Binary subroutine
                famx = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famy = famy*ppiclf_rprop(PPICLF_R_JVOLP,i)
                famz = famz*ppiclf_rprop(PPICLF_R_JVOLP,i)
-
             endif
-
-         else
-           famx = 0.0
-           famy = 0.0
-           famz = 0.0 
-           !call ppiclf_exittr('Unknown Added-Mass Law$', 0.0d0, 0)
          endif
 
 !-----------------------------------------------------------------------
-
-         famx_max = max(famx_max,abs(famx))
-         famy_max = max(famy_max,abs(famy))
-         famz_max = max(famz_max,abs(famz))
-         fam_mag =  max(fam_mag,sqrt(famx*famx+famy*famy+famz*famz))
 
 !
 ! Step 5: Force component pressure gradient
@@ -637,13 +548,21 @@
      >               ppiclf_rprop(PPICLF_R_JDPDY,i)
             fdpdz = -ppiclf_rprop(PPICLF_R_JVOLP,i)*
      >               ppiclf_rprop(PPICLF_R_JDPDZ,i)
+
+            if (flow_model == 1) then ! Navier-Stokes Flow Model
+               fdpvdx = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDX,i)
+               fdpvdy = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDY,i)
+               fdpvdz = ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     >                  ppiclf_rprop(PPICLF_R_JDPVDZ,i)
+            endif ! flow_model
+
+            fdpdx = fdpdx + fdpvdx
+            fdpdy = fdpdy + fdpvdy
+            fdpdz = fdpdz + fdpvdz
          endif ! end pg_flag = 1
 
-         fdpdx_max = max(fdpdx_max,abs(fdpdx))
-         fdpdy_max = max(fdpdy_max,abs(fdpdy))
-         fdpdz_max = max(fdpdz_max,abs(fdpdz))
-         fdp_mag =  max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
-     >                  +fdpdz*fdpdz))
 
 !
 ! Step 6: Force component collisional force, ie, particle-particle
@@ -663,23 +582,13 @@
 
          endif ! collisional_flag >= 1
 
-         fcx_max = max(fcx_max, abs(fcx))
-         fcy_max = max(fcy_max, abs(fcy))
-         fcz_max = max(fcz_max, abs(fcz))
-         fc_mag =  max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
-
 !
 ! Step 7: Viscous unsteady force with history kernel
 !
          if (ViscousUnsteady_flag==1) then
             call ppiclf_user_VU_Rocflu(i,iStage,fvux,fvuy,fvuz)
-         elseif (ViscousUnsteady_flag==2) then
-            call ppiclf_user_VU_Hinsberg(i,iStage,fvux,fvuy,fvuz)
          endif
 
-         fvux_max = max(fvux_max, abs(fvux))
-         fvuy_max = max(fvuy_max, abs(fvuy))
-         fvuz_max = max(fvuz_max, abs(fvuz))
 !
 ! Step 8a: Combustion model for reactive particles
 !
@@ -697,10 +606,8 @@
             call ppiclf_user_HT_driver(i,qq)
          endif ! heattransfer_flag >= 1
 
-         qq_max = max(qq_max, abs(qq))
-
 !
-! Step 9: Angular velocity model
+! Step 9a: Angular velocity model
 !
          rmass_omega = rmass*dp*dp/10.0d0
 
@@ -711,8 +618,14 @@
             call ppiclf_user_Torque_driver(i,iStage,taux,tauy,tauz)
          endif ! collisional_flag >= 2
 
-         tau = sqrt(taux*taux + tauy*tauy + tauz*tauz)
-         tau_max = max(tau_max, abs(tau))
+!
+! Step 9b: Saffman and Magnus Lift models
+!          Lift models requires gas-phase vorticity and
+!          particle angular velocity
+!
+         if (collisional_flag == 4) then
+            call ppiclf_user_Lift_driver(i,iStage,liftx,lifty,liftz)
+         endif ! collisional_flag == 4
 
 !
 ! Step 10: Set ydot for all PPICLF_SLN number of equations
@@ -720,11 +633,11 @@
          ppiclf_ydot(PPICLF_JX ,i) = ppiclf_y(PPICLF_JVX,i)
          ppiclf_ydot(PPICLF_JY ,i) = ppiclf_y(PPICLF_JVY,i)
          ppiclf_ydot(PPICLF_JZ, i) = ppiclf_y(PPICLF_JVZ,i)
-         ppiclf_ydot(PPICLF_JVX,i) = (fqsx+famx+fdpdx+fcx+fvux)/
+         ppiclf_ydot(PPICLF_JVX,i) = (fqsx+famx+fdpdx+fvux+liftx+fcx)/
      >                               (rmass+rmass_add)
-         ppiclf_ydot(PPICLF_JVY,i) = (fqsy+famy+fdpdy+fcy+fvuy)/
+         ppiclf_ydot(PPICLF_JVY,i) = (fqsy+famy+fdpdy+fvuy+lifty+fcy)/
      >                               (rmass+rmass_add)
-         ppiclf_ydot(PPICLF_JVZ,i) = (fqsz+famz+fdpdz+fcz+fvuz)/
+         ppiclf_ydot(PPICLF_JVZ,i) = (fqsz+famz+fdpdz+fvuz+liftz+fcz)/
      >                               (rmass+rmass_add)
          ppiclf_ydot(PPICLF_JT,i)  = qq/rmass_therm
          ppiclf_ydot(PPICLF_JOX,i) = taux/rmass_omega
@@ -734,7 +647,7 @@
          ppiclf_ydot(PPICLF_JOXIDE,i)  = mdot_ox
 
 !
-! Update and Shift data for viscous unsteady case
+! Update data for viscous unsteady case
 !
          if (ViscousUnsteady_flag>=1) then
             call ppiclf_user_UpdatePlag(i)
@@ -769,20 +682,22 @@
          if (feedback_flag==1) then
             ! Momentum equations feedback terms
             ppiclf_ydotc(PPICLF_JVX,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVX,i)*(rmass+0.*rmass_add) - fcx)
+     >         (ppiclf_ydot(PPICLF_JVX,i)*rmass - fcx)
             ppiclf_ydotc(PPICLF_JVY,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVY,i)*(rmass+0.*rmass_add) - fcy)
+     >         (ppiclf_ydot(PPICLF_JVY,i)*rmass - fcy)
             ppiclf_ydotc(PPICLF_JVZ,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         (ppiclf_ydot(PPICLF_JVZ,i)*(rmass+0.*rmass_add) - fcz)
+     >         (ppiclf_ydot(PPICLF_JVZ,i)*rmass - fcz)
 
             ! Energy equation feedback term
-            !ppiclf_ydotc(PPICLF_JT,i)  = 0.0d0
             ppiclf_ydotc(PPICLF_JT,i) = ppiclf_rprop(PPICLF_R_JSPL,i) *
-     >         ( ppiclf_ydotc(PPICLF_JVX,i)*ppiclf_y(PPICLF_JVX,i) + 
-     >           ppiclf_ydotc(PPICLF_JVY,i)*ppiclf_y(PPICLF_JVY,i) + 
-     >           ppiclf_ydotc(PPICLF_JVZ,i)*ppiclf_y(PPICLF_JVZ,i) +
+     >         ( (fqsx+fvux)*ppiclf_y(PPICLF_JVX,i) + 
+     >           (fqsy+fvuy)*ppiclf_y(PPICLF_JVY,i) + 
+     >           (fqsz+fvuz)*ppiclf_y(PPICLF_JVZ,i) +
+     >                  famx*ppiclf_rprop(PPICLF_R_JUX,i) +
+     >                  famy*ppiclf_rprop(PPICLF_R_JUY,i) +
+     >                  famz*ppiclf_rprop(PPICLF_R_JUZ,i) +
      >           qq )
-            ppiclf_ydotc(PPICLF_JT,i) = -1.0d0*ppiclf_ydotc(PPICLF_JT,i)
+            !ppiclf_ydotc(PPICLF_JT,i) = -1.0d0*ppiclf_ydotc(PPICLF_JT,i)
          endif 
 
 !
@@ -818,10 +733,145 @@
             ppiclf_ydot(PPICLF_JOZ,i) = 0.0d0
          endif
 
- 999     continue
+!
+! Step 13: Store forces
+!
+         ppiclf_rprop(PPICLF_R_FQSX,i)  = fqsx
+         ppiclf_rprop(PPICLF_R_FQSY,i)  = fqsy
+         ppiclf_rprop(PPICLF_R_FQSZ,i)  = fqsz
+         ppiclf_rprop(PPICLF_R_FAMX,i)  = famx
+         ppiclf_rprop(PPICLF_R_FAMY,i)  = famy
+         ppiclf_rprop(PPICLF_R_FAMZ,i)  = famz
+         ppiclf_rprop(PPICLF_R_FAMBX,i) = FamBinary(1)
+         ppiclf_rprop(PPICLF_R_FAMBY,i) = FamBinary(2)
+         ppiclf_rprop(PPICLF_R_FAMBZ,i) = FamBinary(3)
+         ppiclf_rprop(PPICLF_R_FCX,i)   = fcx
+         ppiclf_rprop(PPICLF_R_FCY,i)   = fcy
+         ppiclf_rprop(PPICLF_R_FCZ,i)   = fcz
+         ppiclf_rprop(PPICLF_R_FVUX,i)  = fvux
+         ppiclf_rprop(PPICLF_R_FVUY,i)  = fvuy
+         ppiclf_rprop(PPICLF_R_FVUZ,i)  = fvuz
+         ppiclf_rprop(PPICLF_R_QQ,i)    = qq
+         ppiclf_rprop(PPICLF_R_FPGX,i)  = fdpdx
+         ppiclf_rprop(PPICLF_R_FPGY,i)  = fdpdy
+         ppiclf_rprop(PPICLF_R_FPGZ,i)  = fdpdz
+
+!
+! Step 14: If debug mode is ON, calculate and print the max values.
+!          The user should not have this ON for production runs.
+!
+         if (ppiclf_debug .ge. 1) then
+            if (sbNearest_flag.eq.1 .and. ppiclf_debug.eq.2) then
+               write(7001,*) ppiclf_time, ppiclf_bins_dx(1:3),
+     >            nsubbin_size, tot_SBin,n_SBin(1:3),
+     >            ppiclf_npart, ppiclf_npart_gp,
+     >            nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
+     >            nsubbin_size*(ppiclf_npart+ppiclf_npart_gp)*4/1e9 
+                  ! last entry in GB; assuming 4 bytes for integer*4
+            endif
+            phimax = max(phimax,abs(rphip))
+
+            fqsx_max = max(fqsx_max,abs(fqsx))
+            fqsy_max = max(fqsy_max,abs(fqsy))
+            fqsz_max = max(fqsz_max,abs(fqsz))
+            fqs_mag  = max(fqs_mag,
+     >                 sqrt(fqsx*fqsx+fqsy*fqsy+fqsz*fqsz))
+
+            fqsx_fluct_max = max(fqsx_fluct_max, abs(fqs_fluct(1)))
+            fqsy_fluct_max = max(fqsy_fluct_max, abs(fqs_fluct(2)))
+            fqsz_fluct_max = max(fqsz_fluct_max, abs(fqs_fluct(3)))
+
+            fqsx_total_max = max(fqsx_total_max, abs(fqsx))
+            fqsy_total_max = max(fqsy_total_max, abs(fqsy))
+            fqsz_total_max = max(fqsz_total_max, abs(fqsz))
+
+            umean_max = max(umean_max, abs(upmean))
+            vmean_max = max(vmean_max, abs(vpmean))
+            wmean_max = max(wmean_max, abs(wpmean))
+
+            famx_max = max(famx_max,abs(famx))
+            famy_max = max(famy_max,abs(famy))
+            famz_max = max(famz_max,abs(famz))
+            fam_mag  = max(fam_mag,
+     >                 sqrt(famx*famx+famy*famy+famz*famz))
+
+            fdpdx_max = max(fdpdx_max,abs(fdpdx))
+            fdpdy_max = max(fdpdy_max,abs(fdpdy))
+            fdpdz_max = max(fdpdz_max,abs(fdpdz))
+            fdp_mag   = max(fdp_mag,sqrt(fdpdx*fdpdx+fdpdy*fdpdy
+     >                  +fdpdz*fdpdz))
+
+            fcx_max = max(fcx_max, abs(fcx))
+            fcy_max = max(fcy_max, abs(fcy))
+            fcz_max = max(fcz_max, abs(fcz))
+            fc_mag  = max(fc_mag,sqrt(fcx*fcx+fcy*fcy+fcz*fcz))
+
+            fvux_max = max(fvux_max, abs(fvux))
+            fvuy_max = max(fvuy_max, abs(fvuy))
+            fvuz_max = max(fvuz_max, abs(fvuz))
+
+            qq_max = max(qq_max, abs(qq))
+ 
+            tau = sqrt(taux*taux + tauy*tauy + tauz*tauz)
+            tau_max = max(tau_max, abs(tau))
+
+            lift = sqrt(liftx**2 + lifty**2 + liftz**2)
+            lift_max = max(lift_max,lift)
+
+            if (ppiclf_debug.eq.2 .and. ppiclf_nid.eq.0) then
+               if (iStage==3) then
+                  if (i==1) then
+                     write(7010,*) i,ppiclf_time,rmass,vmag,rhof,dp,
+     >                rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
+     >             rmu,rnu,rkappa
+                  endif
+                  if (i==ppiclf_npart) then
+                     write(7011,*) i,ppiclf_time,rmass,vmag,rhof,dp,
+     >                rep,rphip,rphif,rmachp,rhop,rhoMixt,reyL,
+     >                rmu,rnu,rkappa
+                  endif
+               endif
+            endif
+
+         endif ! ppiclf_debug .ge. 1
+          
+         ! write out for debug
+         if (ppiclf_debug==3) then
+         if (ppiclf_nid==0 .and. iStage==1) then
+         if (mod(idebug,1)==0) then
+            if (i<=5) then
+               write(7020+i,*) i, ppiclf_time, rhof,
+     >             ppiclf_rprop(PPICLF_R_JSDRX,i),                   
+     >             ppiclf_rprop(PPICLF_R_JSDRY,i), 
+     >             ppiclf_rprop(PPICLF_R_JSDRZ,i),
+     >             ppiclf_ydot(PPICLF_JVX,i),
+     >             ppiclf_ydot(PPICLF_JVY,i),
+     >             ppiclf_ydot(PPICLF_JVZ,i),
+     >             ppiclf_y(PPICLF_JVX,i),
+     >             ppiclf_y(PPICLF_JVY,i),
+     >             ppiclf_y(PPICLF_JVZ,i),
+     >             ppiclf_y(PPICLF_JOX,i),
+     >             ppiclf_y(PPICLF_JOY,i),
+     >             ppiclf_y(PPICLF_JOZ,i)
+
+               write(7040+i,*) i, ppiclf_time, 
+     >              ppiclf_rprop(PPICLF_R_JSDRX:PPICLF_R_JSDRZ,i), ! Du/Dt
+     >              ppiclf_rprop(PPICLF_R_JSDOX:PPICLF_R_JSDOZ,i)  ! DOmega/Dt
+
+               write(7050+i,*) i, ppiclf_time, 
+     >              fqs_mag,fam_mag,fdp_mag,fc_mag,tau_max
+
+               write(7060+i,*) i, ppiclf_time, 
+     >              fcx,fcy,fcz,
+     >              liftx,lifty,liftz,
+     >              taux,tauy,tauz
+            endif
+         endif
+         endif
+         endif
+
 
       enddo ! do i=1,ppiclf_npart
-
 
 !
 !-----------------------------------------------------------------------
@@ -838,28 +888,44 @@
      >         + ppiclf_y(PPICLF_JVX,i) * ppiclf_rprop(PPICLF_R_JPGCX,i)
      >         + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >         + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
+            
+            ! material derivative is phi weighted in Rocflu
+            ! drho/dt
+            SDrho = SDrho / (rphif)  
+            vgradrhog = vx * ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >                  vy * ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >                  vz * ppiclf_rprop(PPICLF_R_JRHOGZ,i)
       
             ! Fluid density
             rhof   = ppiclf_rprop(PPICLF_R_JRHOF,i)
 
+            vx = ppiclf_rprop(PPICLF_R_JUX,i) - ppiclf_y(PPICLF_JVX,i)
+            vy = ppiclf_rprop(PPICLF_R_JUY,i) - ppiclf_y(PPICLF_JVY,i)
+            vz = ppiclf_rprop(PPICLF_R_JUZ,i) - ppiclf_y(PPICLF_JVZ,i)
+            ug = ppiclf_rprop(PPICLF_R_JUX,i)
+            vg = ppiclf_rprop(PPICLF_R_JUY,i)
+            wg = ppiclf_rprop(PPICLF_R_JUZ,i)
+            ! Unary added mass solves rho^g d(u^p)/dt implicitly
+            ! Binary added mass solves it explicitly and not implicitly
+            ! WDOTX = D(rho^g u^g)/Dt - d(rho^g u^p)/dt)
             ! X-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTX,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRX,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVX,i)) 
-     >                 -(ppiclf_y(PPICLF_JVX,i)*SDrho)
+            ppiclf_rprop(PPICLF_R_WDOTX,i) =
+     >                vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+     >              + ug*vgradrhog
+     >              - rhof*ppiclf_ydot(PPICLF_JVX,i)
           
             ! Y-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTY,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRY,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVY,i))
-     >                 -(ppiclf_y(PPICLF_JVY,i)*SDrho)
-          
-            ! Z-acceleration
-            ppiclf_rprop(PPICLF_R_WDOTZ,i) = 
-     >                  ppiclf_rprop(PPICLF_R_JSDRZ,i) 
-     >                 -(rhof*ppiclf_ydot(PPICLF_JVZ,i))
-     >                 -(ppiclf_y(PPICLF_JVZ,i)*SDrho)
+            ppiclf_rprop(PPICLF_R_WDOTY,i) =
+     >                vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+     >              + vg*vgradrhog 
+     >              - rhof*ppiclf_ydot(PPICLF_JVY,i)
 
+            ! Z-acceleration
+            ppiclf_rprop(PPICLF_R_WDOTZ,i) =
+     >                vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+     >              + wg*vgradrhog
+     >              - rhof*ppiclf_ydot(PPICLF_JVZ,i)
+          
             ! write out for debug
             if (ppiclf_debug==2) then
             if (ppiclf_nid==0 .and. iStage==1) then
@@ -878,6 +944,7 @@
 
                   write(7030+i,*) i, ppiclf_time, 
      >              ppiclf_rprop(PPICLF_R_WDOTX:PPICLF_R_WDOTZ,i)
+
                endif
             endif
             endif
@@ -896,9 +963,7 @@
       if (ppiclf_debug   .ge. 1) then
       if (iStage         .eq. 1) then
       if (mod(idebug,10) .eq. 0) then
-
          call ppiclf_user_debug
-
       endif
       endif
       endif
@@ -913,7 +978,7 @@
       !
       if (ViscousUnsteady_flag>=1) then
          if (iStage==3) call ppiclf_user_ShiftUnsteadyData
-         call ppiclf_user_plag2prop(ppiclf_nUnsteadyData)
+         call ppiclf_user_plag2prop
       endif
 
 
@@ -1079,7 +1144,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1087,7 +1152,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i, iStage
       real*8 famx, famy, famz
@@ -1266,7 +1331,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1274,7 +1339,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i
       real*8 gamma,mp,phi,re
@@ -1393,7 +1458,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1401,7 +1466,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i
       real*8 gamma,mp,phi,re,Knp,fKn,CD1,s,JM,CD2,
@@ -1541,7 +1606,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1549,7 +1614,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iStage
       real*8 fqs_fluct(3)
 
@@ -1719,7 +1784,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1727,7 +1792,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i, iStage
       real*8 fqs_fluct(3)
@@ -1817,16 +1882,20 @@
 ! Added 3/6/24 
 ! Modified 3/14/24 
 !
-      avec = [vx,vy,vz]/max(1.d-8,vmag)
+      ! 03/13/2025 - Thierry - if velocity is very small, don't impose fluctuations
+      if(vmag > 1.d-8) then
+        avec = [vx,vy,vz]/vmag
 
-      CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
-     >           ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
-      CD_frac  = CD_prime/sigD
+        CD_prime = ppiclf_rprop(PPICLF_R_FLUCTFX,i)*avec(1) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFY,i)*avec(2) +
+     >             ppiclf_rprop(PPICLF_R_FLUCTFZ,i)*avec(3)
+        CD_frac  = CD_prime/sigD
 
-      ! 11/21/24 - Thierry - prevent NaN variables
-      if(CD_prime.eq.0.0 .and. sigD.eq.0.0) then
-        CD_frac = 0.0d0
+      else
+        avec     = [1.0, 0.0, 0.0]
+        CD_prime = 0.0
+        sigD     = 0.0
+        CD_frac  = 0.0
       endif
 
       ! Thierry Daoud - Updated June 2, 2024
@@ -1963,7 +2032,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -1971,11 +2040,12 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iStage
       real*8 famx, famy, famz, rmass_add
       real*8 rcd_am
       real*8 SDrho
+      real*8 ug,vg,wg,vgradrho
 
 !
 ! Code:
@@ -2000,14 +2070,31 @@
      >      + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >      + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
 
+      ! 03/11/2025 - Thierry - substantial derivative from Rocflu is 
+      !              weighted by \phi^g.
+      ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
+      !                   = phi^g * d(rho^g)/dt
+      !  
+      !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
+      SDrho = SDrho / (rphif) 
+
+      ! 03/23/2025 - TLJ - added extra term involving grad(rhog)
+      vgradrho = vx*ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >           vy*ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >           vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
+      ug = ppiclf_rprop(PPICLF_R_JUX,i)
+      vg = ppiclf_rprop(PPICLF_R_JUY,i)
+      wg = ppiclf_rprop(PPICLF_R_JUZ,i)
+
       famx = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRX,i)-(ppiclf_y(PPICLF_JVX,i)*SDrho))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i) + ug*vgradrho)
 
       famy = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRY,i)-(ppiclf_y(PPICLF_JVY,i)*SDrho))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i) + vg*vgradrho)
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
-     >   (ppiclf_rprop(PPICLF_R_JSDRZ,i)-(ppiclf_y(PPICLF_JVZ,i)*SDrho))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
 
 
       return
@@ -2064,7 +2151,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -2072,13 +2159,14 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer i, j, k, l, n, jj
       integer*4 iStage
       real*8 rad
       real*8 famx, famy, famz, rmass_add
       real*8 rcd_am
       real*8 SDrho
+      real*8 ug,vg,wg,vgradrho
 
 !
 ! Code:
@@ -2109,17 +2197,36 @@
      >      + ppiclf_y(PPICLF_JVX,i) * ppiclf_rprop(PPICLF_R_JPGCX,i)
      >      + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >      + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
+      ! material derivative is phi weighted in Rocflu
+      ! drho/dt
+      SDrho = SDrho / (rphif) 
+
+      ! 03/23/2025 - TLJ - added extra term involving grad(rhog)
+      vgradrho = vx*ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >           vy*ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >           vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
+      ug = ppiclf_rprop(PPICLF_R_JUX,i)
+      vg = ppiclf_rprop(PPICLF_R_JUY,i)
+      wg = ppiclf_rprop(PPICLF_R_JUZ,i)
 
       ! Take care of volume in Binary subroutine
       famx = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRX,i)-(ppiclf_y(PPICLF_JVX,i)*SDrho))
+     >   (vx*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i) + ug*vgradrho)
 
       famy = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRY,i)-(ppiclf_y(PPICLF_JVY,i)*SDrho))
+     >   (vy*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i) + vg*vgradrho)
 
       famz = rcd_am*
-     >   (ppiclf_rprop(PPICLF_R_JSDRZ,i)-(ppiclf_y(PPICLF_JVZ,i)*SDrho))
+     >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
 
+      ! Multiply by neighbors here for storing
+      FamUnary(1) = famx*ppiclf_rprop(PPICLF_R_JVOLP,i)
+      FamUnary(2) = famy*ppiclf_rprop(PPICLF_R_JVOLP,i)
+      FamUnary(3) = famz*ppiclf_rprop(PPICLF_R_JVOLP,i)
+
+      ! Do not multiply by volume for Fam, as this is done
+      ! in user file (if nneighbors=0) or Binary subroutine (if nneighbors>0)
       Fam(1) = famx
       Fam(2) = famy
       Fam(3) = famz
@@ -2185,7 +2292,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -2193,7 +2300,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer i, j, k, l, n, jj
       integer*4 iStage
       real*8 rad
@@ -2971,7 +3078,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -2979,26 +3086,31 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i
-      real*8 qq
+      real*8 qq, Nuss, Q_conv
 
 !
 ! Code:
 !
+      Q_conv = rpi*rkappa*dp*(ppiclf_rprop(PPICLF_R_JT,i) -
+     >                          ppiclf_y(PPICLF_JT,i) )
 
+      Nuss = 0.0d0
       if (heattransfer_flag == 1) then
-         call HTModel_Stokes(i,qq)
+         call HTModel_Stokes(i,Nuss)
       elseif (heattransfer_flag == 2) then
-         call HTModel_RM(i,qq)
+         call HTModel_RM(i,Nuss)
       elseif (heattransfer_flag == 3) then
-         call HTModel_Gunn(i,qq)
+         call HTModel_Gunn(i,Nuss)
       elseif (heattransfer_flag == 4) then
-         call HTModel_Fox(i,qq)
+         call HTModel_Fox(i,Nuss)
       else
          call ppiclf_exittr('Unknown heat transfer model$', 0.0d0, 0)
       endif
+
+      qq = qq + Q_conv*Nuss
 
 
       return
@@ -3016,7 +3128,7 @@
 !
 !-----------------------------------------------------------------------
 !
-      subroutine HTModel_Stokes(i,qq)
+      subroutine HTModel_Stokes(i,Nuss)
 !
       implicit none
 !
@@ -3024,24 +3136,12 @@
 !
 ! Internal:
 !
-
       integer*4 i
-      real*8 qq, Q_conv
-      real*8 OneThird
       real*8 Nuss
-
 !
 ! Code:
 !
-      OneThird = 1.0d0/3.0d0
-
-      Q_conv = rpi*rkappa*dp*(ppiclf_rprop(PPICLF_R_JT,i) -
-     >                          ppiclf_y(PPICLF_JT,i) )
-
-      ! define Nusselt number
       Nuss = 2.0d0
-
-      qq = qq + Q_conv*Nuss
 
       return
       end
@@ -3068,7 +3168,7 @@
 !
 !-----------------------------------------------------------------------
 !
-      subroutine HTModel_RM(i,qq)
+      subroutine HTModel_RM(i,Nuss)
 !
       implicit none
 !
@@ -3076,24 +3176,12 @@
 !
 ! Internal:
 !
-
       integer*4 i
-      real*8 qq, Q_conv
-      real*8 OneThird
       real*8 Nuss
-
 !
 ! Code:
 !
-      OneThird = 1.0d0/3.0d0
-
-      Q_conv = rpi*rkappa*dp*(ppiclf_rprop(PPICLF_R_JT,i) -
-     >                          ppiclf_y(PPICLF_JT,i) )
-
-      ! define Nusselt number Nu = Nu(Pr,Re)
       Nuss = 2.0d0+0.6d0*(rep**0.5d0)*(rpr**OneThird)
-
-      qq = qq + Q_conv*Nuss
 
       return
       end
@@ -3126,7 +3214,7 @@
 !
 !-----------------------------------------------------------------------
 !
-      subroutine HTModel_Gunn(i,qq)
+      subroutine HTModel_Gunn(i,Nuss)
 !
       implicit none
 !
@@ -3134,21 +3222,12 @@
 !
 ! Internal:
 !
-
       integer*4 i
-      real*8 qq, Q_conv
-      real*8 OneThird
       real*8 vg
       real*8 Nuss
-
 !
 ! Code:
 !
-      OneThird = 1.0d0/3.0d0
-
-      Q_conv = rpi*rkappa*dp*(ppiclf_rprop(PPICLF_R_JT,i) -
-     >                          ppiclf_y(PPICLF_JT,i) )
-
       ! define bed voidage = ratio of free volume avaliable
       ! for flow to the total volume of bed; aka, volume
       ! fraction of the gas phase
@@ -3156,11 +3235,9 @@
       vg = rphif
 
       ! define Nusselt number Nu = Nu(Pr,Re,phi)
-      Nuss = (7.0d0-10.0*vg+5.0*vg*vg)
-     >           *(1.0+0.7d0*(rep**0.2d0)*(rpr**OneThird))
+      Nuss = (7.0d0-10.0d0*vg+5.0d0*vg*vg)
+     >           *(1.0d0+0.7d0*(rep**0.2d0)*(rpr**OneThird))
      >     + (1.33d0-2.4d0*vg+1.2d0*vg*vg)*(rep**0.7d0)*(rpr**OneThird)
-
-      qq = qq + Q_conv*Nuss
 
       return
       end
@@ -3189,7 +3266,7 @@
 !
 !-----------------------------------------------------------------------
 !
-      subroutine HTModel_Fox(i,qq)
+      subroutine HTModel_Fox(i,Nuss)
 !
       implicit none
 !
@@ -3197,26 +3274,15 @@
 !
 ! Internal:
 !
-
       integer*4 i
-      real*8 qq, Q_conv
-      real*8 OneThird
       real*8 Nuss
-
 !
 ! Code:
 !
-      OneThird = 1.0d0/3.0d0
-
-      Q_conv = rpi*rkappa*dp*(ppiclf_rprop(PPICLF_R_JT,i) -
-     >                          ppiclf_y(PPICLF_JT,i) )
-
       ! define Nusselt number Nu = Nu(Pr,Re,M)
       Nuss = 2.0d0*exp(-rmachp)/(1.0d0+17.0d0*rmachp/rep)
      >     + 0.495d0*(rpr**OneThird)*(rep**0.55d0)*
      >       ((1.0d0+0.5d0*exp(-17.0d0*rmachp/rep))/1.5d0)
-
-      qq = qq + Q_conv*Nuss
 
       return
       end
@@ -3256,7 +3322,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3264,11 +3330,12 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i,iStage
       real*8 taux, tauy, tauz
       real*8 taux_hydro, tauy_hydro, tauz_hydro
+      real*8 taux_undist, tauy_undist, tauz_undist
       real*8 rmass_local
 
 !
@@ -3277,14 +3344,20 @@
       taux_hydro = 0.0d0
       tauy_hydro = 0.0d0
       tauz_hydro = 0.0d0
+      taux_undist = 0.0d0
+      tauy_undist = 0.0d0
+      tauz_undist = 0.0d0
 
-      if (collisional_flag == 3) then
+      if (collisional_flag >= 3) then
          call Torque_Hydro(i,taux_hydro,tauy_hydro,tauz_hydro)
       endif
+      if (collisional_flag == 4) then
+         call Torque_Undisturbed(i,taux_undist,tauy_undist,tauz_undist)
+      endif
 
-      taux = taux + taux_hydro
-      tauy = tauy + tauy_hydro
-      tauz = tauz + tauz_hydro
+      taux = taux + taux_hydro + taux_undist
+      tauy = tauy + tauy_hydro + tauy_undist
+      tauz = tauz + tauz_hydro + tauz_undist
 
       return
       end
@@ -3371,6 +3444,234 @@
 
       return
       end
+!
+!
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!
+! Created April 01, 2025
+!
+! Subroutine for undisturbed torque
+!
+!
+!-----------------------------------------------------------------------
+!
+      subroutine Torque_Undisturbed(i, 
+     >           taux_undist,tauy_undist,tauz_undist)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i
+      real*8 taux_undist, tauy_undist, tauz_undist
+      real*8 rIf
+
+!
+! Code:
+!
+
+      ! Moment of interia with respect to gas
+      rIf = rhof*dp*dp*ppiclf_rprop(PPICLF_R_JVOLP,i)/10.0d0
+
+      ! Undisturbed torque component
+      ! Written using angular velocity = 0.5*vorticity
+      taux_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOX,i)
+      tauy_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOY,i)
+      tauz_undist = 0.5d0*rIf*ppiclf_rprop(PPICLF_R_JSDOZ,i)
+
+
+      return
+      end
+!-----------------------------------------------------------------------
+!
+! Created April 01, 2025
+!
+! Subroutine for computing the lift terms
+!    Lift components first requires computing gas-phase vorticity
+!    and particle angular velocity
+!
+!
+! if collisional_flag = 4  Add Saffman and Magnus lift
+!
+!
+!-----------------------------------------------------------------------
+!
+      subroutine ppiclf_user_Lift_driver(i,iStage,liftx,lifty,liftz)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 :: stationary, qs_flag, am_flag, pg_flag,
+     >   collisional_flag, heattransfer_flag, feedback_flag,
+     >   qs_fluct_flag, ppiclf_debug, rmu_flag,
+     >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
+     >   qs_fluct_filter_adapt_flag,
+     >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
+     >   sbNearest_flag, burnrate_flag, flow_model
+      real*8 :: rmu_ref, tref, suth, ksp, erest
+      common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
+     >   collisional_flag, heattransfer_flag, feedback_flag,
+     >   qs_fluct_flag, ppiclf_debug, rmu_flag, rmu_ref, tref, suth,
+     >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
+     >   qs_fluct_filter_adapt_flag, ksp, erest,
+     >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
+     >   sbNearest_flag, burnrate_flag, flow_model
+
+      integer*4 i,iStage
+      real*8 liftx, lifty, liftz
+
+!
+! Code:
+!
+      liftx = 0.0d0
+      lifty = 0.0d0
+      liftz = 0.0d0
+
+      if (collisional_flag >= 4) then
+         call Lift_Saffman(i,liftx,lifty,liftz)
+         call Lift_Magnus (i,liftx,lifty,liftz)
+      endif
+
+
+      return
+      end
+!
+!
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!
+! Created April 01, 2025
+!
+! Subroutine for Saffman lift - shear-induced lift
+!
+! Requires gas-phase vorticity to be computed
+! Valid for Rep < 50 and omg* < 0.8 (see Loft, "Lift of a spherical
+!    particle subject to vorticity and/or spin", AIAA J., 
+!    Vol. 46,  pp. 801-809, 2008)
+!
+!-----------------------------------------------------------------------
+!
+      subroutine Lift_Saffman(i,liftx,lifty,liftz)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i
+      real*8 liftx, lifty, liftz
+      real*8 omgx, omgy, omgz, omg_mag, omg_star
+      real*8 epi, Jepi
+      real*8 d1, d2, d3
+      real*8 factor
+      real*8 elx, ely, elz, elm, ielm
+
+!
+! Code:
+!
+      if (vmag .lt. 1.d-8) return
+
+      ! Compute gas-phase vorticity components and magnitude
+      omgx = ppiclf_rprop(PPICLF_R_JXVOR,i)
+      omgy = ppiclf_rprop(PPICLF_R_JYVOR,i)
+      omgz = ppiclf_rprop(PPICLF_R_JZVOR,i)
+      omg_mag = sqrt(omgx*omgx + omgy*omgy + omgz*omgz)
+
+      ! Compute Mei correction
+      omg_star = omg_mag*dp/vmag
+      epi = sqrt(omg_star/rep)
+
+      d1 = 1.0d0 + tanh(2.5d0*(log10(epi)+0.191d0))
+      d2 = 0.667d0 + tanh(6.0d0*epi-1.92d0)
+      Jepi = 0.3d0*d1*d2
+
+      factor = 1.615d0*rmu*(dp*dp)*vmag*sqrt(omg_mag/rnu)
+
+      ! Compute lift components
+      elx = vy*omgz - vz*omgy
+      ely = vz*omgx - vx*omgz
+      elz = vx*omgy - vy*omgx
+      elm = sqrt(elx*elx + ely*ely +elz*elz)
+      elm = max(1.0d-20,elm)
+      ielm = 1.0d0/elm
+
+      liftx = liftx + factor*Jepi*elx*ielm
+      lifty = lifty + factor*Jepi*ely*ielm
+      liftz = liftz + factor*Jepi*elz*ielm
+
+
+      return
+      end
+!
+!
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!-----------------------------------------------------------------------
+!
+! Created April 01, 2025
+!
+! Subroutine for Magnus lift - lift induced by particle rotation
+!
+! Requires particle angular velocity to be calculated
+!
+!-----------------------------------------------------------------------
+!
+      subroutine Lift_Magnus(i,liftx,lifty,liftz)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i
+      real*8 liftx, lifty, liftz
+      real*8 omgx, omgy, omgz, omg_mag, omg_star
+      real*8 epi, CL
+      real*8 d1
+      real*8 factor
+      real*8 elx, ely, elz
+
+!
+! Code:
+!
+      if (vmag .lt. 1.d-8) return
+
+      ! Compute particle angular velocity
+      omgx = ppiclf_y(PPICLF_JOX,i)
+      omgy = ppiclf_y(PPICLF_JOY,i)
+      omgz = ppiclf_y(PPICLF_JOZ,i)
+      omg_mag = sqrt(omgx*omgx + omgy*omgy + omgz*omgz)
+
+      ! Correction to lift
+      omg_star = omg_mag*dp/vmag
+      epi = omg_star
+      d1 = 0.675d0 + 0.15d0*(1.0d0 + tanh(0.28d0*(epi-2.0d0)))
+      CL = 1.0d0 - d1*tanh(0.18*sqrt(rep))
+
+      factor = 0.125d0*dp*dp*dp*rhof
+
+      ! Compute lift components
+      elx = vy*omgz - vz*omgy
+      ely = vz*omgx - vx*omgz
+      elz = vx*omgy - vy*omgx
+
+      liftx = liftx + factor*CL*elx
+      lifty = lifty + factor*CL*ely
+      liftz = liftz + factor*CL*elz
+
+
+      return
+      end
 !-----------------------------------------------------------------------
 !
 ! Created Feb. 1, 2024
@@ -3379,7 +3680,7 @@
 !
 ! Mei-Adrian history kernel
 !
-! Copied from rocintereact/
+! Copied from either files in rocintereact/
 !   INRT_CalcDragUnsteady_AMImplicit.F90
 !   INRT_CalcDragUnsteady_AMExplicit.F90
 !
@@ -3402,7 +3703,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3410,7 +3711,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iStage, iT
       real*8 fvux,fvuy,fvuz
       real*8 time,fH,factor,A,B,kernelVU
@@ -3425,53 +3726,52 @@
       time = 0.0d0
 
       fH     = 0.75d0 + .105d0*reyL
-      factor = 3.0d0*rpi*rnu*dp*fac
+      factor = 3.0d0*rpi*rnu*dp*ppiclf_dt
 
       if (ppiclf_nTimeBH > 1) then
          do iT = 2,ppiclf_nTimeBH-1
             time = ppiclf_timeBH(iT)
 
-            A  = (4.0d0*rpi*time*rnu/dp**2)**(.25d0)
+            A  = (4.0d0*rpi*time*rnu/(dp**2))**(.25d0)
             B  = (0.5d0*rpi*(vmag**3)*(time**2)/ 
-     >                 (0.5d0*dp*rnu*fH**3))**(.5d0)
+     >                 (0.5d0*dp*rnu*(fH**3)))**(.5d0)
 
             kernelVU = factor*(A+B)**(-2)
 
             fvux = fvux + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JX,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JX,iT,i) )
+     >                   ( ppiclf_drudtMixt(PPICLF_JX,iT,i) -
+     >                     ppiclf_drudtPlag(PPICLF_JX,iT,i) )
             fvuy = fvuy + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JY,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JY,iT,i) )
+     >                   ( ppiclf_drudtMixt(PPICLF_JY,iT,i) -
+     >                     ppiclf_drudtPlag(PPICLF_JY,iT,i) )
             fvuz = fvuz + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JZ,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
+     >                   ( ppiclf_drudtMixt(PPICLF_JZ,iT,i) -
+     >                     ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
          enddo
 
          iT = ppiclf_nTimeBH
          time = ppiclf_timeBH(iT)
 
-         A  = (4.0d0*rpi*time*rnu/dp**2)**(.25d0)
+         A  = (4.0d0*rpi*time*rnu/(dp**2))**(.25d0)
          B  = (0.5d0*rpi*(vmag**3)*(time**2)/ 
-     >                 (0.5d0*dp*rnu*fH**3))**(.5d0)
+     >                 (0.5d0*dp*rnu*(fH**3)))**(.5d0)
 
          kernelVU = 0.5d0*factor*(A+B)**(-2)
 
          fvux = fvux + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JX,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JX,iT,i) )
+     >                ( ppiclf_drudtMixt(PPICLF_JX,iT,i) -
+     >                  ppiclf_drudtPlag(PPICLF_JX,iT,i) )
          fvuy = fvuy + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JY,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JY,iT,i) )
+     >                ( ppiclf_drudtMixt(PPICLF_JY,iT,i) -
+     >                  ppiclf_drudtPlag(PPICLF_JY,iT,i) )
          fvuz = fvuz + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JZ,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
+     >                ( ppiclf_drudtMixt(PPICLF_JZ,iT,i) -
+     >                  ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
       endif
 
 
       return
       end
-!
 !
 !-----------------------------------------------------------------------
 !-----------------------------------------------------------------------
@@ -3479,112 +3779,9 @@
 !
 ! Created Feb. 1, 2024
 !
-! Subroutine for viscous unsteady force with history kernel
+! Shift arrays for Viscous Unsteady Force
 !
-! Mei-Adrian history kernel
-!
-! Using Hinsberg second-order method for integrating
-!   the history integral
-!
-!-----------------------------------------------------------------------
-!
-      subroutine ppiclf_user_VU_Hinsberg(i,iStage,fvux,fvuy,fvuz)
-!
-      implicit none
-!
-      include "PPICLF"
-!
-! Internal:
-!
-      integer*4 :: stationary, qs_flag, am_flag, pg_flag,
-     >   collisional_flag, heattransfer_flag, feedback_flag,
-     >   qs_fluct_flag, ppiclf_debug, rmu_flag,
-     >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
-     >   qs_fluct_filter_adapt_flag,
-     >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
-      real*8 :: rmu_ref, tref, suth, ksp, erest
-      common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
-     >   collisional_flag, heattransfer_flag, feedback_flag,
-     >   qs_fluct_flag, ppiclf_debug, rmu_flag, rmu_ref, tref, suth,
-     >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
-     >   qs_fluct_filter_adapt_flag, ksp, erest,
-     >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
-      integer*4 i, iStage, iT
-      real*8 fvux,fvuy,fvuz
-      real*8 time,fH,factor,A,B,kernelVU
-
-!
-! Code:
-!
-      fvux = 0.0d0
-      fvuy = 0.0d0
-      fvuz = 0.0d0
-      iT   = 1
-      time = 0.0d0
-
-      fH     = 0.75d0 + .105d0*reyL
-      factor = 3.0d0*rpi*rnu*dp*fac
-
-      if (ppiclf_nTimeBH > 1) then
-         do iT = 2,ppiclf_nTimeBH-1
-            time = ppiclf_timeBH(iT)
-
-            A  = (4.0d0*rpi*time*rnu/dp**2)**(.25d0)
-            B  = (0.5d0*rpi*(vmag**3)*(time**2)/ 
-     >                 (0.5d0*dp*rnu*fH**3))**(.5d0)
-
-            kernelVU = factor*(A+B)**(-2)
-
-            fvux = fvux + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JX,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JX,iT,i) )
-            fvuy = fvuy + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JY,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JY,iT,i) )
-            fvuz = fvuz + kernelVU*
-     >                   ( ppiclf_drudtMixt(PPICLF_JZ,iT,i)
-     >                      -ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
-         enddo
-
-         iT = ppiclf_nTimeBH
-         time = ppiclf_timeBH(iT)
-
-         A  = (4.0d0*rpi*time*rnu/dp**2)**(.25d0)
-         B  = (0.5d0*rpi*(vmag**3)*(time**2)/ 
-     >                 (0.5d0*dp*rnu*fH**3))**(.5d0)
-
-         kernelVU = 0.5d0*factor*(A+B)**(-2)
-
-         fvux = fvux + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JX,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JX,iT,i) )
-         fvuy = fvuy + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JY,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JY,iT,i) )
-         fvuz = fvuz + kernelVU*
-     >                ( ppiclf_drudtMixt(PPICLF_JZ,iT,i)
-     >                   -ppiclf_drudtPlag(PPICLF_JZ,iT,i) )
-      endif
-
-
-      return
-      end
-!
-!
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-!-----------------------------------------------------------------------
-!
-! Created Feb. 1, 2024
-!
-! Subroutine for viscous unsteady force with history kernel
-!
-! Mei-Adrian history kernel
-!
-! Using Hinsberg second-order method for integrating
-!   the history integral
+! See rocpart/PLAG_RFLU_ShiftUnsteadyData.F90
 !
 !-----------------------------------------------------------------------
 !
@@ -3602,7 +3799,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3610,7 +3807,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, iT
 
 !
@@ -3654,7 +3851,9 @@
 !
 ! Created Feb. 1, 2024
 !
-! Update arrays for Viscous Unsteady Force
+! Update arrays for Viscous Unsteady Force for JT=1 (current time step)
+!
+! See libpicl/user_files/ppiclf_user_AddedMass.f
 !
 !-----------------------------------------------------------------------
 !
@@ -3666,6 +3865,9 @@
 !
       integer*4 i
       real*8 SDrho
+      real*8 ug,vg,wg
+      real*8 up,vp,wp
+      real*8 vgradrho
 
 !
 ! Code:
@@ -3675,22 +3877,41 @@
      >         + ppiclf_y(PPICLF_JVY,i) * ppiclf_rprop(PPICLF_R_JPGCY,i)
      >         + ppiclf_y(PPICLF_JVZ,i) * ppiclf_rprop(PPICLF_R_JPGCZ,i)
 
-      ppiclf_drudtMixt(PPICLF_JX,1,i) =
-     >            ppiclf_rprop(PPICLF_R_JSDRX,i)
-      ppiclf_drudtMixt(PPICLF_JY,1,i) =
-     >            ppiclf_rprop(PPICLF_R_JSDRY,i)
-      ppiclf_drudtMixt(PPICLF_JZ,1,i) =
-     >            ppiclf_rprop(PPICLF_R_JSDRZ,i)
+      ! 03/11/2025 - Thierry - substantial derivative from Rocflu is
+      !              weighted by \phi^g.
+      ! d(rho^g phi^g)/dt = rho^g * d(phi^g)/dt + phi^g * d(rho^g)/dt
+      !                   = phi^g * d(rho^g)/dt
+      !
+      !     d(rho^g)/dt   = SDrho = d(rho phi^g)/dt / phi^g
+      SDrho = SDrho / (rphif)
 
+      ! 03/23/2025 - TLJ - added extra term involving grad(rhog)
+      vgradrho = vx*ppiclf_rprop(PPICLF_R_JRHOGX,i) +
+     >           vy*ppiclf_rprop(PPICLF_R_JRHOGY,i) +
+     >           vz*ppiclf_rprop(PPICLF_R_JRHOGZ,i)
+
+      ug = ppiclf_rprop(PPICLF_R_JUX,i)
+      vg = ppiclf_rprop(PPICLF_R_JUY,i)
+      wg = ppiclf_rprop(PPICLF_R_JUZ,i)
+      up = ppiclf_y(PPICLF_JVX,i)
+      vp = ppiclf_y(PPICLF_JVY,i)
+      wp = ppiclf_y(PPICLF_JVZ,i)
+
+      ! D(rhog*ug)/Dt
+      ppiclf_drudtMixt(PPICLF_JX,1,i) =
+     >   ug*(SDrho+vgradrho) + rhof*ppiclf_rprop(PPICLF_R_JSDRX,i)
+      ppiclf_drudtMixt(PPICLF_JY,1,i) =
+     >   vg*(SDrho+vgradrho) + rhof*ppiclf_rprop(PPICLF_R_JSDRY,i)
+      ppiclf_drudtMixt(PPICLF_JZ,1,i) =
+     >   wg*(SDrho+vgradrho) + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i)
+
+      ! d(rhog*up)/dt
       ppiclf_drudtPlag(PPICLF_JX,1,i) =
-     >            ppiclf_y(PPICLF_JVX,i)*SDrho
-     >            + rhof*ppiclf_ydot(PPICLF_JVX,i)
+     >   up*SDrho + rhof*ppiclf_ydot(PPICLF_JVX,i)
       ppiclf_drudtPlag(PPICLF_JY,1,i) =
-     >            ppiclf_y(PPICLF_JVY,i)*SDrho
-     >            + rhof*ppiclf_ydot(PPICLF_JVY,i)
+     >   vp*SDrho + rhof*ppiclf_ydot(PPICLF_JVY,i)
       ppiclf_drudtPlag(PPICLF_JZ,1,i) =
-     >            ppiclf_y(PPICLF_JVZ,i)*SDrho
-     >            + rhof*ppiclf_ydot(PPICLF_JVZ,i)
+     >   wp*SDrho + rhof*ppiclf_ydot(PPICLF_JVZ,i)
 
 
       return
@@ -3703,11 +3924,15 @@
 !
 ! Created Feb. 1, 2024
 !
-! Reset arrays for Viscous Unsteady Force
+! Sets drudtMixt and drudtPlag from rprop3
+! Needed for proper particle tracking
+! Load communication buffers rprop3 into particle data
+! See rocpart/PLAG_RFLU_ModComm.F90:
+!     SUBROUTINE PLAG_RFLU_LoadBuffersSend(pRegion)
 !
 !-----------------------------------------------------------------------
 !
-      subroutine ppiclf_user_prop2plag(pp)
+      subroutine ppiclf_user_prop2plag
 !
       implicit none
 !
@@ -3719,7 +3944,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3727,9 +3952,8 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i,k,ic,iT
-      integer*4 pp
 !
 ! Code:
 !
@@ -3760,11 +3984,15 @@
 !
 ! Created Feb. 1, 2024
 !
-! Reset arrays for Viscous Unsteady Force
+! Sets rprop3 from drudtMixt and drudtPlag
+! Needed for proper particle tracking
+! Load particle data into communication buffers rprop3
+! See rocpart/PLAG_RFLU_ModComm.F90:
+!     SUBROUTINE PLAG_RFLU_UnloadBuffersRecv(pRegion)
 !
 !-----------------------------------------------------------------------
 !
-      subroutine ppiclf_user_plag2prop(pp)
+      subroutine ppiclf_user_plag2prop
 !
       implicit none
 !
@@ -3776,7 +4004,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3784,9 +4012,8 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i,k,ic,iT
-      integer*4 pp
 !
 ! Code:
 !
@@ -3817,9 +4044,9 @@
 !     particle-wall interactions. Subroutine also includes
 !     the new added-mass binary terms, developed by Sam Briney.
 !
-! if collisional_flag = 1  F = Fn
-!                     = 2  F = Fn + Ft + Tt
-!                     = 3  F = Fn + Ft + Tt + Th + Tr
+! Added: if collisional_flag = 1  F = Fn
+!                            = 2  F = Fn + Ft + Tt
+!                            = 3  F = Fn + Ft + Tt + Th + Tr
 ! where Tt = collisional torque
 !       Th = hydrodynamic torque
 !       Tr = rolling torque
@@ -3845,7 +4072,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData, ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -3853,7 +4080,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData, ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
 
       integer*4 i
       integer*4 j
@@ -3895,21 +4122,27 @@
       real*8 thetar, dp1, dp2, r12
       real*8 omgrx, omgry, omgrz, omgr_mag
       real*8 Ftx, Fty, Ftz
+      
+      ! 04/03/2025 - TLJ added for spring stiffness coefficient
+      real*8 nu1, nu2
+      real*8 E1, E2, Estar
+      real*8 r1, r2, Rstar 
+      real*8 ksp1, ksp2, ksp_min
 
 !
 ! Code:
 !
-      pi   = acos(-1.0d0)
-      pi2  = pi*pi
+      pi2  = rpi*rpi
 
       ! other particles
       if (j .ne. 0) then
          !Added spload and radius factor
 
-         ! Compute mean particle diameter between i and j
+         ! Compute mean particle diameter between i and j; delta_{ij}
          rthresh  = 0.5d0*(rpropi(PPICLF_R_JDP) + rpropj(PPICLF_R_JDP))
 
-         ! Compute distance between centers of particles i and j
+         ! Compute vector components and distance between 
+         !    centers of particles i and j; D_{ij}
          rxdiff = yj(PPICLF_JX) - yi(PPICLF_JX)
          rydiff = yj(PPICLF_JY) - yi(PPICLF_JY)
          rzdiff = yj(PPICLF_JZ) - yi(PPICLF_JZ)
@@ -3981,19 +4214,39 @@
 !
          ! For particle-particle collision
 
-         ! Cycle if rdiff > rthresh + repi
-         ! For eps, see Capecelatro etal, JCP, 2013
-         eps = 0.075*min(rpropi(PPICLF_R_JDP),rpropj(PPICLF_R_JDP))
-         !eps = 0.0d0
-
+         ! Cycle if rdiff > rthresh
+         eps = 0.0d0
          if (rdiff .lt. rthresh+eps) then
+
+            ! Compute spring stiffness constant dynamically.
+            ! The number of collision timesteps (ksp) is set by the user
+            ! k1 = k_{n,limit}
+            ksp1 = rmass*rpi*rpi/((ksp*ppiclf_dt)**2)
+            ! k2 = k_{hertzian}
+            E1  = 1.0d9  ! Assumed value for Young's modulus
+            E2  = 1.0d9  ! Assumed value for Young's modulus
+            nu1 = 0.35d0 ! Assumed value for Poisson's ratio
+            nu2 = 0.35d0 ! Assumed value for Poisson's ratio
+            Estar = (1.0d0-nu1*nu1)/E1 + (1.0d0-nu2*nu2)/E2
+            Estar = 1.0d0/Estar
+            r1 = 0.5d0*rpropi(PPICLF_R_JDP)
+            r2 = 0.5d0*rpropj(PPICLF_R_JDP)
+            Rstar = r1*r2/(r1+r2)
+            ksp2 = (4.0d0/3.0d0)*Estar*sqrt(Rstar)
+            ksp2 = ksp2*sqrt(abs(rdiff-rthresh))
+            ! kn = min(k1,k2)
+            ksp_min = min(ksp1,ksp2)
 
             rm1 = rpropi(PPICLF_R_JRHOP)*rpropi(PPICLF_R_JVOLP)
             rm2 = rpropj(PPICLF_R_JRHOP)*rpropj(PPICLF_R_JVOLP)
          
-            rmult = 1.0d0/(1.0d0/rm1+1.0d0/rm2)
-            eta_n = -2.0d0*sqrt(ksp)*log(erest)/sqrt(log(erest)**2+pi2)
+            rmult = (rm1*rm2)/(rm1+rm2)
+            eta_n = -2.0d0*sqrt(ksp_min)*log(erest)
+     >              /sqrt(log(erest)**2+pi2)
      >              *sqrt(rmult)
+
+!            print*,'COLLS: ',i,j,ksp1,ksp2,ksp_min,
+!     >              eta_n,rdiff-rthresh,vmag
 
             ! Compute unit normal vector along line of contact 
             !   pointing from particle i to particle j
@@ -4028,10 +4281,12 @@
          
             ! Compute delta_12 and normal parameters
             rdelta12 = rthresh - rdiff
-            rksp_max  = ksp*rdelta12
+            rksp_max  = ksp_min*rdelta12
             rv12_mage = rv12_mag*eta_n
             rnmag     = -rksp_max - rv12_mage
 
+            ! Normal collision force Fn = -rnmag*n_{ij}
+            ! Scalar magnitude |Fn| = abs(rnmag)
             Fn_mag = abs(rnmag)
 
             ! Compute tangential unit vector
@@ -4048,21 +4303,22 @@
             rt_12z = utz/ut_mag
 
             ! Compute tangential collision force
-            if (ut_mag > 0) then
-               mu_c  = 0.4d0  ! Dimensionless; Coulomb
-               eta_t = eta_n  ! Set to normal; damping
-               Ftmin  = -min(mu_c*Fn_mag,eta_t*ut_mag)  
-            endif
-            if (collisional_flag==1) then ! Normal component only
-               Ftmin = 0.0d0
+            Ftmin = 0.0d0
+            if (collisional_flag>=2) then ! Tangential component
+               if (ut_mag > 0) then
+                  mu_c  = 0.4d0  ! Dimensionless; Coulomb
+                  eta_t = eta_n  ! Set to normal; damping
+                  Ftmin  = -min(mu_c*Fn_mag,eta_t*ut_mag)  
+               endif
             endif
 
             ! Compute contributions to angular velocities
             tcx = 0.0d0; tcy = 0.0d0; tcz = 0.0d0;
             trx = 0.0d0; try = 0.0d0; trz = 0.0d0;
+
             if (collisional_flag>=2) then
 
-               ! Collision torque contribution
+               ! Tangential force and Collision torque contributions
                Ftx = Ftmin*rt_12x
                Fty = Ftmin*rt_12y
                Ftz = Ftmin*rt_12z
@@ -4071,8 +4327,8 @@
                tcy = rad1*(rn_12z*Ftx - rn_12x*Ftz)
                tcz = rad1*(rn_12x*Fty - rn_12y*Ftx)
 
-               if (collisional_flag==3) then
-                  ! Rolling torque contribution
+               if (collisional_flag>=3) then
+                  ! Add Rolling torque contribution
                   thetar = 0.06  ! Needs to be calibrated
                   dp1 = rpropi(PPICLF_R_JDP)
                   dp2 = rpropj(PPICLF_R_JDP)
@@ -4111,7 +4367,7 @@
             ppiclf_ydotc(PPICLF_JOZ,i) = ppiclf_ydotc(PPICLF_JOZ,i)
      >                                 + tcz + trz
 
-         end if ! rdiff lt rthresh + eps
+         end if ! rdiff lt rthresh
 
 !-----------------------------------------------------------------------
 !
@@ -4150,34 +4406,34 @@
          !
          if (j.ne.0) then
          if (qs_fluct_filter_flag==0) then
-           upmean   = upmean + yj(PPICLF_JVX)
-           vpmean   = vpmean + yj(PPICLF_JVY)
-           wpmean   = wpmean + yj(PPICLF_JVZ)
-           u2pmean  = u2pmean + yj(PPICLF_JVX)**2
-           v2pmean  = v2pmean + yj(PPICLF_JVY)**2
-           w2pmean  = w2pmean + yj(PPICLF_JVZ)**2
-           icpmean  = icpmean + 1
+            upmean   = upmean + yj(PPICLF_JVX)
+            vpmean   = vpmean + yj(PPICLF_JVY)
+            wpmean   = wpmean + yj(PPICLF_JVZ)
+            u2pmean  = u2pmean + yj(PPICLF_JVX)**2
+            v2pmean  = v2pmean + yj(PPICLF_JVY)**2
+            w2pmean  = w2pmean + yj(PPICLF_JVZ)**2
+            icpmean  = icpmean + 1
          else if (qs_fluct_filter_flag==1) then
-           ! See https://dpzwick.github.io/ppiclF-doc/algorithms/overlap_mesh.html
-           dist = sqrt(xdist2**2 + ydist2**2 + zdist2**2)
-           gkern = sqrt(pi*ppiclf_filter**2/
+            ! See https://dpzwick.github.io/ppiclF-doc/algorithms/overlap_mesh.html
+            dist = sqrt(xdist2**2 + ydist2**2 + zdist2**2)
+            gkern = sqrt(pi*ppiclf_filter**2/
      >              (4.0d0*log(2.0d0)))**(-ppiclf_ndim) * 
      >              exp(-dist**2/(ppiclf_filter**2/(4.0d0*log(2.0d0))))
 
-           phipmean = phipmean + gkern*rpropj(PPICLF_R_JVOLP)
-           upmean   = upmean +
-     >                gkern*yj(PPICLF_JVX)*rpropj(PPICLF_R_JVOLP)
-           vpmean   = vpmean +
-     >                gkern*yj(PPICLF_JVY)*rpropj(PPICLF_R_JVOLP)
-           wpmean   = wpmean +
-     >                gkern*yj(PPICLF_JVZ)*rpropj(PPICLF_R_JVOLP)
-           u2pmean  = u2pmean +
-     >               gkern*(yj(PPICLF_JVX)**2)*rpropj(PPICLF_R_JVOLP)
-           v2pmean  = v2pmean +
-     >               gkern*(yj(PPICLF_JVY)**2)*rpropj(PPICLF_R_JVOLP)
-           w2pmean  = w2pmean +
-     >               gkern*(yj(PPICLF_JVZ)**2)*rpropj(PPICLF_R_JVOLP)
-           icpmean = icpmean + 1
+            phipmean = phipmean + gkern*rpropj(PPICLF_R_JVOLP)
+            upmean   = upmean +
+     >                 gkern*yj(PPICLF_JVX)*rpropj(PPICLF_R_JVOLP)
+            vpmean   = vpmean +
+     >                 gkern*yj(PPICLF_JVY)*rpropj(PPICLF_R_JVOLP)
+            wpmean   = wpmean +
+     >                 gkern*yj(PPICLF_JVZ)*rpropj(PPICLF_R_JVOLP)
+            u2pmean  = u2pmean +
+     >                gkern*(yj(PPICLF_JVX)**2)*rpropj(PPICLF_R_JVOLP)
+            v2pmean  = v2pmean +
+     >                gkern*(yj(PPICLF_JVY)**2)*rpropj(PPICLF_R_JVOLP)
+            w2pmean  = w2pmean +
+     >                gkern*(yj(PPICLF_JVZ)**2)*rpropj(PPICLF_R_JVOLP)
+            icpmean = icpmean + 1
          end if
          end if
 
@@ -4187,7 +4443,7 @@
       ! boundaries
       elseif (j .eq. 0) then
 
-         rksp_wall = ksp
+         !rksp_wall = ksp
          !rksp_wall = 1000
 
          ! give a bit larger collision threshold for walls
@@ -4205,6 +4461,23 @@
          if (rdiff .gt. rthresh) return
 
          rm1 = rpropi(PPICLF_R_JRHOP)*rpropi(PPICLF_R_JVOLP)
+
+         ! Compute spring stiffness constant dynamically, 
+         !   which overrides the user defined value
+         ! Need to make sure this formula is valid for a wall
+         ! k1 = k_{n,limit}
+         ksp1 = rm1*rpi*rpi/((ksp*ppiclf_dt)**2)
+         ! k2 = k_{hertzian}
+         E1  = 1.0d9  ! Assumed value for Young's modulus
+         nu1 = 0.35d0 ! Assumed value for Poisson's ratio
+         Estar = E1/(1.0d0-nu1*nu1)
+         r1 = 0.5d0*rpropi(PPICLF_R_JDP)
+         r2 = r1
+         Rstar = r1*r2/(r1+r2)
+         ksp2 = (2.0d0/3.0d0)*Estar*sqrt(Rstar)
+         ksp2 = ksp2*sqrt(abs(rdiff-rthresh))
+         ! kn = min(k1,k2)
+         rksp_wall = min(ksp1,ksp2)
          
          rmult = sqrt(rm1)
          eta_n = 2.0d0*sqrt(rksp_wall)*log(erest)
@@ -4214,7 +4487,7 @@
          rn_12x = rxdiff*rbot
          rn_12y = rydiff*rbot
          rn_12z = rzdiff*rbot
-         
+        
          rdelta12 = rthresh - rdiff
          
          rv12_mag = -yi(PPICLF_JVX)*rn_12x
@@ -4233,7 +4506,7 @@
          ppiclf_ydotc(PPICLF_JVZ,i) = ppiclf_ydotc(PPICLF_JVZ,i)
      >                              + rnmag*rn_12z
         
-       !write(*,*) "Wall NEAR",i,ppiclf_ydotc(PPICLF_JVY,i)  
+         !write(*,*) "Wall NEAR",i,ppiclf_ydotc(PPICLF_JVY,i)  
       endif
 
 
@@ -4312,7 +4585,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -4320,7 +4593,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i,j,k
 
 !
@@ -4328,6 +4601,8 @@
 !
       ppiclf_TimeBH = 0.0d0
 
+      ppiclf_drudtMixt = 0.0d0
+      ppiclf_drudtPlag = 0.0d0
 
 
       return
@@ -4338,6 +4613,7 @@
 ! Created Feb. 1, 2024
 !
 ! Subroutine for output if ppiclf_debug=1
+! fort.72## is reserved for debug
 !
 !-----------------------------------------------------------------------
 !
@@ -4356,7 +4632,7 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       real*8 :: rmu_ref, tref, suth, ksp, erest
       common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag,
      >   collisional_flag, heattransfer_flag, feedback_flag,
@@ -4364,12 +4640,12 @@
      >   rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag,
      >   qs_fluct_filter_adapt_flag, ksp, erest,
      >   ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH,
-     >   sbNearest_flag, burnrate_flag
+     >   sbNearest_flag, burnrate_flag, flow_model
       integer*4 i, n, ic, k, iStage
 
 ! Needed for allreduce
       integer*4 ngop
-      parameter(ngop = 31)
+      parameter(ngop = 32)
       real*8 xin(ngop),wout(ngop)
 
 ! Needed for viscous unsteady
@@ -4390,15 +4666,15 @@
       ! Note that ALLREDUCE uses MPI_BARRIER, which is cpu expensive
       ! Print out every 10th iStage=1 counts
 
-         !xin(1) = dfloat(ppiclf_npart)
-         !call ppiclf_gop(xin, wout, '+  ', 1)
-         !ppiclf_npart_sum = wout(1)
-         npart_tot = ppiclf_iglsum(PPICLF_NPART,1)
-         npart_max = ppiclf_iglmax(PPICLF_NPART,1)
-         npart_min = ppiclf_iglmin(PPICLF_NPART,1)
+      !xin(1) = dfloat(ppiclf_npart)
+      !call ppiclf_gop(xin, wout, '+  ', 1)
+      !ppiclf_npart_sum = wout(1)
+      npart_tot = ppiclf_iglsum(PPICLF_NPART,1)
+      npart_max = ppiclf_iglmax(PPICLF_NPART,1)
+      npart_min = ppiclf_iglmin(PPICLF_NPART,1)
 
 
-         xin=(/phimax,
+      xin=(/phimax,
      >         fqsx_max,fqsy_max,fqsz_max,
      >         famx_max,famy_max,famz_max, 
      >         fdpdx_max,fdpdy_max,fdpdz_max, 
@@ -4408,45 +4684,46 @@
      >         fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      >         fqsx_total_max,fqsy_total_max,fqsz_total_max,
      >         fvux_max,fvuy_max,fvuz_max,
-     >         qq_max,tau_max/)
-         call ppiclf_gop(xin, wout, 'M  ', ngop)
-         phimax     = wout(1)
-         fqsx_max   = wout(2)
-         fqsy_max   = wout(3)
-         fqsz_max   = wout(4)
-         famx_max   = wout(5)
-         famy_max   = wout(6)
-         famz_max   = wout(7)
-         fdpdx_max  = wout(8)
-         fdpdy_max  = wout(9)
-         fdpdz_max  = wout(10)
-         fcx_max    = wout(11)
-         fcy_max    = wout(12)
-         fcz_max    = wout(13)
-         umean_max  = wout(14)
-         vmean_max  = wout(15)
-         wmean_max  = wout(16)
-         fqs_mag    = wout(17)
-         fam_mag    = wout(18)
-         fdp_mag    = wout(19)
-         fc_mag     = wout(20)
-         fqsx_fluct_max = wout(21)
-         fqsy_fluct_max = wout(22)
-         fqsz_fluct_max = wout(23)
-         fqsx_total_max = wout(24)
-         fqsy_total_max = wout(25)
-         fqsz_total_max = wout(26)
-         fvux_max   = wout(27)
-         fvuy_max   = wout(28)
-         fvuz_max   = wout(29)
-         qq_max     = wout(30)
-         tau_max    = wout(31)
+     >         qq_max,tau_max,lift_max/)
+      call ppiclf_gop(xin, wout, 'M  ', ngop)
+      phimax     = wout(1)
+      fqsx_max   = wout(2)
+      fqsy_max   = wout(3)
+      fqsz_max   = wout(4)
+      famx_max   = wout(5)
+      famy_max   = wout(6)
+      famz_max   = wout(7)
+      fdpdx_max  = wout(8)
+      fdpdy_max  = wout(9)
+      fdpdz_max  = wout(10)
+      fcx_max    = wout(11)
+      fcy_max    = wout(12)
+      fcz_max    = wout(13)
+      umean_max  = wout(14)
+      vmean_max  = wout(15)
+      wmean_max  = wout(16)
+      fqs_mag    = wout(17)
+      fam_mag    = wout(18)
+      fdp_mag    = wout(19)
+      fc_mag     = wout(20)
+      fqsx_fluct_max = wout(21)
+      fqsy_fluct_max = wout(22)
+      fqsz_fluct_max = wout(23)
+      fqsx_total_max = wout(24)
+      fqsy_total_max = wout(25)
+      fqsz_total_max = wout(26)
+      fvux_max   = wout(27)
+      fvuy_max   = wout(28)
+      fvuz_max   = wout(29)
+      qq_max     = wout(30)
+      tau_max    = wout(31)
+      lift_max   = wout(32)
 
-         ! Sam - logging for debugging purposes
-         ! TLJ - below is a mess I created, need to clean up
-         if (ppiclf_nid.eq.0) then
+      ! Sam - logging for debugging purposes
+      ! TLJ - below is a mess I created, need to clean up
+      if (ppiclf_nid.eq.0) then
 
-         goto 500
+         if (ViscousUnsteady_flag>=1) then
             fH     = 0.75d0 + .105d0*reyL
             factor = 3.0d0*rpi*rnu*dp*fac
             FVUoutput = 0.0
@@ -4460,7 +4737,6 @@
                   FVUoutput = FVUoutput + kernelVU*
      >               (ppiclf_drudtMixt(1,iT,1)-ppiclf_drudtPlag(1,iT,1))
                   if (abs(FVUoutput) < 1.d-20) FVUoutput = 0.0d0
-                  !if (abs(FVUoutput(iT)) < 1.d-20) FVUoutput(iT) = 0.0d0
                enddo
                iT = ppiclf_nTimeBH
                time = ppiclf_timeBH(iT)
@@ -4481,48 +4757,57 @@
      >          ppiclf_nUnsteadyData,ppiclf_dt,
      >          ppiclf_time,ppiclf_TimeBH(1:6)
 
- 500        continue
+         endif
 
-            WRITE(7226,"(700(1x,E14.6))") ppiclf_time,
+         WRITE(7226,"(700(1x,E14.6))") ppiclf_time,
      >        ((ppiclf_drudtMixt(1,i,1)-ppiclf_drudtPlag(1,i,1))
      >        ,i=1,ppiclf_nUnsteadyData)
-            WRITE(7228,"(70(1x,E14.6))") ppiclf_time,
+         WRITE(7228,"(70(1x,E14.6))") ppiclf_time,
      >        ((ppiclf_drudtMixt(3,i,1)-ppiclf_drudtPlag(3,i,1))
      >        ,i=1,ppiclf_nUnsteadyData)
-            WRITE(7230,"(27(1x,E23.16))") ppiclf_time, ppiclf_y(1:12, 1)
-            WRITE(7231,"(28(1x,E23.16))") ppiclf_time,phimax,
+
+         WRITE(7230,"(27(1x,E23.16))") ppiclf_time, ppiclf_y(1:12, 1)
+
+         WRITE(7231,"(28(1x,E23.16))") ppiclf_time,phimax,
      >             fqsx_max, fqsy_max, fqsz_max,
      >             famx_max, famy_max, famz_max,
      >             fdpdx_max, fdpdy_max, fdpdz_max,
      >             fcx_max, fcy_max, fcz_max,
-     >             qq_max,tau_max,
+     >             qq_max,tau_max,lift_max,
      >             fqsx_total_max,fqsy_total_max,fqsz_total_max,
      >             fvux_max, fvuy_max, fvuz_max
-            WRITE(7232,"(26(1x,F13.8))") ppiclf_time,
+         WRITE(7232,"(26(1x,F13.8))") ppiclf_time,
      >             umean_max,vmean_max,wmean_max
-            WRITE(7233,"(i5,2x,28(1x,E23.16))")
+         WRITE(7233,"(i5,2x,28(1x,E23.16))")
      >             ppiclf_nid,ppiclf_dt,ppiclf_time,
      >             fac, phimax,
      >             fqsx_fluct_max, fqsy_fluct_max, fqsz_fluct_max
-            WRITE(7234,*) ppiclf_nid,istage,PPICLF_LRS ,PPICLF_LPART,
+         WRITE(7234,*) ppiclf_nid,istage,PPICLF_LRS ,PPICLF_LPART,
      >             PPICLF_NPART,ppiclf_time,
      >             ppiclf_rprop(PPICLF_R_FLUCTFX:PPICLF_R_FLUCTFZ,1),
      >             ppiclf_ydotc(PPICLF_JVX:PPICLF_JT,1)
-            WRITE(7235,"(26(1x,F13.8))") ppiclf_time,
+         WRITE(7235,"(26(1x,F13.8))") ppiclf_time,
      >             fqs_mag,fam_mag,fdp_mag,fc_mag
-            WRITE(7236,"(26(1x,F13.8))") ppiclf_time,
+         WRITE(7236,"(26(1x,F13.8))") ppiclf_time,
      >             fcx_max, fcy_max, fcz_max
-            WRITE(7237,"(26(1x,F13.8))") ppiclf_time,UnifRnd
-            WRITE(7240,"(26(1x,F13.8))") ppiclf_time,
+         WRITE(7237,"(26(1x,F13.8))") ppiclf_time,UnifRnd
+         WRITE(7240,"(26(1x,F13.8))") ppiclf_time,
      >             fqsx_max, fqsy_max, fqsz_max,
      >             fqsx_fluct_max, fqsy_fluct_max, fqsz_fluct_max,
      >             fqsx_total_max,fqsy_total_max,fqsz_total_max
-            WRITE(7241,"(5(1x,E23.16))") ppiclf_time,
+         WRITE(7241,"(5(1x,E23.16))") ppiclf_time,
      >             phipmean, upmean, vpmean, wpmean
-            WRITE(7243,"(1x,E23.16,5(2x,I8))") ppiclf_time,
+         WRITE(7243,"(1x,E23.16,5(2x,I8))") ppiclf_time,
      >             npart_tot,npart_max,npart_min
-         endif
 
+         do i = 1,4
+            write(7250+i,*) ppiclf_time,
+     >              ppiclf_rprop(PPICLF_R_JSDRX:PPICLF_R_JSDRZ,i), ! Du/Dt
+     >              ppiclf_rprop(PPICLF_R_JSDOX:PPICLF_R_JSDOZ,i)  ! DOmega/Dt
+         enddo
+
+
+      endif
 
 
       return
@@ -4849,70 +5134,88 @@
       end
 !-----------------------------------------------------------------------
 #ifdef PPICLC
-      subroutine ppiclf_comm_InitMPI(comm,id,np)
+      SUBROUTINE ppiclf_comm_InitMPI(comm,id,np)
      > bind(C, name="ppiclc_comm_InitMPI")
 #else
-      subroutine ppiclf_comm_InitMPI(comm,id,np)
+      SUBROUTINE ppiclf_comm_InitMPI(comm,id,np)
 #endif
 !
-      implicit none
+!     This subroutine is called from rocflu/RFLU_InitFlowSolver.F90
 !
-      include "PPICLF"
+      IMPLICIT NONE
+!
+      INCLUDE "PPICLF"
 !
 ! Input: 
 !
-      integer*4 comm
-      integer*4 id
-      integer*4 np
+      INTEGER*4 comm
+      INTEGER*4 id
+      INTEGER*4 np
 !
-      if (PPICLF_LINIT .or. PPICLF_LFILT .or. PPICLF_OVERLAP)
-     >   call ppiclf_exittr('InitMPI must be called first$',0.0d0,0)
+! Code:
+!
+      ! Ensures a later subroutine init wasn't called out of order
+      IF (PPICLF_LINIT .OR. PPICLF_LFILT .OR. PPICLF_OVERLAP)
+     >   CALL ppiclf_exittr('InitMPI must be called first$',0.0d0,0)
 
+      ! set ppiclf_processor information
       ppiclf_comm = comm
       ppiclf_nid  = id
       ppiclf_np   = np
 
-      call ppiclf_prints('   *Begin InitCrystal$')
-         call ppiclf_comm_InitCrystal
-      call ppiclf_prints('    End InitCrystal$')
+      ! GSlib call
+      CALL ppiclf_prints('   *Begin InitCrystal$')
+         CALL ppiclf_comm_InitCrystal
+      CALL ppiclf_prints('    End InitCrystal$')
 
+      ! check to make sure subroutine is called in correct order later
+      ! on in the code sequence
       PPICLF_LCOMM = .true.
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_comm_InitCrystal
 !
-      implicit none
+!     This subroutine is called form ppiclf_comm_InitMPI
 !
-      include "PPICLF"
+      IMPLICIT NONE
 !
-      call pfgslib_crystal_setup(ppiclf_cr_hndl,ppiclf_comm,ppiclf_np)
+      INCLUDE "PPICLF"
+!
+! Input: 
+!
 
-      return
-      end
+!
+! Code:
+!
+      ! GSlib call
+      CALL pfgslib_crystal_setup(ppiclf_cr_hndl,ppiclf_comm,ppiclf_np)
+
+      RETURN
+      END
 !-----------------------------------------------------------------------
-      subroutine ppiclf_comm_CreateBin
+      SUBROUTINE ppiclf_comm_CreateBin
 !
-      implicit none
+      IMPLICIT NONE
 !
-      include "PPICLF"
+      INCLUDE "PPICLF"
 !
 ! Internal:
 !
-      integer*4  el_face_num(18),el_edge_num(36),el_corner_num(24),
+      INTEGER*4  el_face_num(18),el_edge_num(36),el_corner_num(24),
      >                            nfacegp, nedgegp, ncornergp
-      integer*4 exit_1_array(3), exit_2_array(3), finished(3)
-      integer*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
+      INTEGER*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
      >          npt_total, j, i, idum, jdum, kdum, total_bin, 
-     >          sum_value, count
-      real*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
-     >       rmiddle, rdiff
-      logical exit_1, exit_2
-      integer*4 ppiclf_iglsum
-      external ppiclf_iglsum
-      real*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
-      external ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
+     >          sum_value, count, targetTotBin, idealBin(3), iBin(3),
+     >          iBinTot, temp,nBinMax,nBinMed,nBinMin, m, l, k,
+     >          LBMax,LBMin
+      REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
+     >       rmiddle, rdiff, binb_length(3),temp1,temp2
+      INTEGER*4 ppiclf_iglsum
+      EXTERNAL ppiclf_iglsum
+      REAL*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
+      EXTERNAL ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
 !
 
 ! face, edge, and corner number, x,y,z are all inline, so stride=3
@@ -4928,110 +5231,95 @@
       nedgegp   = 4  ! number of edges
       ncornergp = 0  ! number of corners
 
-      if (ppiclf_ndim .gt. 2) then
+      IF(ppiclf_ndim .GT. 2) THEN
          nfacegp   = 6  ! number of faces
          nedgegp   = 12 ! number of edges
          ncornergp = 8  ! number of corners
-      endif
+      END IF
 
       ix = 1
       iy = 2
       iz = 1
-      if (ppiclf_ndim.eq. 3)
+      IF(ppiclf_ndim .EQ. 3)
      >iz = 3
 
       iperiodicx = ppiclf_iperiodic(1)
       iperiodicy = ppiclf_iperiodic(2)
       iperiodicz = ppiclf_iperiodic(3)
-         
-      ! TLJ this line is not necessary 12/21/2024
-      ppiclf_d2chk(1) = max(ppiclf_d2chk(2),ppiclf_d2chk(3))
-
-
-      ! binning requires > 1 global particle. This takes care of 
-      ! single particle case
+        
+      ! iglsum is integer addition across MPI ranks.
       npt_total = ppiclf_iglsum(ppiclf_npart,1)
-c     if (npt_total .eq. 1) then
-      if (.not. ppiclf_lproj .and. .not. ppiclf_lsubsubbin) 
-     >   ppiclf_d2chk(1) = 1E-16
-
-      !if (ppiclf_nid==0) print*,'Bins: ', ppiclf_time, ppiclf_d2chk
-
-      ! compute binb
+      ! compute bin boundaries
       xmin = 1E10
       ymin = 1E10
       zmin = 1E10
       xmax = -1E10
       ymax = -1E10
       zmax = -1E10
-      do i=1,ppiclf_npart
+      ! Looping through particles on this processor
+      DO i=1,ppiclf_npart
+         ! Finding min/max particle extremes.
+         ! Need to consider filter/neighborwidths
+         ! to ensure ppiclf_bins_dx > ppiclf_d2chk(1)
          rduml = ppiclf_y(ix,i) - ppiclf_d2chk(1)
          rdumr = ppiclf_y(ix,i) + ppiclf_d2chk(1)
-         if (rduml .lt. xmin) xmin = rduml
-         if (rdumr .gt. xmax) xmax = rdumr
+         IF(rduml .LT. xmin) xmin = rduml
+         IF(rdumr .GT. xmax) xmax = rdumr
 
          rduml = ppiclf_y(iy,i) - ppiclf_d2chk(1)
          rdumr = ppiclf_y(iy,i) + ppiclf_d2chk(1)
-         if (rduml .lt. ymin) ymin = rduml
-         if (rdumr .gt. ymax) ymax = rdumr
+         IF(rduml .LT. ymin) ymin = rduml
+         IF(rdumr .GT. ymax) ymax = rdumr
 
-         if (ppiclf_ndim .eq. 3) then
+         IF(ppiclf_ndim .EQ. 3) THEN
             rduml = ppiclf_y(iz,i) - ppiclf_d2chk(1)
             rdumr = ppiclf_y(iz,i) + ppiclf_d2chk(1)
-            if (rduml .lt. zmin) zmin = rduml
-            if (rdumr .gt. zmax) zmax = rdumr
-         endif
-      enddo
-
+            IF(rduml .LT. zmin) zmin = rduml
+            IF(rdumr .GT. zmax) zmax = rdumr
+         END IF
+      END DO
+      ! Finds global max/mins across MPI ranks
       ppiclf_binb(1) = ppiclf_glmin(xmin,1)
       ppiclf_binb(2) = ppiclf_glmax(xmax,1)
       ppiclf_binb(3) = ppiclf_glmin(ymin,1)
       ppiclf_binb(4) = ppiclf_glmax(ymax,1)
       ppiclf_binb(5) = 0.0d0
       ppiclf_binb(6) = 0.0d0
-      if(ppiclf_ndim .gt. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
-      if(ppiclf_ndim .gt. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
+      IF(ppiclf_ndim .GT. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
+      IF(ppiclf_ndim .GT. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
 
-      if (npt_total .gt. 0) then
-      do i=1,ppiclf_ndim
-         if (ppiclf_bins_balance(i) .eq. 1) then
-            rmiddle = 0.0
-            do j=1,ppiclf_npart
-               rmiddle = rmiddle + ppiclf_y(i,j)
-            enddo
-            rmiddle = ppiclf_glsum(rmiddle,1)
-            rmiddle = rmiddle/npt_total
+!      if (npt_total .gt. 0) then
+!      do i=1,ppiclf_ndim
+!         if (ppiclf_bins_balance(i) .eq. 1) then
+!            rmiddle = 0.0
+!            do j=1,ppiclf_npart
+!               rmiddle = rmiddle + ppiclf_y(i,j)
+!            enddo
+!            rmiddle = ppiclf_glsum(rmiddle,1)
+!            rmiddle = rmiddle/npt_total
+!
+!            rdiff =  max(abs(rmiddle-ppiclf_binb(2*(i-1)+1)),
+!     >                   abs(ppiclf_binb(2*(i-1)+2)-rmiddle))
+!            ppiclf_binb(2*(i-1)+1) = rmiddle - rdiff
+!            ppiclf_binb(2*(i-1)+2) = rmiddle + rdiff
+!         endif
+!      enddo
+!      endif
 
-            rdiff =  max(abs(rmiddle-ppiclf_binb(2*(i-1)+1)),
-     >                   abs(ppiclf_binb(2*(i-1)+2)-rmiddle))
-            ppiclf_binb(2*(i-1)+1) = rmiddle - rdiff
-            ppiclf_binb(2*(i-1)+2) = rmiddle + rdiff
-         endif
-      enddo
+      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
+     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
+     >    iperiodicx .eq. 0) then
+         ppiclf_binb(1) = ppiclf_xdrange(1,1)
+         ppiclf_binb(2) = ppiclf_xdrange(2,1)
       endif
 
-      ! Thierry - we comment this out to prevent periodic
-      !           algorithm to overwrite bin boundaries
-
-!      if (ang_case==111) then
-!      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
-!     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
-!     >    iperiodicx .eq. 0) then
-!         ppiclf_binb(1) = ppiclf_xdrange(1,1)
-!         ppiclf_binb(2) = ppiclf_xdrange(2,1)
-!      endif
-!
-!      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
-!     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
-!     >    iperiodicy .eq. 0) then
-!         ppiclf_binb(3) = ppiclf_xdrange(1,2)
-!         ppiclf_binb(4) = ppiclf_xdrange(2,2)
-!      endif
-!      
-!      endif ! ang_case
-
-      ! Thierry - we make the bins in z-direction as big as the fluid mesh
-      !           this is also needed for the bin calculation
+      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
+     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
+     >    iperiodicy .eq. 0) then
+         ppiclf_binb(3) = ppiclf_xdrange(1,2)
+         ppiclf_binb(4) = ppiclf_xdrange(2,2)
+      endif
+      
       if (ppiclf_ndim .gt. 2) then
       if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
      >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 
@@ -5041,148 +5329,309 @@ c     if (npt_total .eq. 1) then
       endif ! ndim
       endif ! xdrange
 
-      if (npt_total .lt. 1) return
+      ! End subroutine if no particles present      
+      IF(npt_total .LT. 1) RETURN
+      LBMax = 0
+      LBMin = 0
+      temp1 = 1.0D-10
+      temp2 = 1.0D10
+      ! Find ppiclf bin domain lengths
+      ! and Max,Med,Min dimensions
+      DO l = 1,3
+        binb_length(l) = ppiclf_binb(2*l) -
+     >                         ppiclf_binb(2*l-1)
+        IF(binb_length(l).GT.temp1) THEN
+          temp1 = binb_length(l)
+          LBMax = l
+        END IF
+        IF(binb_length(l).LT.temp2) THEN
+          temp2 = binb_length(l)
+          LBMin = l
+        END IF
+      END DO
 
-      finished(1) = 0
-      finished(2) = 0
-      finished(3) = 0
-      total_bin = 1 
+      IF(ppiclf_ndim .LT. 3)
+     >   CALL ppiclf_exittr('CreateBins only supports 3D Grids',0.0D0,0)
+      
+      ! Update with targetTotBin = ActiveBinNum
+      targetTotBin = ppiclf_np
 
-      do i=1,ppiclf_ndim
-         finished(i) = 0
-         exit_1_array(i) = ppiclf_bins_set(i)
-         exit_2_array(i) = 0
-         if (ppiclf_bins_set(i) .ne. 1) ppiclf_n_bins(i) = 1
-         ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                        ppiclf_binb(2*(i-1)+1)  ) / 
-     >                       ppiclf_n_bins(i)
-         ! Make sure exit_2 is not violated by user input
-         if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
-            do while (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1))
-               ppiclf_n_bins(i) = max(1, ppiclf_n_bins(i)-1)
-               ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                              ppiclf_binb(2*(i-1)+1)  ) / 
-     >                             ppiclf_n_bins(i)
-         WRITE(*,*) "Inf. loop in CreateBin", i, 
-     >              ppiclf_bins_dx(i), ppiclf_d2chk(1)
-         call ppiclf_exittr('Inf. loop in CreateBin$',0.0,0)
-            enddo
-         endif
-         total_bin = total_bin*ppiclf_n_bins(i)
-      enddo
+      ! Number of bins calculated based on bin surface
+      ! area minimization and bin aspect ratio close to 1
+      ppiclf_n_bins(1) = INT((targetTotBin**(1.0D0/3.0D0))*
+     >                   (binb_length(1)**(2.0D0/3.0D0))/ 
+     >                   ((binb_length(2)**(1.0D0/3.0D0))*
+     >                   (binb_length(3))**(1.0D0/3.0D0)))
+      
+      ppiclf_n_bins(2) = INT((targetTotBin**(1.0D0/3.0D0))*
+     >                   (binb_length(2)**(2.0D0/3.0D0))/ 
+     >                   ((binb_length(1)**(1.0D0/3.0D0))*
+     >                   (binb_length(3))**(1.0D0/3.0D0)))
+     
+      ppiclf_n_bins(3) = INT((targetTotBin**(1.0D0/3.0D0))*
+     >                   (binb_length(3)**(2.0D0/3.0D0))/ 
+     >                   ((binb_length(2)**(1.0D0/3.0D0))*
+     >                   (binb_length(1))**(1.0D0/3.0D0)))
+      ! Since INT trucates, make sure n_bins at least 1 
+      DO l = 1,3
+        IF(ppiclf_n_bins(l) .LT. 1) ppiclf_n_bins(l) = 1
+      END DO
 
-      ! Make sure exit_1 is not violated by user input
-      count = 0
-      do while (total_bin > ppiclf_np)
-          count = count + 1;
-          i = modulo((ppiclf_ndim-1)+count,ppiclf_ndim)+1
-          ppiclf_n_bins(i) = max(ppiclf_n_bins(i)-1,1)
-          ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                         ppiclf_binb(2*(i-1)+1)  ) / 
-     >                        ppiclf_n_bins(i)
+      iBinTot = 0
+
+      ! Filterwidth criteria check.  ppiclf_d2chk(2) automatically
+      ! set to be at least 2 fluid cell widths in
+      ! PICL_TEMP_InitSolver.F90
+
+      DO l = 1,3
+          ! Ensure ppiclf_bin_dx(l) > ppiclf_d2chk(1) 
+          IF((binb_length(l)/ppiclf_n_bins(l)) .LT. ppiclf_d2chk(1)) 
+     >      ppiclf_n_bins(l) = INT(ppiclf_n_bins(l)/ppiclf_d2chk(1))
+          IF(ppiclf_n_bins(l) .LT. 1)  
+     >  CALL ppiclf_exittr('ppiclf_d2chk(1) criteria violated.',0.0D0,0)
+        idealBin(l) = ppiclf_n_bins(l)
+      END DO
+
+      ! Since bin must be an integer, check -1, +0, +1 number of bins for each bin dimension
+      ! ideal number of bins will be max value while less than number of total target of bins.
+      ! Will not check total bin value (cycle do loop) if
+      ! ppiclf_d2chk(1) criteria is violated or ppiclf_n_bins < 1
+
+      total_bin = 0 
+      DO ix = 1,3
+        iBin(1) = ppiclf_n_bins(1) + (ix-2)
+        ppiclf_bins_dx(1) = binb_length(1)/iBin(1)
+        IF(ppiclf_bins_dx(1) .LT. ppiclf_d2chk(1) .OR.
+     >                           iBin(1) .LT. 1) CYCLE
+        DO iy = 1,3
+          iBin(2) = ppiclf_n_bins(2) + (iy-2)
+          ppiclf_bins_dx(2) = binb_length(2)/iBin(2)
+          IF(ppiclf_bins_dx(2) .LT. ppiclf_d2chk(1) .OR.
+     >                             iBin(2) .LT. 1) CYCLE
+          DO iz = 1,3
+            iBin(3) = ppiclf_n_bins(3) + (iz-2)
+            ppiclf_bins_dx(3) = binb_length(3)/iBin(3)
+            IF(ppiclf_bins_dx(3) .LT. ppiclf_d2chk(1) .OR.
+     >                               iBin(3) .LT. 1) CYCLE
+            iBinTot = iBin(1)*iBin(2)*iBin(3)
+            IF(iBinTot .GT. total_bin .AND.
+     >                     iBinTot .LE. targetTotBin) THEN
+              total_bin = 1
+              DO l = 1,3
+                idealBin(l) = iBin(l)
+                total_bin = total_bin*idealBin(l)
+              END DO
+              ! These loops are to make sure the dimension with the longest
+              ! ppiclf_binb length gets more bins in the case where two or
+              ! more dimensions are within 1 bin division of each other.
+              temp = 0
+              nBinMax = MAX(idealBin(1),idealBin(2),idealBin(3))
+              nBinMin = MIN(idealBin(1),idealBin(2),idealBin(3))
+              nBinMed = -99
+              DO l = 1,3
+                IF(idealBin(l).LT.nBinMax .AND. idealBin(l).GT.nBinMin)
+     >             nBinMed = idealBin(l)
+              END DO
+              IF(nBinMed.EQ. -99) THEN !two number of bins are equal
+                DO l = 1,3
+                  IF(idealBin(l).EQ.nBinMax) temp = temp + 1
+                  IF(idealBin(l).EQ.nBinMin) temp = temp + 10
+                END DO
+                IF(temp .EQ. 2) THEN
+                  nBinMed = nBinMax
+                ELSE ! Either two nBinMin or all 3 equal
+                  nBinMed = nBinMin
+                END IF
+              END IF
+              DO l = 1,3
+                IF(l.EQ.LBMax) THEN
+                  idealBin(l)=nBinMax
+                ELSE IF(l.EQ.LBMin) THEN
+                  idealBin(l)=nBinMin
+                ELSE
+                  idealBin(l)=nBinMed 
+                END IF
+              END DO 
+            END IF
+          END DO !iz
+        END DO !iy
+      END DO !ix
+
+      ! Set common ppiclf arrays based on above calculation
+      DO l = 1,3
+        ppiclf_n_bins(l) = idealBin(l)
+        ppiclf_bins_dx(l) = binb_length(l)/ppiclf_n_bins(l)
+      END DO
+
+
+      ! Loop to see if we can add one to dimension with largest number of bins
+      ! Choose this dimension because it is smallest incremental increase to total bins 
+      DO
+        IF((total_bin/ppiclf_n_bins(LBMax))*
+     >      (ppiclf_n_bins(LBMax)+1) .LT. targetTotBin) THEN
+          ! Add a bin and set new bin dx length
+          ppiclf_n_bins(LBMax) = ppiclf_n_bins(LBMax)+1
+          ppiclf_bins_dx(LBMax) = binb_length(LBMax)/
+     >                              ppiclf_n_bins(LBMax)
+          IF(ppiclf_bins_dx(LBMax) .LT. ppiclf_d2chk(1)) THEN
+            ! If ppiclf_d2chk criteria violated, return to previous bin configuration
+            ppiclf_n_bins(LBMax) = ppiclf_n_bins(LBMax)-1
+            ppiclf_bins_dx(LBMax) = binb_length(LBMax)/
+     >                                ppiclf_n_bins(LBMax)
+            EXIT
+          END IF
           total_bin = 1
-          do j=1,ppiclf_ndim
-             total_bin = total_bin*ppiclf_n_bins(j)
-          enddo
-          if (total_bin .le. ppiclf_np) exit
-       enddo
+          DO l = 1,3
+            total_bin = total_bin*ppiclf_n_bins(l)
+          END DO
+        ELSE
+          EXIT
+        END IF
+      END DO
 
-       exit_1 = .false.
-       exit_2 = .false.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! David's old binning method left below for now
+!      finished(1) = 0
+!      finished(2) = 0
+!      finished(3) = 0
+!      total_bin = 1 
+!
+!      do i=1,ppiclf_ndim
+!         finished(i) = 0
+!         exit_1_array(i) = ppiclf_bins_set(i)
+!         exit_2_array(i) = 0
+!         if (ppiclf_bins_set(i) .ne. 1) ppiclf_n_bins(i) = 1
+!         ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                        ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                       ppiclf_n_bins(i)
+!         ! Make sure exit_2 is not violated by user input
+!         if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
+!            do while (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1))
+!               ppiclf_n_bins(i) = max(1, ppiclf_n_bins(i)-1)
+!               ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                              ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                             ppiclf_n_bins(i)
+!         WRITE(*,*) "Inf. loop in CreateBin", i, 
+!     >              ppiclf_bins_dx(i), ppiclf_d2chk(1)
+!         call ppiclf_exittr('Inf. loop in CreateBin$',0.0,0)
+!            enddo
+!         endif
+!         total_bin = total_bin*ppiclf_n_bins(i)
+!      enddo
+!
+!      ! Make sure exit_1 is not violated by user input
+!      count = 0
+!      do while (total_bin > ppiclf_np)
+!          count = count + 1;
+!          i = modulo((ppiclf_ndim-1)+count,ppiclf_ndim)+1
+!          ppiclf_n_bins(i) = max(ppiclf_n_bins(i)-1,1)
+!          ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                         ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                        ppiclf_n_bins(i)
+!          total_bin = 1
+!          do j=1,ppiclf_ndim
+!             total_bin = total_bin*ppiclf_n_bins(j)
+!          enddo
+!          if (total_bin .le. ppiclf_np) exit
+!       enddo
+!
+!       exit_1 = .false.
+!       exit_2 = .false.
+!
+!       do while (.not. exit_1 .and. .not. exit_2)
+!          do i=1,ppiclf_ndim
+!             if (exit_1_array(i) .eq. 0) then
+!                ppiclf_n_bins(i) = ppiclf_n_bins(i) + 1
+!                ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                               ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                              ppiclf_n_bins(i)
+!
+!                ! Check conditions
+!                ! exit_1
+!                total_bin = 1
+!                do j=1,ppiclf_ndim
+!                   total_bin = total_bin*ppiclf_n_bins(j)
+!                enddo
+!                if (total_bin .gt. ppiclf_np) then
+!                   ! two exit arrays aren't necessary for now, but
+!                   ! to make sure exit_2 doesn't slip through, we
+!                   ! set both for now
+!                   exit_1_array(i) = 1
+!                   exit_2_array(i) = 1
+!                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
+!                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                                  ppiclf_n_bins(i)
+!                   exit
+!                endif
+!                
+!                ! exit_2
+!                if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
+!                   ! two exit arrays aren't necessary for now, but
+!                   ! to make sure exit_2 doesn't slip through, we
+!                   ! set both for now
+!                   exit_1_array(i) = 1
+!                   exit_2_array(i) = 1
+!                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
+!                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
+!     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
+!     >                                  ppiclf_n_bins(i)
+!                   exit
+!                endif
+!             endif
+!          enddo
+!
+!          ! full exit_1
+!          sum_value = 0
+!          do i=1,ppiclf_ndim
+!             sum_value = sum_value + exit_1_array(i)
+!          enddo
+!          if (sum_value .eq. ppiclf_ndim) then
+!             exit_1 = .true.
+!          endif
+!
+!          ! full exit_2
+!          sum_value = 0
+!          do i=1,ppiclf_ndim
+!             sum_value = sum_value + exit_2_array(i)
+!          enddo
+!          if (sum_value .eq. ppiclf_ndim) then
+!             exit_2 = .true.
+!          endif
+!       enddo
+!      ! Check for too small bins 
+!      rthresh = 1E-12
+!      total_bin = 1
+!      do i=1,ppiclf_ndim
+!         total_bin = total_bin*ppiclf_n_bins(i)
+!         if (ppiclf_bins_dx(i) .lt. rthresh) ppiclf_bins_dx(i) = 1.0
+!      enddo
 
-       do while (.not. exit_1 .and. .not. exit_2)
-          do i=1,ppiclf_ndim
-             if (exit_1_array(i) .eq. 0) then
-                ppiclf_n_bins(i) = ppiclf_n_bins(i) + 1
-                ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                               ppiclf_binb(2*(i-1)+1)  ) / 
-     >                              ppiclf_n_bins(i)
-
-                ! Check conditions
-                ! exit_1
-                total_bin = 1
-                do j=1,ppiclf_ndim
-                   total_bin = total_bin*ppiclf_n_bins(j)
-                enddo
-                if (total_bin .gt. ppiclf_np) then
-                   ! two exit arrays aren't necessary for now, but
-                   ! to make sure exit_2 doesn't slip through, we
-                   ! set both for now
-                   exit_1_array(i) = 1
-                   exit_2_array(i) = 1
-                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
-                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
-     >                                  ppiclf_n_bins(i)
-                   exit
-                endif
-                
-                ! exit_2
-                if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
-                   ! two exit arrays aren't necessary for now, but
-                   ! to make sure exit_2 doesn't slip through, we
-                   ! set both for now
-                   exit_1_array(i) = 1
-                   exit_2_array(i) = 1
-                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
-                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
-     >                                  ppiclf_n_bins(i)
-                   exit
-                endif
-             endif
-          enddo
-
-          ! full exit_1
-          sum_value = 0
-          do i=1,ppiclf_ndim
-             sum_value = sum_value + exit_1_array(i)
-          enddo
-          if (sum_value .eq. ppiclf_ndim) then
-             exit_1 = .true.
-          endif
-
-          ! full exit_2
-          sum_value = 0
-          do i=1,ppiclf_ndim
-             sum_value = sum_value + exit_2_array(i)
-          enddo
-          if (sum_value .eq. ppiclf_ndim) then
-             exit_2 = .true.
-          endif
-       enddo
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! -------------------------------------------------------
 ! SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
 ! -------------------------------------------------------
-      ! Check for too small bins 
-      rthresh = 1E-12
-      total_bin = 1
-      do i=1,ppiclf_ndim
-         total_bin = total_bin*ppiclf_n_bins(i)
-         if (ppiclf_bins_dx(i) .lt. rthresh) ppiclf_bins_dx(i) = 1.0
-      enddo
 
 !     current box coordinates
-      if (ppiclf_nid .le. total_bin-1) then
+      IF(ppiclf_nid .LE. total_bin-1) THEN
          idum = modulo(ppiclf_nid,ppiclf_n_bins(1))
          jdum = modulo(ppiclf_nid/ppiclf_n_bins(1),ppiclf_n_bins(2))
          kdum = ppiclf_nid/(ppiclf_n_bins(1)*ppiclf_n_bins(2))
-         if (ppiclf_ndim .lt. 3) kdum = 0
+         IF(ppiclf_ndim .LT. 3) kdum = 0
          ppiclf_binx(1,1) = ppiclf_binb(1) + idum    *ppiclf_bins_dx(1)
          ppiclf_binx(2,1) = ppiclf_binb(1) + (idum+1)*ppiclf_bins_dx(1)
          ppiclf_biny(1,1) = ppiclf_binb(3) + jdum    *ppiclf_bins_dx(2)
          ppiclf_biny(2,1) = ppiclf_binb(3) + (jdum+1)*ppiclf_bins_dx(2)
          ppiclf_binz(1,1) = 0.0d0
          ppiclf_binz(2,1) = 0.0d0
-         if (ppiclf_ndim .gt. 2) then
+         IF(ppiclf_ndim .GT. 2) THEN
             ppiclf_binz(1,1) = ppiclf_binb(5)+kdum    *ppiclf_bins_dx(3)
             ppiclf_binz(2,1) = ppiclf_binb(5)+(kdum+1)*ppiclf_bins_dx(3)
-         endif
-      endif
+         END IF
+      END IF
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_comm_CreateSubBin
 !
@@ -5258,46 +5707,46 @@ c     current box coordinates
       return
       end
 !-----------------------------------------------------------------------
-      subroutine ppiclf_comm_MapOverlapMesh
+      SUBROUTINE ppiclf_comm_MapOverlapMesh
 !
-      implicit none
+      IMPLICIT NONE
 !
-      include "PPICLF"
-      include 'mpif.h'
+      INCLUDE "PPICLF"
+      INCLUDE 'mpif.h'
 !
 ! Internal:
 !
-      integer*4 icalld
-      save      icalld
-      data      icalld /0/
-      integer*4 nkey(2), i, j, k,l, ie, iee, ii, jj, kk, ndum, nrank,
+      INTEGER*4 icalld
+      SAVE      icalld
+      DATA      icalld /0/
+      INTEGER*4 nkey(2), i, j, k,l, ie, iee, ii, jj, kk, ndum, nrank,
      >          nl, nii, njj, nrr, ilow, jlow, klow, nxyz, il,
      >          ihigh, jhigh, khigh, ierr
-      real*8 rxval, ryval, rzval
-      logical partl
-      real*8 ppiclf_vlmin, ppiclf_vlmax
-      external ppiclf_vlmin, ppiclf_vlmax
+      INTEGER*4 ix, iy, iz, ixLow, ixHigh, iyLow,
+     >          iyHigh, izLow, izHigh 
+      REAL*8    rxval, ryval, rzval, EleSizei(3), MaxPoint(3),
+     >          MinPoint(3), ppiclf_vlmin, ppiclf_vlmax,
+     >          centeri(3)
+      LOGICAL   partl, ErrorFound
+      EXTERNAL  ppiclf_vlmin, ppiclf_vlmax
+!
+! Code Start:
+!
 
-      ! Sam - for ghost cells
-      real*8 xmin(3), xmax(3), xminb(3), xmaxb(3)
-      integer*4 nsendg, iig(3), iin(3), iing(3)
-
-      integer*4 ix, iy, iz, ixLow, ixHigh, iyLow,
-     >          iyHigh, izLow, izHigh
-      ! Avery - for largest cell size
-      real*8 EleSizei(3), MaxPoint(3), MinPoint(3) 
-     
+      nxyz = PPICLF_LEZ*PPICLF_LEY*PPICLF_LEX !Num of vertices per cell
       ppiclf_neltb = 0 !counts number of Rocflu elements on this processor
-                       !that are within one of the ppiclf bins
-      DO ie=1,ppiclf_nee
-      ! Avery added - find cell max x,y,z lengths
+                       !that are within the ppiclf bounds domain
+      DO ie=1,ppiclf_nee ! Number of fluid cells in Rocflu Grid domain
+        ! Find fluid cell max x,y,z lengths and centroid
         DO l=1,3
-          MaxPoint(l) = -1000000.0d0
-          MinPoint(l) =  1000000.0d0 
-          EleSizei(l) =  0.0d0
+          centeri(l)  = 0.0D0
+          MaxPoint(l) = -1000000.0D0
+          MinPoint(l) =  1000000.0D0 
+          EleSizei(l) =  0.0D0
           DO k=1,PPICLF_LEZ
             DO j=1,PPICLF_LEY
               DO i=1,PPICLF_LEX
+                centeri(l) = centeri(l) + ppiclf_xm1bs(i,j,k,l,ie)
                 IF (ppiclf_xm1bs(i,j,k,l,ie) .GT. MaxPoint(l)) 
      >              MaxPoint(l) = ppiclf_xm1bs(i,j,k,l,ie)
                 IF (ppiclf_xm1bs(i,j,k,l,ie) .LT. MinPoint(l)) 
@@ -5305,203 +5754,234 @@ c     current box coordinates
               END DO !i
             END DO !j
           END DO !k
-          EleSizei(l) = 1.1*(MaxPoint(l) - MinPoint(l))
+          centeri(l) = centeri(l)/nxyz
+
+          ! 1.2 times the cell length to ensure that one layers of cells
+          ! outside of the ppiclf bin are mapped for interpolation.
+          ! This could be changed based on the frequency of ppiclf bin
+          ! creation and mapping.
+          EleSizei(l) = 1.2*(MaxPoint(l) - MinPoint(l))
+          IF(EleSizei(l) .GT. ppiclf_bins_dx(l)) THEN
+            PRINT*,'EleSizei > ppiclf_bins_dx in MapOverlapMesh'
+            PRINT*, 'Dimension:',l
+            CALL ppiclf_exittr('Error: EleSizei(OverlapMesh)',0.0D0,l)
+          END IF
         END DO !l 
-      ! Avery - end
-      do k=1,PPICLF_LEZ
-      do j=1,PPICLF_LEY
-      do i=1,PPICLF_LEX
-         ! Grid positions without additional length
-         rxval = ppiclf_xm1bs(i,j,k,1,ie)
-         ryval = ppiclf_xm1bs(i,j,k,2,ie)
-         rzval = 0.0d0
-         if(ppiclf_ndim.gt.2) rzval = ppiclf_xm1bs(i,j,k,3,ie)
-       
-         ! Exits if cell is outside of all bin boundaries
-         if (rxval .gt. ppiclf_binb(2)) goto 1255
-         if (rxval .lt. ppiclf_binb(1)) goto 1255
-         if (ryval .gt. ppiclf_binb(4)) goto 1255
-         if (ryval .lt. ppiclf_binb(3)) goto 1255
-         if (ppiclf_ndim.gt.2 .and. rzval .gt. ppiclf_binb(6)) 
-     >      goto 1255
-         if (ppiclf_ndim.gt.2 .and. rzval .lt. ppiclf_binb(5))
-     >      goto 1255
+
+        ! Fluid Cell vertex position without additional length
+        rxval = centeri(1)
+        ryval = centeri(2)
+        rzval = 0.0D0
+        IF(ppiclf_ndim .GT. 2) rzval = centeri(3)
+      
+        ! Exits if fluid cell vertex is outside of all bin 
+        ! boundaries + Exchange Ghost Fluid Cell Buffer (EleSizei)
+        IF (rxval .GT. (ppiclf_binb(2))) CYCLE
+        IF (rxval .LT. (ppiclf_binb(1))) CYCLE
+        IF (ryval .GT. (ppiclf_binb(4))) CYCLE
+        IF (ryval .LT. (ppiclf_binb(3))) CYCLE
+        IF (ppiclf_ndim .GT. 2 .AND. rzval .GT. 
+     >      (ppiclf_binb(6))) CYCLE
+        IF (ppiclf_ndim.GT.2 .AND. rzval .LT.
+     >      (ppiclf_binb(5))) CYCLE
  
-         ! Determining what bin the cell is in
-         ii    = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
-         jj    = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
-         kk    = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3))
+        ! Determines what bin the fluid cell is nominally mapped to
+        ii    = FLOOR((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
+        jj    = FLOOR((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
+        kk    = FLOOR((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3))
 
-         ! Default is Do loop with ix=iy=iz=2 for no additional length
-         ixLow =2
-         ixHigh=2
-         iyLow =2
-         iyHigh=2
-         izLow =2
-         izHigh=2
+        ! Default is Do loop with ix=iy=iz=2 for fluid cells not near
+        ! bin boundary
 
-         ! These series of if statements check if near bin boundary 
-         ! Default is for no additional bin checks to be applied (do loop set to 2,2)
-         ! Add or subtract cell distance with Do loop if cell is near bin boundary
-         
-         if (floor((rxval + EleSizei(1) -ppiclf_binb(1))
-     >   /ppiclf_bins_dx(1)) .NE. ii) then
-         ixHigh = 3
-         endif
+        ixLow =2
+        ixHigh=2
+        iyLow =2
+        iyHigh=2
+        izLow =2
+        izHigh=2
 
-         if (floor((rxval - EleSizei(1) -ppiclf_binb(1))
-     >   /ppiclf_bins_dx(1)) .NE. ii) then
-         ixLow = 1
-         endif
+        ! These series of if statements check if bin mapping changes
+        ! when adding/subtracting multiple of fluid cell length defined
+        ! by EleSizei(l). 
+        ! This is used to map fluid cells slightly outside of the ppiclf
+        ! bin boundary.  If any .NE. 2, then fluid cell is mapped to
+        ! multiple ppiclf bins. 
+        
+        IF (FLOOR((rxval + EleSizei(1) - ppiclf_binb(1))
+     >       /ppiclf_bins_dx(1)) .NE. ii)  ixHigh = 3
 
-         if (floor((ryval + EleSizei(2) -ppiclf_binb(3))
-     >   /ppiclf_bins_dx(2)) .NE. jj) then
-         iyHigh = 3
-         endif
+        IF (FLOOR((rxval - EleSizei(1) - ppiclf_binb(1))
+     >       /ppiclf_bins_dx(1)) .NE. ii)  ixLow = 1
+        IF (FLOOR((ryval + EleSizei(2) - ppiclf_binb(3))
+     >       /ppiclf_bins_dx(2)) .NE. jj)  iyHigh = 3
 
-         if (floor((ryval - EleSizei(2) -ppiclf_binb(3))
-     >   /ppiclf_bins_dx(2)) .NE. jj) then
-         iyLow = 1
-         endif
+        IF (FLOOR((ryval - EleSizei(2) - ppiclf_binb(3))
+     >       /ppiclf_bins_dx(2)) .NE. jj)  iyLow = 1
 
-         if (ppiclf_ndim .gt. 2 .and. floor((rzval + EleSizei(3)
-     >   -ppiclf_binb(5))/ppiclf_bins_dx(3)) .NE. kk) then
-         izHigh = 3
-         endif
+        IF (ppiclf_ndim .GT. 2 .AND. FLOOR((rzval + EleSizei(3)
+     >    - ppiclf_binb(5))/ppiclf_bins_dx(3)) .NE. kk)  izHigh = 3
 
-         if (ppiclf_ndim .gt. 2 .and. floor((rzval - EleSizei(3)
-     >   -ppiclf_binb(5))/ppiclf_bins_dx(3)) .NE. kk) then
-         izLow = 1
-         endif
+        IF (ppiclf_ndim .GT. 2 .AND. FLOOR((rzval - EleSizei(3)
+     >    - ppiclf_binb(5))/ppiclf_bins_dx(3)) .NE. kk)  izLow = 1
 
-      do ix=ixLow,ixHigh
-      do iy=iyLow,iyHigh
-      do iz=izLow,izHigh
-         
-         ! Changes r value by element size if near bin
-         rxval = ppiclf_xm1bs(i,j,k,1,ie) + (ix-2)*EleSizei(1)
-         ryval = ppiclf_xm1bs(i,j,k,2,ie) + (iy-2)*EleSizei(2)
-         rzval = 0.0d0
-         if(ppiclf_ndim.gt.2) rzval = ppiclf_xm1bs(i,j,k,3,ie)
-     >           + (iz-2)*EleSizei(3)
+        DO ix=ixLow,ixHigh
+          DO iy=iyLow,iyHigh
+            DO iz=izLow,izHigh
+              ! Change cell position by EleSizei if ix,iy,or iz NE 2
+              rxval = centeri(1) + (ix-2)*EleSizei(1)
+              ryval = centeri(2) + (iy-2)*EleSizei(2)
+              rzval = 0.0D0
+              IF(ppiclf_ndim.GT.2) rzval = centeri(3)
+     >                + (iz-2)*EleSizei(3)
+              ! Find bin for adjusted rval
+              ii    = FLOOR((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
+              jj    = FLOOR((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
+              kk    = FLOOR((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) 
+              IF (ppiclf_ndim.LT.3) kk = 0
+              
 
-         ! Finds correct bin indicies for cell
-         ii    = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
-         jj    = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
-         kk    = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) 
-         if (ppiclf_ndim.lt.3) kk = 0
-         if (ii .eq. ppiclf_n_bins(1)) ii = ppiclf_n_bins(1) - 1
-         if (jj .eq. ppiclf_n_bins(2)) jj = ppiclf_n_bins(2) - 1
-         if (kk .eq. ppiclf_n_bins(3)) kk = ppiclf_n_bins(3) - 1
-         if (ii .eq. -1) ii = 0
-         if (jj .eq. -1) jj = 0
-         if (kk .eq. -1) kk = 0
+              ! This covers ghost exchanged cells for linear periodicity
+              ! Maps cells greater than ppiclf bin domain to first bin
+              ! Maps cells less than ppiclf bin domain to last bin
+              IF (x_per_flag .EQ. 1) THEN
+                IF (ii .EQ. ppiclf_n_bins(1)) ii = 0
+                IF (ii .EQ. -1) ii = ppiclf_n_bins(1) - 1
+              END IF
+              IF (y_per_flag .EQ. 1) THEN
+                IF (jj .EQ. ppiclf_n_bins(2)) jj = 0
+                IF (jj .EQ. -1) jj = ppiclf_n_bins(2) - 1
+              END IF
+              IF (z_per_flag .EQ. 1) THEN
+                IF (kk .EQ. ppiclf_n_bins(3)) kk = 0
+                IF (kk .EQ. -1) kk = ppiclf_n_bins(3) - 1
+              END IF
+              
+              ! Ensures duplicate cells don't get sent to same processor
+              IF (ii .LT. 0 .OR. ii .GT. ppiclf_n_bins(1)-1) CYCLE
+              IF (jj .LT. 0 .OR. jj .GT. ppiclf_n_bins(2)-1) CYCLE
+              IF (kk .LT. 0 .OR. kk .GT. ppiclf_n_bins(3)-1) CYCLE
 
-         ! Calculates processor rank
-         ndum  = ii + ppiclf_n_bins(1)*jj + 
-     >                ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
-         nrank = ndum
 
-         if (ii .lt. 0 .or. ii .gt. ppiclf_n_bins(1)-1) goto 1233
-         if (jj .lt. 0 .or. jj .gt. ppiclf_n_bins(2)-1) goto 1233
-         if (kk .lt. 0 .or. kk .gt. ppiclf_n_bins(3)-1) goto 1233
+              ! Calculates processor rank
+              ndum  = ii + ppiclf_n_bins(1)*jj + 
+     >                     ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
+              nrank = ndum
 
-         ppiclf_neltb = ppiclf_neltb + 1
-         if(ppiclf_neltb .gt. PPICLF_LEE) then
-           call ppiclf_exittr('Increase PPICLF_LEE$',0.0d0,ppiclf_neltb)
-         endif
+                            ppiclf_neltb = ppiclf_neltb + 1
+              IF(ppiclf_neltb .GT. PPICLF_LEE) THEN
+                PRINT*, '***ERROR*** PPICLF_LEE',PPICLF_LEE, 'in', 
+     >           'MapOverlapMesh must be greater than', ppiclf_neltb 
+                CALL ppiclf_exittr('Increase PPICLF_LEE$ (MapOverlap)',0.0D0
+     >               ,ppiclf_neltb)
+              END IF
+              ! Stores element to rank mapping.
+              ppiclf_er_map(1,ppiclf_neltb) = ie
+              ppiclf_er_map(2,ppiclf_neltb) = ppiclf_nid
+              ppiclf_er_map(3,ppiclf_neltb) = ndum
+              ppiclf_er_map(4,ppiclf_neltb) = nrank
+              ppiclf_er_map(5,ppiclf_neltb) = nrank
+              ppiclf_er_map(6,ppiclf_neltb) = nrank
 
-         ppiclf_er_map(1,ppiclf_neltb) = ie
-         ppiclf_er_map(2,ppiclf_neltb) = ppiclf_nid
-         ppiclf_er_map(3,ppiclf_neltb) = ndum
-         ppiclf_er_map(4,ppiclf_neltb) = nrank
-         ppiclf_er_map(5,ppiclf_neltb) = nrank
-         ppiclf_er_map(6,ppiclf_neltb) = nrank
+!              The loop makes this subroutine 10x slower
+!              Replaced with tempCheck below, since cell would 
+!              be duplicated in sequential order. It shouldn't happen,
+!              so implemented as error vs standard fix in loop.
 
-         if (ppiclf_neltb .gt. 1) then
-         do il=1,ppiclf_neltb-1
-            if (ppiclf_er_map(1,il) .eq. ie) then
-            if (ppiclf_er_map(4,il) .eq. nrank) then
-               ppiclf_neltb = ppiclf_neltb - 1
-               goto 1233
-            endif
-            endif
-         enddo
-         endif
- 1233 continue
-      enddo !iz
-      enddo !iy
-      enddo !ix
- 1255 continue ! When a cell is outside the bin boundary
-      enddo !k
-      enddo !i
-      enddo !j
-      enddo !ie
+!              IF (ppiclf_neltb .GT. 1) THEN
+!              DO il=1,ppiclf_neltb-1
+!                 IF (ppiclf_er_map(1,il) .EQ. ie) THEN
+!                 IF (ppiclf_er_map(4,il) .EQ. nrank) THEN
+!                    PRINT*, 'AVERY - NELTB Loop remover still used!'
+!                    ppiclf_neltb = ppiclf_neltb - 1
+!                     CYCLE
+!                 END IF
+!                 END IF
+!              END DO
+!              END IF
 
+            END DO !iz
+          END DO !iy
+        END DO !ix
+      END DO !ie
       nxyz = PPICLF_LEX*PPICLF_LEY*PPICLF_LEZ
-      do ie=1,ppiclf_neltb
+      DO ie=1,ppiclf_neltb !Number of fluid cells in ppiclf bin domain
+       ! These copy all nxyz vertecies since Fortran is column-major
        iee = ppiclf_er_map(1,ie)
-       call ppiclf_copy(ppiclf_xm1b(1,1,1,1,ie)
+       CALL ppiclf_copy(ppiclf_xm1b(1,1,1,1,ie)
      >                 ,ppiclf_xm1bs(1,1,1,1,iee),nxyz)
-       call ppiclf_copy(ppiclf_xm1b(1,1,1,2,ie)
+       CALL ppiclf_copy(ppiclf_xm1b(1,1,1,2,ie)
      >                 ,ppiclf_xm1bs(1,1,1,2,iee),nxyz)
-       call ppiclf_copy(ppiclf_xm1b(1,1,1,3,ie)
+       CALL ppiclf_copy(ppiclf_xm1b(1,1,1,3,ie)
      >                 ,ppiclf_xm1bs(1,1,1,3,iee),nxyz)
-      enddo
+      END DO
 
       ppiclf_neltbb = ppiclf_neltb
-      do ie=1,ppiclf_neltbb
-         call ppiclf_icopy(ppiclf_er_maps(1,ie),ppiclf_er_map(1,ie)
+      DO ie=1,ppiclf_neltbb
+         ! Copies element to rank mapping (integer copy)
+         CALL ppiclf_icopy(ppiclf_er_maps(1,ie),ppiclf_er_map(1,ie)
      >             ,PPICLF_LRMAX)
-      enddo
+      END DO
 
-
+      ! GSLIB required info
+      ! neltb - number of columns to transfer
+      ! PPICLF_LEE - number of columns declared
+      ! nl - partl row size (dummy logical variable)
       nl   = 0
+      ! nii - ppiclf_er_maps row size declared
       nii  = PPICLF_LRMAX
+      ! njj - Row index of ppiclf_er_maps with processor/rank number
       njj  = 6
       nxyz = PPICLF_LEX*PPICLF_LEY*PPICLF_LEZ
+      ! nrr - ppiclf_xm1b row size declared
       nrr  = nxyz*3
+      ! Defines sorting order
       nkey(1) = 2
       nkey(2) = 1
-      call pfgslib_crystal_tuple_transfer(ppiclf_cr_hndl,ppiclf_neltb
-     >       ,PPICLF_LEE,ppiclf_er_map,nii,partl,nl,ppiclf_xm1b,nrr,njj)
-      call pfgslib_crystal_tuple_sort    (ppiclf_cr_hndl,ppiclf_neltb
-     >       ,ppiclf_er_map,nii,partl,nl,ppiclf_xm1b,nrr,nkey,2)
 
+      CALL pfgslib_crystal_tuple_transfer(ppiclf_cr_hndl,ppiclf_neltb
+     >     ,PPICLF_LEE,ppiclf_er_map,nii,partl,nl,ppiclf_xm1b,nrr,njj)
+      CALL pfgslib_crystal_tuple_sort    (ppiclf_cr_hndl,ppiclf_neltb
+     >     ,ppiclf_er_map,nii,partl,nl,ppiclf_xm1b,nrr,nkey,2)
 
-      do ie=1,ppiclf_neltb
-      do k=1,PPICLF_LEZ
-      do j=1,PPICLF_LEY
-      do i=1,PPICLF_LEX
-         rxval = ppiclf_xm1b(i,j,k,1,ie)
-         ryval = ppiclf_xm1b(i,j,k,2,ie)
-         rzval = 0.0d0
-         if(ppiclf_ndim.gt.2) rzval = ppiclf_xm1b(i,j,k,3,ie)
-         
-         ii    = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
-         jj    = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
-         kk    = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) 
-         if (ppiclf_ndim.eq.2) kk = 0
-          if (ii .eq. ppiclf_n_bins(1)) ii = ppiclf_n_bins(1) - 1
-          if (jj .eq. ppiclf_n_bins(2)) jj = ppiclf_n_bins(2) - 1
-          if (kk .eq. ppiclf_n_bins(3)) kk = ppiclf_n_bins(3) - 1
-          if (ii .eq. -1) ii = 0
-          if (jj .eq. -1) jj = 0
-          if (kk .eq. -1) kk = 0
-          ndum  = ii + ppiclf_n_bins(1)*jj + 
-     >                 ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
+!*************
+! This is only needed for multi-element projection.
+! We are currently doing single element projection (hardcoded in rocpicl)
+! 
+!      DO ie=1,ppiclf_neltb
+!      DO k=1,PPICLF_LEZ
+!      DO j=1,PPICLF_LEY
+!      DO i=1,PPICLF_LEX
+!         rxval = ppiclf_xm1b(i,j,k,1,ie)
+!         ryval = ppiclf_xm1b(i,j,k,2,ie)
+!         rzval = 0.0D0
+!         IF(ppiclf_ndim.GT.2) rzval = ppiclf_xm1b(i,j,k,3,ie)
+!         
+!         ii    = FLOOR((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) 
+!         jj    = FLOOR((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) 
+!         kk    = FLOOR((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) 
+!         IF (ppiclf_ndim.EQ.2) kk = 0
+!          IF (ii .EQ. ppiclf_n_bins(1)) ii = ppiclf_n_bins(1) - 1
+!          IF (jj .EQ. ppiclf_n_bins(2)) jj = ppiclf_n_bins(2) - 1
+!          IF (kk .EQ. ppiclf_n_bins(3)) kk = ppiclf_n_bins(3) - 1
+!          IF (ii .EQ. -1) ii = 0
+!          IF (jj .EQ. -1) jj = 0
+!          IF (kk .EQ. -1) kk = 0
+!          ndum  = ii + ppiclf_n_bins(1)*jj + 
+!     >                 ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
+!
+!         ppiclf_modgp(i,j,k,ie,1) = ii
+!         ppiclf_modgp(i,j,k,ie,2) = jj
+!         ppiclf_modgp(i,j,k,ie,3) = kk
+!         ppiclf_modgp(i,j,k,ie,4) = ndum
+!   
+!      END DO
+!      END DO
+!      END DO
+!      END DO
+!**************
 
-         ppiclf_modgp(i,j,k,ie,1) = ii
-         ppiclf_modgp(i,j,k,ie,2) = jj
-         ppiclf_modgp(i,j,k,ie,3) = kk
-         ppiclf_modgp(i,j,k,ie,4) = ndum
-   
-      enddo
-      enddo
-      enddo
-      enddo
-
-      do ie=1,ppiclf_neltb
+      DO ie=1,ppiclf_neltb
+         ! Finds minimum and maximum vertex in x,y,z of cell
          ppiclf_xerange(1,1,ie) = 
      >      ppiclf_vlmin(ppiclf_xm1b(1,1,1,1,ie),nxyz)
          ppiclf_xerange(2,1,ie) = 
@@ -5514,30 +5994,34 @@ c     current box coordinates
      >      ppiclf_vlmin(ppiclf_xm1b(1,1,1,3,ie),nxyz)
          ppiclf_xerange(2,3,ie) = 
      >      ppiclf_vlmax(ppiclf_xm1b(1,1,1,3,ie),nxyz)
-
+         
+         ! Finds the ppiclf bin that the max/min cell vertex resides in
          ilow  = 
-     >     floor((ppiclf_xerange(1,1,ie) - ppiclf_binb(1))/
+     >     FLOOR((ppiclf_xerange(1,1,ie) - ppiclf_binb(1))/
      >                                             ppiclf_bins_dx(1))
          ihigh = 
-     >     floor((ppiclf_xerange(2,1,ie) - ppiclf_binb(1))/
+     >     FLOOR((ppiclf_xerange(2,1,ie) - ppiclf_binb(1))/
      >                                             ppiclf_bins_dx(1))
          jlow  = 
-     >     floor((ppiclf_xerange(1,2,ie) - ppiclf_binb(3))/
+     >     FLOOR((ppiclf_xerange(1,2,ie) - ppiclf_binb(3))/
      >                                             ppiclf_bins_dx(2))
          jhigh = 
-     >     floor((ppiclf_xerange(2,2,ie) - ppiclf_binb(3))/
+     >     FLOOR((ppiclf_xerange(2,2,ie) - ppiclf_binb(3))/
      >                                             ppiclf_bins_dx(2))
          klow  = 
-     >     floor((ppiclf_xerange(1,3,ie) - ppiclf_binb(5))/
+     >     FLOOR((ppiclf_xerange(1,3,ie) - ppiclf_binb(5))/
      >                                             ppiclf_bins_dx(3))
          khigh = 
-     >     floor((ppiclf_xerange(2,3,ie) - ppiclf_binb(5))/
+     >     FLOOR((ppiclf_xerange(2,3,ie) - ppiclf_binb(5))/
      >                                             ppiclf_bins_dx(3))
-         if (ppiclf_ndim.lt.3) then
+         IF (ppiclf_ndim.LT.3) THEN
             klow = 0
             khigh = 0
-         endif
+         END IF
 
+         ! Maps the cell to bin rank range (1,2) and min/max bins in
+         ! x,y,z (3-8).  If ppiclf_el_map(1:8,ie) are the same, then 
+         ! fluid cell is only in 1 bin.
          ppiclf_el_map(1,ie) = ilow  + ppiclf_n_bins(1)*jlow  
      >                         + ppiclf_n_bins(1)*ppiclf_n_bins(2)*klow
          ppiclf_el_map(2,ie) = ihigh + ppiclf_n_bins(1)*jhigh 
@@ -5548,30 +6032,22 @@ c     current box coordinates
          ppiclf_el_map(6,ie) = jhigh
          ppiclf_el_map(7,ie) = klow
          ppiclf_el_map(8,ie) = khigh
-      enddo
+      END DO
 
-      if (icalld .eq. 0) then 
-
+      IF (icalld .EQ. 0) THEN 
          icalld = icalld + 1
-
-         call ppiclf_prints('   *Begin mpi_comm_split$')
-            call mpi_comm_split(ppiclf_comm
+         CALL ppiclf_prints('   *Begin mpi_comm_split$')
+            CALL mpi_comm_split(ppiclf_comm
      >                         ,ppiclf_nid
      >                         ,0
      >                         ,ppiclf_comm_nid
      >                         ,ierr)
-         call ppiclf_prints('    End mpi_comm_split$')
+         CALL ppiclf_prints('    End mpi_comm_split$')
+         CALL ppiclf_io_OutputDiagGrid
+      END IF
 
-         ! TLJ commented out recursive loop
-         !call ppiclf_prints('   *Begin InitSolve$')
-         !   call ppiclf_solve_InitSolve
-         !call ppiclf_prints('    End InitSolve$')
-
-         call ppiclf_io_OutputDiagGrid
-      endif
-
-      return
-      end
+      RETURN
+      END 
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_comm_InitOverlapMesh(ncell,lx1,ly1,lz1,
@@ -5609,8 +6085,11 @@ c     current box coordinates
      >call ppiclf_exittr('InitParticle must be before InitOverlap$'
      >                  ,0.0d0,0)
 
-      if (ncell .gt. PPICLF_LEE .or. ncell .lt. 0) 
-     >   call ppiclf_exittr('Increase LEE in InitOverlap$',0.0d0,ncell)
+      if (ncell .gt. PPICLF_LEE .or. ncell .lt. 0) then
+        PRINT*, '***ERROR*** PPICLF_LEE', PPICLF_LEE, 'in', 
+     > 'InitMapOverlapMesh must be greater than', ncell 
+        call ppiclf_exittr('Increase LEE in InitOverlap$',0.0d0,ncell)
+      endif
       if (lx1 .ne. PPICLF_LEX) 
      >   call ppiclf_exittr('LX1 != LEX in InitOverlap$',0.0d0,ncell)
       if (ly1 .ne. PPICLF_LEY)
@@ -7736,9 +8215,7 @@ C--------------------------------------------------------------------------
 
       ppiclf_npart = npart
 
-      ! TLJ - for restarts we need dp_max
-      ! For the moment we assume monodispersed packs
-      dp_max = ppiclf_rprop(PPICLF_R_JDP,1)
+      dp_max = MAXVAL(ppiclf_rprop(PPICLF_R_JDP,:))
       call ppiclf_printsi('  End ReadParticleVTU$',npt_total)
 
       return
@@ -9459,105 +9936,119 @@ c1511 continue
       return
       end
 !-----------------------------------------------------------------------
-      subroutine ppiclf_solve_Initialize(xi1,xpmin,xpmax,
+      SUBROUTINE ppiclf_solve_Initialize(xi1,xpmin,xpmax,
      >        yi1,ypmin,ypmax,zi1,zpmin,zpmax,
      >        ai1,apa,apxa,aprin,aprout)
 !
-      implicit none
+      IMPLICIT NONE
 !
-      include "PPICLF"
+      INCLUDE "PPICLF"
 !
-      integer*4 xi1, yi1, zi1, ai1
-      real*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
+! Input:
+!
+      INTEGER*4 xi1, yi1, zi1, ai1
+      REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
      >       apa,apxa,aprin,aprout
-      real*8 pi, angled
+      REAL*8 pi, angled
+
+!
+! Code:
+!
+      ! Called by rocpicl/PICL_TEMP_InitSolver.F90
+      ! xdrange adjusts the bin boundaries.  If periodic
+      ! in a direction, then ppiclf bin bounds are set to 
+      ! fluid domain boundary in that dimension.
+      ! User must input minimums and maximums to match fluid
+      ! domain boundaries.
+!*** future work - can we automate finding fluid domain boundaries?
 
       ! Linear X-Periodicity
       x_per_flag = xi1
-      if(x_per_flag.eq.1) then
-        if (xpmin .ge. xpmax) call ppiclf_exittr('PeriodicX 
+      IF(x_per_flag.EQ.1) THEN
+        IF(xpmin .ge. xpmax) CALL ppiclf_exittr('PeriodicX 
      >      must have xmin < xmax$',xpmin,0)
         ppiclf_iperiodic(1) = 0
         x_per_min = xpmin
         x_per_max = xpmax
         ppiclf_xdrange(1,1) = xpmin
         ppiclf_xdrange(2,1) = xpmax
-      endif
+      END IF
 
       ! Linear Y-Periodicity
       y_per_flag = yi1
-      if(y_per_flag.eq.1) then
-        if (ypmin .ge. ypmax) call ppiclf_exittr('PeriodicY 
+      IF(y_per_flag.EQ.1) THEN
+        IF(ypmin .ge. ypmax) CALL ppiclf_exittr('PeriodicY 
      >     must have ymin < ymax$',ypmin,0)
         ppiclf_iperiodic(2) = 0
         y_per_min = ypmin
         y_per_max = ypmax
         ppiclf_xdrange(1,2) = ypmin
         ppiclf_xdrange(2,2) = ypmax
-      endif
+      END IF
 
       ! Linear Z-Periodicity
       z_per_flag = zi1
-      if(z_per_flag.eq.1) then
-        if (zpmin .ge. zpmax) call ppiclf_exittr('PeriodicZ 
+      IF(z_per_flag.EQ.1) THEN
+        IF(zpmin .ge. zpmax) CALL ppiclf_exittr('PeriodicZ 
      >     must have zmin < zmax$',zpmin,0)
         ppiclf_iperiodic(3) = 0
         z_per_min = zpmin
         z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
-      endif
+      END IF
 
 
       ! Angular Periodicity
       ang_per_flag = ai1
-      if(ang_per_flag.eq.1) then
+      IF(ang_per_flag.EQ.1) THEN
         ppiclf_iperiodic(1) = 0 ! X-Periodicity
         ppiclf_iperiodic(2) = 0 ! Y-Periodicity
         ang_per_angle  = apa
         ang_per_xangle = apxa
         ang_per_rin    = aprin
         ang_per_rout   = aprout
-      endif
+      END IF
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      if((x_per_flag.eq.1).or.(y_per_flag.eq.1).and.(ang_per_flag.eq.1))
+      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
+     >                     .and.(ang_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       ! Thierry - compute ang_case
 
-      pi = acos(-1.0)
+      pi = ACOS(-1.0)
       angled = ang_per_angle * 180.0d0 / pi ! store angle value in degrees
 
-      if (ang_per_flag==0) then
+      IF(ang_per_flag.EQ.0) THEN
          ang_case = 0 ! standard geometry
-      else
-         if (angled .lt. 90.0)        ang_case = 1 ! general wedge
-         if (nint(angled) .eq. 90.0)  ang_case = 2 ! quarter cylinder
-         if (nint(angled) .eq. 180.0) ang_case = 3 ! half cylinder
-      endif
+      ELSE
+         IF(angled .lt. 90.0)        ang_case = 1 ! general wedge
+         IF(NINT(angled) .EQ. 90.0)  ang_case = 2 ! quarter cylinder
+         IF(NINT(angled) .EQ. 180.0) ang_case = 3 ! half cylinder
+      END IF
 
-      if (ppiclf_nid==0) then
-         print*, " "
-         print*, " ======================================="
-         print*, " "
-         print*, "!!! PPICLF Angular Periodicity Initialized !!!!"
-         print*, "  Angular periodicity flag =", ang_per_flag
-         if (ang_per_flag==0) then
-            print*, "  Init Angular- ang_case =", ang_case
-         else
-            print*, "  Init Angular- angle =", ang_per_angle
-            print*, "  Init Angular- angled =", angled
-            print*, "  Init Angular- nint(angled) =", nint(angled)
-            print*, "  Init Angular- ang_case =", ang_case
-         endif
-         print*, " "
-         print*, " ======================================="
-         print*, " "
-      endif
+      IF(ppiclf_nid.EQ.0 .AND. ang_case.NE.0) THEN
+         PRINT*, " "
+         PRINT*, " ======================================="
+         PRINT*, " "
+         PRINT*, "!!! PPICLF Angular Periodicity Initialized !!!!"
+         PRINT*, "  Angular periodicity flag =", ang_per_flag
+         !IF(ang_per_flag.EQ.0) THEN
+         !   PRINT*, "  Init Angular- ang_case =", ang_case
+         !ELSE
+         PRINT*, "  Init Angular- angle =", ang_per_angle
+         PRINT*, "  Init Angular- angled =", angled
+         PRINT*, "  Init Angular- nint(angled) =", NINT(angled)
+         PRINT*, "  Init Angular- ang_case =", ang_case
+         !END IF
+         PRINT*, " "
+         PRINT*, " ======================================="
+         PRINT*, " "
+      END IF
 
-      return
-      end
+      RETURN
+      END
 !
 !-----------------------------------------------------------------------
 #ifdef PPICLC
@@ -9587,7 +10078,7 @@ c1511 continue
 
       if (ppiclf_npart+npart .gt. PPICLF_LPART .or. npart .lt. 0)
      >   call ppiclf_exittr('Invalid number of particles$',
-     >                      0.0,ppiclf_npart+npart)
+     >                      0.0D0,ppiclf_npart+npart)
 
       call ppiclf_printsi('      -Begin copy particles$',npart)
 
@@ -9606,7 +10097,7 @@ c1511 continue
          call ppiclf_prints('      -Begin ParticleTag$')
             call ppiclf_solve_SetParticleTag(npart)
          call ppiclf_prints('       End ParticleTag$')
-      endif
+      ENDif
 
       if (ppiclf_iglsum(ppiclf_npart,1).gt.0) then
          call ppiclf_prints('      -Begin CreateBin$')
@@ -9621,11 +10112,11 @@ c1511 continue
             call ppiclf_comm_MoveParticle
          call ppiclf_prints('       End MoveParticle$')
 
-      endif
+      ENDif
 
       call ppiclf_prints('    End AddParticles$')
 
-      end
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitParticle(imethod,ndim,iendian,npart,y,
@@ -9677,7 +10168,7 @@ c1511 continue
                print*,'TLJ checking d2chk(2) = ',ppiclf_d2chk(2)
                print*,'TLJ checking d2chk(3) = ',ppiclf_d2chk(3)
                print*,'TLJ checking d2chk(1) = ',ppiclf_d2chk(1)
-            endif
+            ENDif
 
          call ppiclf_prints('    End InitParam$')
 
@@ -9698,7 +10189,7 @@ c1511 continue
             !call ppiclf_prints('   *Begin WriteBinVTU$')
             !   call ppiclf_io_WriteBinVTU('')
             !call ppiclf_prints('    End WriteBinVTU$')
-         endif
+         ENDif
 
       call ppiclf_prints(' End InitParticle$')
 !
@@ -9710,8 +10201,8 @@ c1511 continue
 
       PPICLF_LINIT = .true.
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitParam(imethod,ndim,iendian)
 !
@@ -9774,21 +10265,13 @@ c1511 continue
       ppiclf_n_bins(2) = 1
       ppiclf_n_bins(3) = 1
 
-      ppiclf_bins_set(1) = 0
-      ppiclf_bins_set(2) = 0
-      ppiclf_bins_set(3) = 0
-
-      ppiclf_bins_balance(1) = 0
-      ppiclf_bins_balance(2) = 0
-      ppiclf_bins_balance(3) = 0
-
       ppiclf_nwall    = 0
       ppiclf_iwallm   = 0
 
       PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitNeighborBin(rwidth)
@@ -9819,54 +10302,10 @@ c1511 continue
       ! TLJ added 12/21/2024
       if (ppiclf_nid==0) then
          print*,'TLJ checking d2chk(3) = ',ppiclf_d2chk(3)
-      endif
+      ENDif
 
-      return
-      end
-!-----------------------------------------------------------------------
-#ifdef PPICLC
-      subroutine ppiclf_solve_InitTargetBins(str,n,balance)
-     > bind(C, name="ppiclc_solve_InitTargetBins")
-#else
-      subroutine ppiclf_solve_InitTargetBins(str,n,balance)
-#endif
-!
-      implicit none
-!
-      include "PPICLF"
-!
-! Input:
-!
-      character*1 str
-      integer*4 n
-      integer*4 balance
-!
-      if (.not.PPICLF_LCOMM)
-     >call ppiclf_exittr('InitMPI must be before InitTargetBins$'
-     >                   ,0.0d0,0)
-      if (.not.PPICLF_LINIT)
-     >call ppiclf_exittr('InitParticle must be before InitTargetBins$'
-     >                  ,0.0d0,0)
-
-      if (str == 'x' .or. str == 'X') then 
-         ppiclf_n_bins(1) = n
-         if (n .gt. 1) ppiclf_bins_set(1) = 1
-         ppiclf_bins_balance(1) = balance
-      elseif (str == 'y' .or. str == 'Y') then 
-         ppiclf_n_bins(2) = n
-         if (n .gt. 1) ppiclf_bins_set(2) = 1
-         ppiclf_bins_balance(2) = balance
-      elseif (str == 'z' .or. str == 'Z') then 
-        if (ppiclf_ndim .lt. 3)
-     >   call ppiclf_exittr('Dim must be 3 to use InitTargetBins on z$'
-     >                   ,0.,ppiclf_ndim)
-         ppiclf_n_bins(3) = n
-         if (n .gt. 1) ppiclf_bins_set(3) = 1
-         ppiclf_bins_balance(3) = balance
-      endif
-
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_SetNeighborBin
 !
@@ -9887,7 +10326,7 @@ c1511 continue
          if (ppiclf_ndim .eq. 3)
      >   ppiclf_nb_r(3,i) = floor((ppiclf_cp_map(3,i)-ppiclf_binb(5))/
      >                             ppiclf_d2chk(3))
-      enddo
+      ENDdo
 
       do i=1,ppiclf_npart_gp
          ppiclf_nb_g(1,i) = floor((ppiclf_rprop_gp(1,i)-ppiclf_binb(1))/
@@ -9898,10 +10337,10 @@ c1511 continue
          if (ppiclf_ndim .eq. 3)
      >   ppiclf_nb_g(3,i) = floor((ppiclf_rprop_gp(3,i)-ppiclf_binb(5))/
      >                             ppiclf_d2chk(3))
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitZero
 !
@@ -9921,20 +10360,26 @@ c1511 continue
          ppiclf_ydot (j,i) = 0.0d0
          ppiclf_ydotc(j,i) = 0.0d0
          ppiclf_y1   (ic ) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP
          ppiclf_rprop(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP2
          ppiclf_rprop2(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LRP3
          ppiclf_rprop3(j,i) = 0.0d0
-      enddo
+      ENDdo
       do j=1,PPICLF_LIP
          ppiclf_iprop(j,i) = 0
       enddo
       enddo
+      do i=1,PPICLF_LPART_GP
+      do j=1,PPICLF_LRP_GP
+         ppiclf_rprop_gp(j,i) = 0.0d0
+      enddo
+      enddo
+
       ppiclf_npart = 0
 
       do ie=1,PPICLF_LEE
@@ -9943,16 +10388,16 @@ c1511 continue
       do j=1,PPICLF_LEY
       do i=1,PPICLF_LEX
         ppiclf_int_fld(i,j,k,ic,ie) = 0.0d0
-      enddo
-      enddo
-      enddo
-      enddo
-      enddo
+      ENDdo
+      ENDdo
+      ENDdo
+      ENDdo
+      ENDdo
 
       !!call ppiclf_user_InitZero
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_NearestNeighbor(i)
 !
@@ -9996,7 +10441,7 @@ c1511 continue
          if (j_jj .gt. i_jjp .or. j_jj .lt. i_jjm) cycle
          if (ppiclf_ndim .eq. 3) then
          if (j_kk .gt. i_kkp .or. j_kk .lt. i_kkm) cycle
-         endif
+         ENDif
 
          xdist2 = (ppiclf_cp_map(1,i)-ppiclf_cp_map(1,j))**2
          if (xdist2 .gt. dist2) cycle
@@ -10007,7 +10452,7 @@ c1511 continue
          zdist2 = (ppiclf_cp_map(3,i)-ppiclf_cp_map(3,j))**2
          if (zdist2 .gt. dist2) cycle
          dist_total = dist_total+zdist2
-         endif
+         ENDif
          if (dist_total .gt. dist2) cycle
 
          call ppiclf_user_EvalNearestNeighbor(i,j,ppiclf_cp_map(1,i)
@@ -10015,7 +10460,7 @@ c1511 continue
      >                                 ,ppiclf_cp_map(1,j)
      >                                 ,ppiclf_cp_map(1+PPICLF_LRS,j))
 
-      enddo
+      ENDdo
 
       do j=1,ppiclf_npart_gp
          j_ii = ppiclf_nb_g(1,j)
@@ -10026,7 +10471,7 @@ c1511 continue
          if (j_jj .gt. i_jjp .or. j_jj .lt. i_jjm) cycle
          if (ppiclf_ndim .eq. 3) then
          if (j_kk .gt. i_kkp .or. j_kk .lt. i_kkm) cycle
-         endif
+         ENDif
 
          xdist2 = (ppiclf_cp_map(1,i)-ppiclf_rprop_gp(1,j))**2
          if (xdist2 .gt. dist2) cycle
@@ -10037,7 +10482,7 @@ c1511 continue
          zdist2 = (ppiclf_cp_map(3,i)-ppiclf_rprop_gp(3,j))**2
          if (zdist2 .gt. dist2) cycle
          dist_total = dist_total+zdist2
-         endif
+         ENDif
          if (dist_total .gt. dist2) cycle
 
          jp = -1*j
@@ -10046,7 +10491,7 @@ c1511 continue
      >                                 ,ppiclf_rprop_gp(1,j)
      >                                 ,ppiclf_rprop_gp(1+PPICLF_LRS,j))
 
-      enddo
+      ENDdo
 
       istride = ppiclf_ndim
       do j=1,ppiclf_nwall
@@ -10070,14 +10515,14 @@ c1511 continue
             rpz1 = ppiclf_cp_map(3,i)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
 
          a_sum = 0.0d0
@@ -10099,7 +10544,7 @@ c1511 continue
             if (ppiclf_ndim .eq. 3) then
                rpz1 = ppiclf_wall_c(kk+3,j)
                rpz2 = ppiclf_wall_c(kkp+3,j)
-            endif
+            ENDif
 
             rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -10150,9 +10595,9 @@ c1511 continue
             elseif (ppiclf_ndim .eq. 2) then
                AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
                tri_area = AB_MAG
-            endif
+            ENDif
             a_sum = a_sum + tri_area
-         enddo
+         ENDdo
 
          rthresh = 1.10d0 ! keep it from slipping through crack on edges
          if (a_sum .gt. rthresh*area) cycle
@@ -10164,10 +10609,10 @@ c1511 continue
      >                                 ,rpropdum)
 
  1511 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       SUBROUTINE ppiclf_solve_NearestNeighborSB(i,SBt,SBc,SBm,SBn,iB)
 !
@@ -10292,14 +10737,14 @@ c1511 continue
             rpz1 = ppiclf_cp_map(3,i)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
 
          a_sum = 0.0d0
@@ -10321,7 +10766,7 @@ c1511 continue
             if (ppiclf_ndim .eq. 3) then
                rpz1 = ppiclf_wall_c(kk+3,j)
                rpz2 = ppiclf_wall_c(kkp+3,j)
-            endif
+            ENDif
 
             rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -10372,9 +10817,9 @@ c1511 continue
             elseif (ppiclf_ndim .eq. 2) then
                AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
                tri_area = AB_MAG
-            endif
+            ENDif
             a_sum = a_sum + tri_area
-         enddo
+         ENDdo
 
          rthresh = 1.10d0 ! keep it from slipping through crack on edges
          if (a_sum .gt. rthresh*area) cycle
@@ -10386,10 +10831,10 @@ c1511 continue
      >                                 ,rpropdum)
 
  1519 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
        subroutine ppiclf_solve_InitWall(xp1,xp2,xp3)
 !
@@ -10452,9 +10897,9 @@ c1511 continue
          A(1) = (xp1(1) + xp2(1))/2.0d0
          A(2) = (xp1(2) + xp2(2))/2.0d0
          A(3) = 0.0d0
-      endif
+      ENDif
 
-      ! compoute area:
+      ! compute area:
       do k=1,kmax 
          kp = k+1
          if (kp .gt. kmax) kp = kp-kmax ! cycle
@@ -10500,9 +10945,9 @@ c1511 continue
          elseif (ppiclf_ndim .eq. 2) then
              AB_MAG = sqrt(AB(1)**2 + AB(2)**2)
              tri_area = AB_MAG
-         endif
+         ENDif
          a_sum = a_sum + tri_area
-      enddo
+      ENDdo
       
       ppiclf_wall_n(ppiclf_ndim+1,ppiclf_nwall) = a_sum
 
@@ -10562,10 +11007,10 @@ c1511 continue
          ppiclf_wall_n(3,ppiclf_nwall) = ppiclf_wall_n(3,ppiclf_nwall)
      >                                  /rmag
 
-      endif
+      ENDif
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicX(xl,xr)
@@ -10593,8 +11038,8 @@ c1511 continue
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicY(yl,yr)
@@ -10622,8 +11067,8 @@ c1511 continue
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitPeriodicZ(zl,zr)
@@ -10653,8 +11098,8 @@ c1511 continue
 
       call ppiclf_solve_InitSolve
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitAngularPeriodic(flag,
      >              rin, rout, angle, xangle)
@@ -10716,8 +11161,8 @@ c1511 continue
 
       call ppiclf_solve_InitSolve
       
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitAngularPlane(i,rin, rout,
      >                                         angle, xangle,
@@ -10800,8 +11245,8 @@ c1511 continue
       dist2 = abs(E*xp + F*yp + G*zp + H)
       dist2 = dist2/sqrt(E**2 + F**2 + G**2)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InvokeLinearPeriodic(i)
 !
@@ -10827,7 +11272,7 @@ c1511 continue
           ppiclf_y(jchk,i) = ppiclf_xdrange(2,j+1) - 
      >                  abs(ppiclf_xdrange(1,j+1) - ppiclf_y(jchk,i))
           goto 1512
-        endif
+        ENDif
 
         ! particle leaving max. periodic face -> move it relative to 
         !                                         min periodic face
@@ -10835,15 +11280,15 @@ c1511 continue
           ppiclf_y(jchk,i) = ppiclf_xdrange(1,j+1) + 
      >                  abs(ppiclf_y(jchk,i) - ppiclf_xdrange(2,j+1))
           goto 1512
-        endif
+        ENDif
         
         ! Thierry - I'm not sure what this does but this is how it was implemented
         if (ppiclf_iprop(1,i) .eq. 2) then
              in_part(i) = -1 ! only if periodic check fails it will get here
-        endif
+        ENDif
  1512 continue
-        end do ! j=0, ndim-1
-      endif ! Case 1 
+        END do ! j=0, ndim-1
+      ENDif ! Case 1 
 
 ! Case 2 - Linear Periodicity in Z-direction only; WITH Anuglar Periodicity
       if((z_per_flag.eq.1).and.(ang_per_flag.eq.1)) then
@@ -10853,7 +11298,7 @@ c1511 continue
      >  (ppiclf_y(1,i).gt.ppiclf_xdrange(2,1))) then
           call ppiclf_solve_MarkForRemoval(i)
           goto 1515
-        endif
+        ENDif
 
         ! particle leaving min. z-periodic face -> move it relative to 
         !                                         max z-periodic face
@@ -10861,7 +11306,7 @@ c1511 continue
           ppiclf_y(3,i) = ppiclf_xdrange(2,3) - 
      >                  abs(ppiclf_xdrange(1,3) - ppiclf_y(3,i))
           goto 1515
-        endif
+        ENDif
 
         ! particle leaving max. z-periodic face -> move it relative to 
         !                                         min z-periodic face
@@ -10869,16 +11314,16 @@ c1511 continue
           ppiclf_y(3,i) = ppiclf_xdrange(1,3) + 
      >                  abs(ppiclf_y(3,i) - ppiclf_xdrange(2,3))
           goto 1515
-        endif
+        ENDif
         
         if (ppiclf_iprop(1,i) .eq. 2) then
              in_part(i) = -1 ! only if periodic check fails it will get here
-        endif
+        ENDif
  1515 continue
-      endif ! Case 2
+      ENDif ! Case 2
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
        subroutine ppiclf_solve_InvokeAngularPeriodic(i,flag,
      >                                              per_alpha,
@@ -10923,7 +11368,7 @@ c1511 continue
         !                    - adjust rotation matrix angle accordingly
         if(ang_case .eq. 3) then
           if(per_alpha .lt. xangle) local_angle = 0.0 
-        end if
+        END if
 
         ! convert from degrees to radians
         ct = cos(local_angle)
@@ -10998,10 +11443,10 @@ c1511 continue
             ppiclf_y(PPICLF_JVY,i) = vrot(2)
             ppiclf_y(PPICLF_JVZ,i) = vrot(3)
             
-          end if 
+          END if 
        
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitGaussianFilter(filt,alpha,iwallm)
@@ -11049,7 +11494,7 @@ c1511 continue
       if (ppiclf_nid==0) then
          print*,'TLJ recompute d2chk(2) based on Gausian filter = ',
      >     ppiclf_d2chk(2)
-      endif
+      ENDif
 
       PPICLF_LSUBBIN = .true.
       if (ppiclf_ngrids .eq. 0) PPICLF_LSUBBIN = .false.
@@ -11059,8 +11504,8 @@ c1511 continue
 
       ppiclf_ngrids = 0 ! for now leave sub bin off
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
@@ -11100,7 +11545,7 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
       ! TLJ added 12/21/2024
       if (ppiclf_nid==0) then
          print*,'TLJ checking d2chk(2) = ',ppiclf_d2chk(2)
-      endif
+      ENDif
 
       PPICLF_LSUBBIN = .true.
       if (ppiclf_ngrids .eq. 0) PPICLF_LSUBBIN = .false.
@@ -11117,8 +11562,8 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
 
       ppiclf_ngrids = 0 ! for now leave sub bin off
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_SetParticleTag(npart)
 !
@@ -11138,10 +11583,10 @@ c     filt = sqrt(1.5d0*filt**2/log(2.0d0) + 1.0d0)
          ppiclf_iprop(5,i) = ppiclf_nid 
          ppiclf_iprop(6,i) = ppiclf_cycle
          ppiclf_iprop(7,i) = i
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_WriteVTU(time)
@@ -11166,7 +11611,7 @@ c----------------------------------------------------------------------
       !if (ppiclf_cycle .ne. 0) then
             call ppiclf_io_WriteParticleVTU('')
             call ppiclf_io_WriteBinVTU('')
-      !endif
+      !ENDif
 
       if (ppiclf_lsubbin)
      >      call ppiclf_io_WriteSubBinVTU('')
@@ -11174,8 +11619,8 @@ c----------------------------------------------------------------------
       ! Output diagnostics
       call ppiclf_io_OutputDiagAll
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
 #ifdef PPICLC
       subroutine ppiclf_solve_IntegrateParticle(istep,iostep,dt,time)
@@ -11232,8 +11677,8 @@ c----------------------------------------------------------------------
 !      endif
 !      endif
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3(iout)
 !
@@ -11253,7 +11698,7 @@ c----------------------------------------------------------------------
       ndum = PPICLF_NPART*PPICLF_LRS
       do i=1,ndum
          ppiclf_y1(i) = ppiclf_y(i,1)
-      enddo
+      ENDdo
 
       ! get rk3 coeffs
       call ppiclf_solve_SetRK3Coeff(ppiclf_dt)
@@ -11270,13 +11715,13 @@ c----------------------------------------------------------------------
             ppiclf_y(i,1) =  ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
      >                     + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,1)
      >                     + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,1)
-         enddo
-      enddo
+         ENDdo
+      ENDdo
 
       iout = .true.
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3s(iout)
 !
@@ -11312,8 +11757,8 @@ c----------------------------------------------------------------------
       ndum = PPICLF_NPART*PPICLF_LRS
       do i=1,ndum
          ppiclf_y1(i) = ppiclf_y(i,1)
-      enddo
-      endif
+      ENDdo
+      ENDif
 
       ! evaluate ydot
       call ppiclf_solve_SetYdot
@@ -11324,10 +11769,10 @@ c----------------------------------------------------------------------
          ppiclf_y(i,1) =  ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
      >                  + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,1)
      >                  + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,1)
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_IntegrateRK3s_Rocflu(iout)
 !
@@ -11370,7 +11815,7 @@ c----------------------------------------------------------------------
         !do i=1,ndum
         !  ppiclf_y1(i) = 0.0d0 
         !enddo
-      endif
+      ENDif
 
       ! TLJ comment Dec 7, 2023
       ! The Rocflu RK3 can be found in equation (7) of:
@@ -11390,8 +11835,8 @@ c----------------------------------------------------------------------
          ppiclf_y(i,j) =  -ppiclf_rk3coef(1,istage)*ppiclf_y1   (ndum)
      >                   + ppiclf_rk3coef(2,istage)*ppiclf_y    (i,j)
      >                   + ppiclf_rk3coef(3,istage)*ppiclf_ydot (i,j)
-      enddo
-      enddo
+      ENDdo
+      ENDdo
       !ndum = PPICLF_NPART*PPICLF_LRS
       !do i=1,ndum
       !   ppiclf_y(i,1) =  -ppiclf_rk3coef(1,istage)*ppiclf_y1   (i)
@@ -11407,20 +11852,20 @@ c----------------------------------------------------------------------
       do i=1,PPICLF_LRS
          ndum = ndum + 1
          ppiclf_y1(ndum) =  ppiclf_ydot(i,j)
-      enddo
-      enddo
+      ENDdo
+      ENDdo
       !ndum = PPICLF_NPART*PPICLF_LRS
       !do i=1,ndum
       !   ppiclf_y1(i) = ppiclf_ydot(i,1)
       !enddo
 
-!WAARNING: Experimental fix to keep particles unsure where to place this
+!WARNING: Experimental fix to keep particles unsure where to place this
 !          command. Either before or after the storing of the current 
 !          storage
         call ppiclf_solve_RemoveParticle      
 !End Experimental fix
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_SetYdot
 !
@@ -11432,8 +11877,8 @@ c----------------------------------------------------------------------
       call ppiclf_user_SetYdot
       call ppiclf_solve_RemoveParticle
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_InitSolve
 !
@@ -11448,7 +11893,7 @@ c----------------------------------------------------------------------
       call ppiclf_comm_CreateBin
       call ppiclf_comm_FindParticle
       call ppiclf_comm_MoveParticle
-      if (ppiclf_overlap) 
+      if (ppiclf_overlap)
      >   call ppiclf_comm_MapOverlapMesh
       if ((ppiclf_lintp .and. ppiclf_int_icnt .ne. 0) .or.
      >    (ppiclf_lproj .and. ppiclf_sngl_elem))
@@ -11460,9 +11905,9 @@ c----------------------------------------------------------------------
            call ppiclf_comm_CreateGhost
          elseif(ang_per_flag.eq.1) then
            call ppiclf_comm_AngularCreateGhost
-         endif
+         ENDif
          call ppiclf_comm_MoveGhost
-      endif
+      ENDif
 
       if (ppiclf_lproj .and. ppiclf_overlap) 
      >   call ppiclf_solve_ProjectParticleGrid
@@ -11472,11 +11917,11 @@ c----------------------------------------------------------------------
       do i=1,PPICLF_LPART
       do j=1,PPICLF_LRS
          ppiclf_ydotc(j,i) = 0.0d0
-      enddo
-      enddo
+      ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpParticleGrid
 !
@@ -11491,7 +11936,7 @@ c----------------------------------------------------------------------
       call ppiclf_solve_InitInterp
       do j=1,PPICLF_INT_ICNT
          call ppiclf_solve_InterpField(j)
-      enddo
+      ENDdo
       call ppiclf_solve_FinalizeInterp
 
       call ppiclf_solve_LocalInterp
@@ -11501,8 +11946,8 @@ c----------------------------------------------------------------------
       PPICLF_INT_ICNT = 0
 
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpFieldUser(jp,infld)
 !
@@ -11541,8 +11986,8 @@ c----------------------------------------------------------------------
       call ppiclf_copy(ppiclf_int_fldu(1,1,1,1,PPICLF_INT_ICNT)
      >                ,infld(1),n)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InitInterp
 !
@@ -11570,7 +12015,7 @@ c----------------------------------------------------------------------
      >                   ,ppiclf_xm1b(1,1,1,2,ie),n)
          call ppiclf_copy(ppiclf_xm1bi(1,1,1,ie,3)
      >                   ,ppiclf_xm1b(1,1,1,3,ie),n)
-      enddo
+      ENDdo
 
       tol     = 5e-13
       bb_t    = 0.01
@@ -11606,10 +12051,10 @@ c     ndum    = ppiclf_neltb*n
       do ie=1,ppiclf_neltbbb
          call ppiclf_icopy(ppiclf_er_mapc(1,ie),ppiclf_er_maps(1,ie)
      >             ,PPICLF_LRMAX)
-      enddo
-
-      return
-      end
+      ENDdo
+      !PRINT*, 'Processor ID, ppiclf_neltbbb', ppiclf_nid, ppiclf_neltbbb
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_InterpField(j)
 !
@@ -11632,10 +12077,10 @@ c     ndum    = ppiclf_neltb*n
          iee = ppiclf_er_mapc(1,ie)
          call ppiclf_copy(ppiclf_int_fld (1,1,1,j  ,ie)
      >                   ,ppiclf_int_fldu(1,1,1,iee,j ),n)
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_FinalizeInterp
 !
@@ -11686,7 +12131,7 @@ c     ndum    = ppiclf_neltb*n
          do ie=1,ppiclf_neltbbb
             call ppiclf_copy(fld(1,1,1,ie)
      >                      ,ppiclf_int_fld(1,1,1,i,ie),nxyz)
-         enddo
+         ENDdo
 
          ! sam commenting out eval nearest neighbor to use Local Interp instead
          ! leaving findpts call to help with projection, where the element id is
@@ -11702,7 +12147,7 @@ c     ndum    = ppiclf_neltb*n
 !     >                                  ,PPICLF_NPART
 !     >                                  ,fld)
 
-      enddo
+      ENDdo
 
       ! free since mapping can change on next call
       call pfgslib_findpts_free(PPICLF_FP_HNDL)
@@ -11711,12 +12156,12 @@ c     ndum    = ppiclf_neltb*n
       ! Sam - commenting out for local routine
       !PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !
 !-----------------------------------------------------------------------
 !
-!     Avery's latest version Sept 26, 2024
+!     Avery's latest version March 27, 2025
 !
       SUBROUTINE ppiclf_solve_LocalInterp
       IMPLICIT NONE
@@ -11727,22 +12172,26 @@ c     ndum    = ppiclf_neltb*n
       INTEGER*4 i, j, k, l, ix, iy, iz, ip, ie, iee, nxyz, nnearest, 
      >          inearest(28)
       REAL*8    d2l, d2i, wsum, eps, A(27,4), d2(28), xp(3),  
-     >          center(3,28), b(27,1), w(27), centeri(3,ppiclf_neltbbb),
-     >          d2i_EleLen(3), MaxPoint(3), MinPoint(3),d2Max_EleLen(3)
-      LOGICAL   added, farAway 
+     >          center(3,28), b(27,1), w(27),binlength(3),  
+     >          d2i_EleLen(3), MaxPoint(3), MinPoint(3),d2Max_EleLen(3),
+     >          centeri(3,ppiclf_neltbbb), CellLengthMultiplier
+      LOGICAL   added, farAway, LinearPerShift(3)
+      REAL*8, ALLOCATABLE :: test(:)
       !***************************************************************
- 
+      IF(ppiclf_neltbbb .EQ. 0 . AND. ppiclf_npart .GT. 0) PRINT*,
+     >  'No elements. Num Particles/Proc ID: ', ppiclf_npart, ppiclf_nid
       eps = 1.0e-12 !machine epsilon
       nxyz = PPICLF_LEX*PPICLF_LEY*PPICLF_LEZ !number of points in mesh
-                                              !element 
+                                               !element 
       ! Calculate centroid, max cell lengths
       DO ie = 1,ppiclf_neltbbb !Loop fluid cells on this processor
         ! Initialize as zero for each element
         DO l = 1,3
-          centeri(l,ie)   =  0.0 
-          MaxPoint(l)     = -1.0E10 
-          MinPoint(l)     =  1.0E10 
-          d2i_EleLen(l)   =  0.0    
+          centeri(l,ie)    =  0.0D0 
+          MaxPoint(l)      = -1.0D10 
+          MinPoint(l)      =  1.0D10 
+          d2i_EleLen(l)    =  0.0D0  
+          d2Max_EleLen(l) = 0.0D0  
         ENDDO !l
         ! Add all x,y,z mesh points for centroid and find extremes
         DO l = 1,3
@@ -11761,13 +12210,35 @@ c     ndum    = ppiclf_neltb*n
           d2i_EleLen(l) = (MaxPoint(l)-MinPoint(l))**2
           ! Find max (mesh element length)^2 for all mesh elements in
           ! all directions
-          IF (d2i_EleLen(l) .GT. d2Max_EleLen(l)) THEN
-            d2Max_EleLen(l) = d2i_EleLen(l)
-          ENDIF
+          IF (d2i_EleLen(l) .GT. d2Max_EleLen(l)) 
+     >      d2Max_EleLen(l) = d2i_EleLen(l)
           ! Divide by number of points in mesh element to find centroid
           centeri(l,ie) = centeri(l,ie) / nxyz
         ENDDO !l
       ENDDO !ie
+
+      ! Find bin lengths for linear periodicity calculations
+      DO l = 1,3
+        binlength(l) = ppiclf_binb(2*l) - ppiclf_binb((2*l)-1)
+        !Zero shift out for non-periodic cases
+        LinearPerShift(l) = .FALSE.
+      END DO
+      ! LinearPerShift created to enable do loop index
+      IF(x_per_flag.EQ.1) LinearPerShift(1) = .TRUE.
+      IF(y_per_flag.EQ.1) LinearPerShift(2) = .TRUE.
+      IF(z_per_flag.EQ.1) LinearPerShift(3) = .TRUE.
+
+      ! Set the multiple of maximum element length in each
+      ! dimension that will be used to search for neighboring
+      ! fluid elements for interpolation at particle location.
+      !
+      ! Standard is 1.5*Len, which will give you at least 27 elements
+      ! if particle is not near fluid domain boundary.
+      CellLengthMultiplier = 1.5D0*1.5D0
+      DO l = 1,3 
+        d2Max_EleLen(l) = d2Max_EleLen(l)*CellLengthMultiplier
+      END DO
+
       DO ip=1,ppiclf_npart !Loop all particles in this bin
         ! particle centers in all directions
         xp(1) = ppiclf_y(PPICLF_JX, ip)
@@ -11782,15 +12253,21 @@ c     ndum    = ppiclf_neltb*n
           ! get distance from particle to center
           d2l     = 0.0
           d2i     = 0.0
-          farAway = .TRUE.
+          farAway = .FALSE.
           DO l=1,3
-            d2l  =(centeri(l,ie) - xp(l))**2 
+            IF(LinearPerShift(l)) THEN
+              d2l = MIN((centeri(l,ie) - xp(l))**2, 
+     >                (binlength(l)-ABS(centeri(l,ie) - xp(l)))**2)
+            ELSE
+              d2l = (centeri(l,ie) - xp(l))**2
+            END IF
             d2i = d2i + d2l
-            IF (d2l < (1.5**2)*d2Max_EleLen(l)) farAway = .FALSE.
-          ENDDO !l
+            IF (d2l > d2Max_EleLen(l)) farAway = .TRUE.
+          END DO !l
+
           ! skip to next fluid cell if greater than 1.5*max cell
           ! distance in respective x,y,z direction.
-          if (farAWAY) CYCLE !ie
+          IF (farAWAY) CYCLE !ie
           ! Sort closest fluid cell centers
           added = .FALSE.
           DO i=1,27
@@ -11805,18 +12282,23 @@ c     ndum    = ppiclf_neltb*n
               inearest(j) = ie
               DO l=1,3
                 center(l, j) = centeri(l,ie)
-              ENDDO
+              END DO
               added = .TRUE.
             ELSE ! If not within closest cell list
               EXIT !i
-            ENDIF
-          ENDDO !i
+            END IF
+          END DO !i
           IF (added) nnearest = nnearest + 1
-        ENDDO ! ie
+        END DO ! ie
         nnearest = min(nnearest, 27)
         IF (nnearest .lt. 1) THEN
-          PRINT *, 'nnearest', nnearest, ip, ppiclf_npart, xp
+          PRINT *, 'Added, T/F:', added
+          PRINT *, 'nnearest, neltbbb, num proc, num part, xp(1:3)',
+     >              nnearest, ppiclf_neltbbb,
+     >              ppiclf_nid, ppiclf_npart, xp
+          PRINT *, 'ppiclf_rprop(1:PPICLF_LRP'
           PRINT *, ppiclf_rprop(1:PPICLF_LRP, ip)
+          PRINT *, 'ppiclf_y(1:PPICLF_LRS'
           PRINT *, ppiclf_y(1:PPICLF_LRS, ip)
           CALL ppiclf_exittr('Failed to interpolate',0.0d0,nnearest)
         ELSE
@@ -11895,7 +12377,7 @@ c     ndum    = ppiclf_neltb*n
           centeri(l,ie) =  0.0
           MaxPoint(l)   = -1.0E10 
           MinPoint(l)   =  1.0E10
-        enddo !l
+        ENDdo !l
 
         do l=1,3
         do k=1,PPICLF_LEZ
@@ -11906,22 +12388,22 @@ c     ndum    = ppiclf_neltb*n
      >        MaxPoint(l) = ppiclf_xm1b(i,j,k,l,ie)  
           if (ppiclf_xm1b(i,j,k,l,ie) .lt. MinPoint(l))
      >        MinPoint(l) = ppiclf_xm1b(i,j,k,l,ie)
-        enddo !i
-        enddo !j
-        enddo !k
-        enddo !l
+        ENDdo !i
+        ENDdo !j
+        ENDdo !k
+        ENDdo !l
         
         do l=1,3
           EleSizei = EleSizei + (MaxPoint(l)-MinPoint(l))**2
-        enddo
+        ENDdo
 
         if (EleSizei .gt. MaxEleSize) MaxEleSize = EleSizei
 
         do l=1,3
           centeri(l,ie) = centeri(l,ie) / nxyz
-        enddo !l
+        ENDdo !l
 
-      enddo !ie
+      ENDdo !ie
       ! End Avery Added
       
       ! neighbor search O(Nparticles * Nelements)
@@ -11950,14 +12432,14 @@ c     ndum    = ppiclf_neltb*n
         do ie=1,28
           inearest(ie) = -1 ! index of nearest elements
           d2(ie) = 1E20 ! distance to center of nearest element
-        enddo
+        ENDdo
 
         do ie=1,ppiclf_neltbbb
                    ! get distance from particle to center
           d2i = 0
           do l=1,3
             d2i = d2i + (centeri(l,ie) - xp(l))**2
-          enddo
+          ENDdo
           ! Avery Added if / cycle
           ! Go to next cell if particle is 1.5*largest grid cell diagonal
           ! direction away from neighboring cell centroid
@@ -11973,23 +12455,23 @@ c     ndum    = ppiclf_neltb*n
               inearest(j+1) = inearest(j)
               do l=1,3
                 center(l, j+1) = center(l, j)
-              enddo
+              ENDdo
 
               d2(j) = d2i
               inearest(j) = ie
               do l=1,3
                 center(l, j) = centeri(l,ie)
-              enddo
+              ENDdo
 
               added = .true.
             else ! Avery added else/exit
               exit
-            endif
-          enddo !i
+            ENDif
+          ENDdo !i
 
           if (added) nnearest = nnearest + 1
           
-        enddo ! ie
+        ENDdo ! ie
         ! Avery added if
         ! Check for at least 16 due to cases when one layer of 9 cells
         ! isn't available because the particle is near the bin boundary.
@@ -12009,11 +12491,11 @@ c     ndum    = ppiclf_neltb*n
             do i=1,nnearest
               do j=1,3
                 A(i, j) = xp(j) - center(j, i)
-              end do
+              END do
               A(i, 4) = 1
-            enddo
+            ENDdo
 ! Avery print
-!        write(ppiclf_nid,*) ip, xp, nnearest, ppiclf_nid
+!           write(ppiclf_nid,*) ip, xp, nnearest, ppiclf_nid
             do i=1,PPICLF_INT_ICNT
 
               do k=1,nnearest
@@ -12022,18 +12504,18 @@ c     ndum    = ppiclf_neltb*n
 !                if (i ==1) then
 !                  write(ppiclf_nid,*) ip,
 !     >                     center(1:3,k),indg(k)
-!                endif
+!                ENDif
                 do iz=1,PPICLF_LEZ
                 do iy=1,PPICLF_LEY
                 do ix=1,PPICLF_LEX
                   b(k, 1) = b(k, 1) + ppiclf_int_fld(ix,iy,iz,i,
      >                                inearest(k))
-                enddo
-                enddo
-                enddo
+                ENDdo
+                ENDdo
+                ENDdo
 
                 b(k, 1) = b(k, 1) / nxyz
-              enddo ! nnearest
+              ENDdo ! nnearest
 
               j = PPICLF_INT_MAP(i)
 
@@ -12047,22 +12529,22 @@ c     ndum    = ppiclf_neltb*n
                 w(k) = 1.0d0 / (sqrt(d2(k)) + eps)
                 ppiclf_rprop(j, ip) = ppiclf_rprop(j, ip) + w(k)*b(k, 1)
                 wsum = wsum + w(k)
-              enddo
+              ENDdo
 
               ppiclf_rprop(j, ip) = ppiclf_rprop(j, ip) / wsum
             if (isnan(ppiclf_rprop(j,ip))) then
               PRINT *, ip,ppiclf_nid,xp,nnearest
-            endif
-            enddo
+            ENDif
+            ENDdo
 
-        endif ! nnearest
-      enddo ! ip
+        ENDif ! nnearest
+      ENDdo ! ip
 
       ! reset here instead of in finalize
       !PPICLF_INT_ICNT = 0
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_PostInterp
 !
@@ -12094,13 +12576,13 @@ c     ndum    = ppiclf_neltb*n
             npart = npart + 1
             do j=1,ppiclf_ndim
                coord(j,npart) = ppiclf_y(j,i)
-            enddo
-         endif
-      enddo
+            ENDdo
+         ENDif
+      ENDdo
 
       if (ppiclf_iglsum(npart,1) .eq. 0) then
-         return
-      endif
+         RETURN
+      ENDif
 
       ! Copy grid indexing 
       ! TLJ changing loop structure to prevent -fcheck=all error
@@ -12110,18 +12592,18 @@ c     ndum    = ppiclf_neltb*n
       !   xgrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,1,ie)
       !   ygrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,2,ie)
       !   zgrid(i,1,1,ie) = ppiclf_xm1bs(i,1,1,3,ie)
-      !enddo
+      !ENDdo
       do k=1,PPICLF_LEZ
       do j=1,PPICLF_LEY
       do i=1,PPICLF_LEX
          xgrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,1,ie)
          ygrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,2,ie)
          zgrid(i,j,k,ie) = ppiclf_xm1bs(i,j,k,3,ie)
-      enddo
-      enddo
-      enddo
+      ENDdo
+      ENDdo
+      ENDdo
 
-      enddo
+      ENDdo
 
       tol     = 5e-13
       bb_t    = 0.01
@@ -12179,7 +12661,7 @@ c     ndum    = ppiclf_nee*n
 !     >                                  ,npart
 !     >                                  ,ppiclf_int_fldu(1,1,1,1,i))
 
-      enddo
+      ENDdo
 
       ! free since mapping can change on next call
       call pfgslib_findpts_free(fp_handle)
@@ -12192,20 +12674,20 @@ c     ndum    = ppiclf_nee*n
             k = k + 1
             if (flag(1,k) .lt. 2) then
                copy_back = 1
-            endif
-         endif
+            ENDif
+         ENDif
 
          if (copy_back .eq. 1) then
             ppiclf_iprop(1,i) = flag(1,k)
             do j=1,PPICLF_LRP_INT
                jp = PPICLF_INT_MAP(j)
                ppiclf_rprop(jp,i) = coord(7+j,k)
-            enddo
-         endif
-      enddo
+            ENDdo
+         ENDif
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_SetRK3Coeff(dt)
 !
@@ -12251,10 +12733,10 @@ c----------------------------------------------------------------------
         ppiclf_rk3coef(2,3) = 2.0d0/3.0d0
         ppiclf_rk3coef(3,3) = dt*2.0d0/3.0d0
         !BD: Original Code END
-      end if
+      END if
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_MarkForRemoval(i)
 !
@@ -12268,8 +12750,8 @@ c----------------------------------------------------------------------
 !
       ppiclf_iprop(1,i) = 3
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_RemoveParticle
 !
@@ -12301,7 +12783,7 @@ c----------------------------------------------------------------------
          if (ppiclf_iprop(1,i) .eq. 3) then
             in_part(i) = -1 ! User removed particle
             goto 1513
-         endif
+         ENDif
 !-----------------------------------------------------------------------------------
 !!!!!!!!!!!!!!!        Rotational Periodicity Starts Here     !!!!!!!!!!!!!!!!!!!!
             ! currently only supports angular rotation around z-axis
@@ -12325,8 +12807,8 @@ c----------------------------------------------------------------------
      >                                                ang_per_angle,
      >                                                ang_per_xangle,
      >                                                1)
-            endif ! per_alpha
-           endif ! ang_per_flag
+            ENDif ! per_alpha
+           ENDif ! ang_per_flag
 
         ! Linear Periodicity Invoked
           if((x_per_flag.eq.1) .or. (y_per_flag.eq.1) 
@@ -12348,8 +12830,8 @@ c----------------------------------------------------------------------
 !!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(2,j+1) +
 !!     &                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y1(isl+j))
 !                  goto 1512
-!                endif
-!            endif
+!                ENDif
+!            ENDif
 !            ! Thierry - checks if particle is about to leave max. periodic face
 !            ! moves it relative to the min. periodic face
 !            if (ppiclf_y(jchk,i).gt.ppiclf_xdrange(2,j+1))then
@@ -12361,18 +12843,18 @@ c----------------------------------------------------------------------
 !!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(1,j+1) +
 !!     &                     abs(ppiclf_y1(isl+j) - ppiclf_xdrange(2,j+1))
 !                  goto 1512
-!                endif
-!            endif
+!                ENDif
+!            ENDif
 !            if (ppiclf_iprop(1,i) .eq. 2) then
 !               in_part(i) = -1 ! only if periodic check fails it will get here
-!            endif
+!            ENDif
 ! 1512 continue
-!         enddo ! j=0,ndim-1
+!         ENDdo ! j=0,ndim-1
 !------------------------------------------------------------------------------------------------------
          call ppiclf_solve_InvokeLinearPeriodic(i)
-         endif ! x_per_flag
+         ENDif ! x_per_flag
  1513 continue
-      enddo ! i=1,ppiclf_part
+      ENDdo ! i=1,ppiclf_part
 
       ic = 0
       do i=1,ppiclf_npart
@@ -12397,13 +12879,13 @@ c----------------------------------------------------------------------
      >              (ppiclf_rprop3(1,ic),ppiclf_rprop3(1,i),PPICLF_LRP3)
                call ppiclf_icopy
      >              (ppiclf_iprop(1,ic) ,ppiclf_iprop(1,i) ,PPICLF_LIP)
-            endif
-         endif
-      enddo
+            ENDif
+         ENDif
+      ENDdo
       ppiclf_npart = ic
 
-      return
-      end
+      RETURN
+      END
 !----------------------------------------------------------------------
       subroutine ppiclf_solve_FindWallProject(rx2)
 !
@@ -12441,14 +12923,14 @@ c----------------------------------------------------------------------
             rpz1 = rx2(3)
             rpz2 = ppiclf_wall_c(3,j)
             rpz2 = rpz2 - rpz1
-         endif
+         ENDif
     
          rflip = rnx*rpx2 + rny*rpy2 + rnz*rpz2
          if (rflip .gt. 0.0d0) then
             rnx = -1.0d0*rnx
             rny = -1.0d0*rny
             rnz = -1.0d0*rnz
-         endif
+         ENDif
 
          rpx1 = ppiclf_wall_c(1,j)
          rpy1 = ppiclf_wall_c(2,j)
@@ -12460,7 +12942,7 @@ c----------------------------------------------------------------------
          if (ppiclf_ndim .eq. 3) then
             rpz1 = ppiclf_wall_c(3,j)
             rpz2 = ppiclf_wall_c(istride+3,j)
-         endif
+         ENDif
 
          rd   = -(rnx*rpx1 + rny*rpy1 + rnz*rpz1)
 
@@ -12478,13 +12960,13 @@ c----------------------------------------------------------------------
          ppiclf_xyz_mirror(3,ppiclf_nwall_m) = 0.0d0
          if (ppiclf_ndim .eq. 3) then
             ppiclf_xyz_mirror(3,ppiclf_nwall_m) = rx2(3) - rdist*rnz
-         endif
+         ENDif
 
  1511 continue
-      enddo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_ProjectParticleGrid
 !
@@ -12550,7 +13032,7 @@ c----------------------------------------------------------------------
          multfci = 1.0d0/(sqrt(2.0d0*pi)**2 * rsig**2) ! in 2D
          if (if3d) multfci = multfci**(1.5d0) ! in 3D
          rdum   = 1.0d0/(-2.0d0*rsig**2)
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          if (ppiclf_sngl_elem) then
@@ -12560,8 +13042,8 @@ c----------------------------------------------------------------------
            multfci = 1.0d0/(PI/4.0d0*ppiclf_filter**2)
            if (if3d) multfci = multfci/(1.0d0/1.5d0*ppiclf_filter)
            rdum = multfci
-         endif
-      endif
+         ENDif
+      ENDif
 
       ! real particles
       do ip=1,ppiclf_npart
@@ -12579,14 +13061,14 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip) = ppiclf_cp_map(j,ip)*multfci
-         enddo
+         ENDdo
                     
          iproj(1,ip)  = ppiclf_iprop(8,ip)
          iproj(2,ip)  = ppiclf_iprop(9,ip)
          if (if3d)
      >   iproj(3,ip)  = ppiclf_iprop(10,ip)
          iproj(4,ip)  = ppiclf_iprop(11,ip)
-      enddo
+      ENDdo
 
       if (.not. ppiclf_sngl_elem) then
   
@@ -12606,14 +13088,14 @@ c----------------------------------------------------------------------
            do j=idum+1,PPICLF_LRP_GP
               ic = ic + 1
               rproj(ic,ip+ppiclf_npart) = ppiclf_rprop_gp(j,ip)*multfci
-           enddo
+           ENDdo
                       
            iproj(1,ip+ppiclf_npart)  = ppiclf_iprop_gp(2,ip)
            iproj(2,ip+ppiclf_npart)  = ppiclf_iprop_gp(3,ip)
            if (if3d)
      >     iproj(3,ip+ppiclf_npart)  = ppiclf_iprop_gp(4,ip)
            iproj(4,ip+ppiclf_npart)  = ppiclf_iprop_gp(5,ip)
-        enddo
+        ENDdo
   
         ndum = ppiclf_npart+ppiclf_npart_gp
   
@@ -12631,7 +13113,7 @@ c----------------------------------------------------------------------
            if (if3d) then
               klow  = kkp-1
               khigh = kkp+1
-           endif
+           ENDif
   
            ! Find if particle near wall and should mirror itself
            if (ppiclf_iwallm .eq. 1) then
@@ -12639,7 +13121,7 @@ c----------------------------------------------------------------------
               rx2(2) = rproj(3,ip)
               rx2(3) = rproj(4,ip)
               call ppiclf_solve_FindWallProject(rx2)
-           endif
+           ENDif
   
            do ie=1,ppiclf_neltb
   
@@ -12653,7 +13135,7 @@ c----------------------------------------------------------------------
                  if (if3d) then
                     if (ppiclf_el_map(7,ie) .gt. khigh) cycle
                     if (ppiclf_el_map(8,ie) .lt. klow)  cycle
-                 endif
+                 ENDif
   
            do k=1,PPICLF_LEZ
            do j=1,PPICLF_LEY
@@ -12683,14 +13165,14 @@ c----------------------------------------------------------------------
                        rz22 = (ppiclf_xm1b(i,j,k,3,ie)
      >                        -ppiclf_xyz_mirror(3,jj))**2
                        rtmp2 = rtmp2 + rz22
-                    endif
+                    ENDif
                     if (ppiclf_lfiltgauss) then
                        rexp = rexp + exp(rtmp2*rproj(1,ip))
                     else
                        rexp = rexp + 1.0d0
-                    endif
-                 enddo
-              endif
+                    ENDif
+                 ENDdo
+              ENDif
   
               
               do jj=1,PPICLF_LRP_PRO
@@ -12698,12 +13180,12 @@ c----------------------------------------------------------------------
                  ppiclf_pro_fldb(i,j,k,jj,ie) = 
      >                           ppiclf_pro_fldb(i,j,k,jj,ie) 
      >                         + rproj(j1,ip)*rexp
-              enddo
-           enddo
-           enddo
-           enddo
-           enddo
-        enddo
+              ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+        ENDdo
       ! sngl elem
       else
 
@@ -12721,10 +13203,10 @@ c----------------------------------------------------------------------
               face_map(ix,iface,i,j,ix) = iface ! constant
               face_map(ix,iface,i,j,ia) = i ! ix
               face_map(ix,iface,i,j,ib) = j ! iy
-            end do
-            end do
-          end do
-        end do
+            END do
+            END do
+          END do
+        END do
 
         do ip=1,ppiclf_npart
            !do ie=1,ppiclf_neltb
@@ -12738,21 +13220,21 @@ c----------------------------------------------------------------------
                ! get centroid of hexahedron
                do ix=1,3
                  centroid(ix) = 0.0
-               end do
+               END do
 
                do ix=1,3
                do k=1,PPICLF_LEZ
                do j=1,PPICLF_LEY
                do i=1,PPICLF_LEX
                  centroid(ix) = centroid(ix) + ppiclf_xm1b(i,j,k,ix,ie)
-               end do
-               end do
-               end do
-               end do
+               END do
+               END do
+               END do
+               END do
 
                do ix=1,3
                  centroid(ix) = centroid(ix) / 8.0
-               end do
+               END do
 
 
                ! calculate volume based on two contributions from each
@@ -12770,14 +13252,14 @@ c----------------------------------------------------------------------
      >                                 face_map(ix,iface,i,j,2),
      >                                 face_map(ix,iface,i,j,3),
      >                                 ix2,ie)
-                   end do
-                   end do
-                   end do
+                   END do
+                   END do
+                   END do
 
                    do ix2=1,3
                      v1(ix2) = face(1,2,ix2) - face(2,1,ix2)
                      v2(ix2) = centroid(ix2) - face(2,1,ix2)
-                   end do ! ix2
+                   END do ! ix2
 
                    ! take cross product
                    cross(1) = v1(2)*v2(3) - v1(3)*v2(2)
@@ -12788,19 +13270,19 @@ c----------------------------------------------------------------------
                    do inode=1,2
                    do ix2=1,3
                      v3(ix2) = face(inode,inode,ix2) - face(2,1,ix2)
-                   end do ! ix2
+                   END do ! ix2
 
                    ! really 6 times the volume of the tet, but we can
                    ! save an operation by dividing at the end
                    voltet = 0.0
                    do ix2=1,3
                      voltet = voltet + v3(ix2)*cross(ix2)
-                   end do ! ix2
+                   END do ! ix2
                    evol = evol + abs(voltet)
-                   end do ! inode
+                   END do ! inode
                    
-                 end do ! iface
-              end do ! ix
+                 END do ! iface
+              END do ! ix
                evol = evol / 6.0
              else
                ! Sam - default to naive solution for 2D. ASSUMES
@@ -12820,7 +13302,7 @@ c----------------------------------------------------------------------
 !               if (if3d) evol = evol
 !     >              * (ppiclf_xm1b(1,1,PPICLF_LEZ,3,ie) 
 !     >               - ppiclf_xm1b(1,1,1,3,ie))
-            end if ! if3d
+            END if ! if3d
 
              rexp = 1.0 / evol
            do k=1,PPICLF_LEZ
@@ -12831,13 +13313,13 @@ c----------------------------------------------------------------------
                  ppiclf_pro_fldb(i,j,k,jj,ie) = 
      >                           ppiclf_pro_fldb(i,j,k,jj,ie) 
      >                         + rproj(j1,ip)*rexp
-              enddo
-           enddo
-           enddo
-           enddo
-           enddo
-        !enddo ! ppiclf_neltb
-      endif ! ppiclf_npart
+              ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+           ENDdo
+        !ENDdo ! ppiclf_neltb
+      ENDif ! ppiclf_npart
 
       ! now send xm1b to the processors in nek that hold xm1
 
@@ -12847,7 +13329,7 @@ c----------------------------------------------------------------------
       do ie=1,neltbc
          ppiclf_er_mapc(5,ie) = ppiclf_er_mapc(2,ie)
          ppiclf_er_mapc(6,ie) = ppiclf_er_mapc(2,ie)
-      enddo
+      ENDdo
       nl = 0
       nii = PPICLF_LRMAX
       njj = 6
@@ -12888,14 +13370,14 @@ c----------------------------------------------------------------------
            ppiclf_pro_fld(i,j,k,iee,ip) = ppiclf_pro_fld(i,j,k,iee,ip) +
      >                                    ppiclf_pro_fldb(i,j,k,ip,ie)
 
-         enddo
-         enddo
-         enddo
-         enddo
-      enddo
+         ENDdo
+         ENDdo
+         ENDdo
+         ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 c----------------------------------------------------------------------
       subroutine ppiclf_solve_ProjectParticleSubBin
 !
@@ -12924,7 +13406,7 @@ c----------------------------------------------------------------------
       nxyzdum = nxyz*PPICLF_LRP_PRO
       do i=1,nxyzdum
          ppiclf_grid_fld(i,1,1,1) = 0.0d0
-      enddo
+      ENDdo
 
       d2chk2_sq = ppiclf_d2chk(2)**2
 
@@ -12941,12 +13423,12 @@ c----------------------------------------------------------------------
          multfci = 1.0d0/(sqrt(2.0d0*pi)**2 * rsig**2) 
          if (if3d) multfci = multfci**(1.5d0)
          rdum   = 1.0d0/(-2.0d0*rsig**2)
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          multfci = 1.0d0/(PI/4.0d0*ppiclf_filter**2)
          if (if3d) multfci = multfci/(1.0d0/1.5d0*ppiclf_filter)
-      endif
+      ENDif
 
       ! real particles
       do ip=1,ppiclf_npart
@@ -12964,7 +13446,7 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip) = ppiclf_cp_map(j,ip)*multfci
-         enddo
+         ENDdo
 
          iproj(1,ip) = 
      >       floor( (rproj(2,ip) - ppiclf_binx(1,1))/ppiclf_rdx)
@@ -12973,7 +13455,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   iproj(3,ip) = 
      >       floor( (rproj(4,ip) - ppiclf_binz(1,1))/ppiclf_rdz)
-      enddo
+      ENDdo
 
       ! ghost particles
       do ip=1,ppiclf_npart_gp
@@ -12991,7 +13473,7 @@ c----------------------------------------------------------------------
          do j=idum+1,PPICLF_LRP_GP
             ic = ic + 1
             rproj(ic,ip+ppiclf_npart) = ppiclf_rprop_gp(j,ip)*multfci
-         enddo
+         ENDdo
                     
          iproj(1,ip+ppiclf_npart) = 
      >     floor((rproj(2,ip+ppiclf_npart)-ppiclf_binx(1,1))/ppiclf_rdx)
@@ -13000,7 +13482,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   iproj(3,ip+ppiclf_npart) = 
      >     floor((rproj(4,ip+ppiclf_npart)-ppiclf_binz(1,1))/ppiclf_rdz)
-      enddo
+      ENDdo
 
       ndum = ppiclf_npart+ppiclf_npart_gp
 
@@ -13013,7 +13495,7 @@ c----------------------------------------------------------------------
          if (if3d)
      >   kdum = floor(ppiclf_filter/2.0d0/ppiclf_rdz
      >    *sqrt(-log(ppiclf_alpha)/log(2.0d0)))+1
-      endif
+      ENDif
 
       if (ppiclf_lfiltbox) then
          idum = ppiclf_ngrids/2+1
@@ -13021,7 +13503,7 @@ c----------------------------------------------------------------------
          kdum = 999999999
          if (if3d)
      >   kdum = ppiclf_ngrids/2+1
-      endif
+      ENDif
 
       do ip=1,ndum
          iip = iproj(1,ip)
@@ -13038,7 +13520,7 @@ c----------------------------------------------------------------------
          if (if3d) then
          kl  = max(1     ,kkp-kdum)
          kr  = min(ppiclf_bz,kkp+kdum)
-         endif
+         ENDif
 
 c        do k=kl,kr
 c        do j=jl,jr
@@ -13062,14 +13544,14 @@ c        do i=il,ir
                ppiclf_grid_fld(i,j,k,jj) = 
      >                         ppiclf_grid_fld(i,j,k,jj) 
      >                       + sngl(rproj(j1,ip)*rexp)
-            enddo
-         enddo
-         enddo
-         enddo
-      enddo
+            ENDdo
+         ENDdo
+         ENDdo
+         ENDdo
+      ENDdo
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
       subroutine ppiclf_solve_GetProFldIJKEF(i,j,k,e,m,fld)
 !
@@ -13087,8 +13569,8 @@ c        do i=il,ir
 !
       fld = ppiclf_pro_fld(i,j,k,e,m)
 
-      return
-      end
+      RETURN
+      END
 !-----------------------------------------------------------------------
 c-----------------------------------------------------------------------
       subroutine pfgslib_userExitHandler()

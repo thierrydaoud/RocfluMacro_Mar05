@@ -847,6 +847,7 @@ SUBROUTINE RFLU_ViscousFluxes(pRegion,tv,tvIndxVisc,tvIndxCond)
     pDiss(CV_MIXT_YMOM,c2) = pDiss(CV_MIXT_YMOM,c2) - beta*fd(2)
     pDiss(CV_MIXT_ZMOM,c2) = pDiss(CV_MIXT_ZMOM,c2) - beta*fd(3)
     pDiss(CV_MIXT_ENER,c2) = pDiss(CV_MIXT_ENER,c2) - beta*fd(4)
+
   END DO ! ifg
 
 ! ******************************************************************************
@@ -946,7 +947,7 @@ SUBROUTINE RFLU_ViscousFluxesPatches(pRegion,tv,tvIndxVisc,tvIndxCond)
 ! ******************************************************************************
 
   IF ( pRegion%mixt%cvState /= CV_MIXT_STATE_DUVWT ) THEN 
-    CALL ErrorStop(global,ERR_CV_STATE_INVALID,938)
+    CALL ErrorStop(global,ERR_CV_STATE_INVALID,939)
   END IF ! pRegion%mixt%cvState
   
 ! ******************************************************************************  

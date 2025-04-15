@@ -552,6 +552,18 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
 !  END IF ! global%myProcid
 !end BBR
 
+! ******************************************************************************
+! Print Simulation (rflump only) Run Time
+! ******************************************************************************
+
+  IF(global%myProcid == MASTERPROC) THEN
+     timerStart  = global%timingSubRout(1)
+     timerEnd    = MPI_Wtime()
+     elapsedtime = (timerEnd - timerStart) / 60.0_RFREAL
+     elapsedtime_hour = elapsedtime / 60.0_RFREAL
+     print*,"*** Total rflump timing = ",elapsedtime," minutes"
+     print*,"*** Total rflump timing = ",elapsedtime_hour," hours"
+  ENDIF
 
 ! ******************************************************************************
 ! Print info about warnings
@@ -576,7 +588,7 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
   CALL MPI_Finalize(errorFlag)
   global%error = errorFlag
   IF ( global%error /= ERR_NONE ) THEN 
-    CALL ErrorStop(global,ERR_MPI_OUTPUT,652)
+    CALL ErrorStop(global,ERR_MPI_OUTPUT,664)
   END IF ! global%error
 
 ! ******************************************************************************
@@ -590,15 +602,6 @@ SUBROUTINE RFLU_EndFlowSolver(levels)
     WRITE(STDOUT,'(A,1X,A)') SOLVER_NAME,'Program finished.'
     WRITE(STDOUT,'(A)') SOLVER_NAME         
   END IF ! global%myProcid 
-
-  IF(global%myProcid == 0) THEN
-     timerStart  = global%timingSubRout(1)
-     timerEnd    = MPI_Wtime()
-     elapsedtime = (timerEnd - timerStart) / 60.0_RFREAL
-     elapsedtime_hour = elapsedtime / 60.0_RFREAL
-     print*,"*** Total rflump timing = ",elapsedtime," minutes"
-     print*,"*** Total rflump timing = ",elapsedtime_hour," hours"
-  ENDIF
 
 
   CALL DeregisterFunction(global)

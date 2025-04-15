@@ -140,7 +140,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: rmu_ref, tref, suth, ksp, erest
    common /RFLU_ppiclF/ stationary, qs_flag, am_flag, pg_flag, &
         collisional_flag, heattransfer_flag, feedback_flag, &
@@ -148,7 +148,7 @@ INTEGER :: errorFlag,icg
         rmu_fixed_param, rmu_suth_param, qs_fluct_filter_flag, &
         qs_fluct_filter_adapt_flag, ksp, erest, &
         ViscousUnsteady_flag, ppiclf_nUnsteadyData,ppiclf_nTimeBH, &
-        sbNearest_flag, burnrate_flag
+        sbNearest_flag, burnrate_flag, flow_model
    real*8 :: ppiclf_rcp_part
    CHARACTER(12) :: ppiclf_matname
    common /RFLU_ppiclf_misc01/ ppiclf_rcp_part
@@ -162,8 +162,14 @@ INTEGER :: errorFlag,icg
           ang_per_angle, ang_per_xangle, &
           ang_per_rin, ang_per_rout
    ! 08/19/24 - Thierry - added for Periodicity - ends here
+
+
    REAL :: MaxPoint(3), MinPoint(3), EleLen(3), Max_EleLen(3)
    
+   ! 04/04/2025 - TLJ - added min/max grid for periodicity
+   integer :: errorFrag
+   real*8 gridmin,gridmax
+
 #endif
 
    
@@ -212,6 +218,7 @@ tref = pRegion%mixtInput%refViscTemp
 suth = pRegion%mixtInput%suthCoef
 rmu_suth_param = VISC_SUTHR
 rmu_fixed_param = VISC_FIXED
+flow_model = int(pRegion%mixtInput%flowModel)
 
 ksp = global%piclKsp
 erest = global%piclERest
@@ -220,18 +227,41 @@ qs_fluct_filter_flag = global%piclQsFluctFilterFlag
 qs_fluct_filter_adapt_flag = global%piclQsFluctFilterAdaptFlag
 
 ! 08/13/24 - Thierry - added for Periodicity - begins here
+! 04/04/2025 - TLJ - modified to detemine min/max from Rocflu grid
+
+x_per_min=-10000.0; x_per_max= 10000.0; ! set crazy value if not used
+y_per_min=-10000.0; y_per_max= 10000.0; ! set crazy value if not used
+z_per_min=-10000.0; z_per_max= 10000.0; ! set crazy value if not used
 
 x_per_flag = global%piclPeriodicXFlag 
-x_per_min  = global%piclPeriodicXMin 
-x_per_max  = global%piclPeriodicXMax 
+if (x_per_flag == 1) then
+    gridmin = MINVAL(pGrid%xyz(XCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(XCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,x_per_min,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,x_per_max,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
+endif
 
 y_per_flag = global%piclPeriodicYFlag    
-y_per_min  = global%piclPeriodicYMin  
-y_per_max  = global%piclPeriodicYMax 
+if (y_per_flag == 1) then
+    gridmin = MINVAL(pGrid%xyz(YCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(YCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,y_per_min,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,y_per_max,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
+endif
 
 z_per_flag = global%piclPeriodicZFlag 
-z_per_min  = global%piclPeriodicZMin 
-z_per_max  = global%piclPeriodicZMax   
+if (z_per_flag == 1) then
+    gridmin = MINVAL(pGrid%xyz(ZCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(ZCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,z_per_min,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,z_per_max,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
+endif
 
 ang_per_flag   = global%piclAngularPeriodicFlag
 ang_per_angle  = global%piclAngularPeriodicAngle
@@ -335,7 +365,17 @@ IF (global%restartFromScratch) THEN
    i_global_min = npart_local*global%myProcid
    i_global_max = npart_local*(global%myProcid+1)
    IF(i_global_max > npart) i_global_max = npart
+
+   !print*,global%myProcid,npart,i_global_min,i_global_max
+
+   !IF ( global%myProcid == MASTERPROC) then
+    !  print*,global%myProcid,npart,i_global_min,i_global_max
+   !ENDIF
+
+   rprop(1:PPICLF_LRP,1:PPICLF_LPART) = 0.0d0
+
    print*,global%myProcid,npart,i_global_min,i_global_max
+
   
    dp_max = 0.0d0
    xp_min_l = +17400000.0
@@ -358,9 +398,9 @@ IF (global%restartFromScratch) THEN
          y(PPICLF_JOZ,i) = 0.0d0
   
          ! initially zero out all properties
-         do ii=1,PPICLF_LRP
-           rprop(ii, i) = 0.0d0
-         end do
+         !do ii=1,PPICLF_LRP
+         !  rprop(ii, i) = 0.0d0
+         !end do
 
          ! search for material
          matName = ADJUSTL(TRIM(matName))
@@ -697,6 +737,12 @@ else if (global%myProcid == MASTERPROC) then
 end if
 
 
+! 03/24/2025 - Thierry - store the RocfluMP Flow Model chosen (Euler or NS)
+!                        this is used in ppiclF for calculating the pressure gradient
+!                        whether with or without the viscous part
+!flow_model = 0
+!flow_model = int(pRegion%mixtInput%flowModel)
+
 ! Important note from BRAD:
 !!!!!!!!!!!!!!!!!!!!!!!!WARNING!!!!!!!!!!!!!!!!!!!!
 !Make sure this call is done specifically when starting the simulation
@@ -769,7 +815,7 @@ end do
 
 ! TLJ:
 ! This section takes as input from utilities/init/RFLU_InitFlowHardCode.F90
-!    (r,r*u,r*v,r*w,r*E) and change to RocfluMP conserved variables
+!    (r,r*u,r*v,r*w,r*E) and changes to RocfluMP conserved variables
 !    (phig*r,phig*r*u,phig*r*v,phig*r*w,phig*r*E), where phig is the gas
 !    phase volume fraction and can only be computed after the particles
 !    are read in.
@@ -827,6 +873,11 @@ DEALLOCATE(volp,STAT=errorFlag)
      print*, 'sbNearest_flag       = ',global%piclSBNearFlag
      print*, 'burnrate_flag        = ',global%piclBurnRateFlag
 
+     IF (global%piclViscousUnsteady >=1) THEN
+        print*,'  Using Viscous unsteady history term'
+        print*,'    ppiclf_nTimeBH       = ',ppiclf_nTimeBH
+        print*,'    ppiclf_nUnsteadyData = ',ppiclf_nUnsteadyData,PPICLF_VU
+     ENDIF
 
      print*, ' '
      print*, "BOXF = ", filter 

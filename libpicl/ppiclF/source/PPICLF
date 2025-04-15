@@ -1,11 +1,13 @@
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 c Computational particles
       REAL*8 PPICLF_Y (12 ,20000) ! Solution
      > ,PPICLF_YDOT (12 ,20000) ! Total solution RHS
      > ,PPICLF_YDOTC (12 ,20000) ! Coupled solution RHS
-     > ,PPICLF_RPROP (36 ,20000) ! Real particle properties
+     > ,PPICLF_RPROP (64 ,20000) ! Real particle properties
      > ,PPICLF_RPROP2(4,20000) ! Secondary real particle properties
      > ,PPICLF_RPROP3(6*5,20000) ! Third real particle properties
       COMMON /PPICLF_SLN_CURRENT_R/ PPICLF_Y
@@ -28,34 +30,36 @@ c Previous time step solutions, may grow later
       COMMON /PPICLF_SLN_UNSTEADY/ PPICLF_TIMEBH
      > ,PPICLF_DRUDTPLAG
      > ,PPICLF_DRUDTMIXT
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 C Grid
-      REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,100000)
+      REAL*8 PPICLF_XDRANGE(2,3), PPICLF_XERANGE(2,3,20000)
       COMMON /PPICLF_GRID_RANGE_R/ PPICLF_XDRANGE, PPICLF_XERANGE
       COMMON /PPICLF_GRID_FLD_R/ PPICLF_PRO_FLD, PPICLF_INT_FLD
      > ,PPICLF_INT_FLDU ,PPICLF_PRO_FLDB
      > ,PPICLF_XM1B ,PPICLF_XM1BS, PPICLF_XM1BI
      > ,PPICLF_XM1BG, PPICLF_INT_FLDG
-      REAL*8 PPICLF_PRO_FLD (2,2,2,100000
+      REAL*8 PPICLF_PRO_FLD (2,2,2,20000
      > ,10),
      > PPICLF_INT_FLDU(2,2,2
-     > ,100000,21),
+     > ,20000,30),
      > PPICLF_INT_FLD (2,2,2
-     > ,21,100000),
+     > ,30,20000),
      > PPICLF_INT_FLDG(2,2,2
-     > ,21,100000),
+     > ,30,20000),
      > PPICLF_PRO_FLDB(2,2,2
-     > ,10,100000),
+     > ,10,20000),
      > PPICLF_XM1B (2,2,2,3
-     > ,100000),
+     > ,20000),
      > PPICLF_XM1BS (2,2,2
-     > ,3,100000),
+     > ,3,20000),
      > PPICLF_XM1BI (2,2,2
-     > ,100000,3),
+     > ,20000,3),
      > PPICLF_XM1BG (2,2,2
-     > ,3,100000)
+     > ,3,20000)
       COMMON /PPICLF_GRID_BIN_MAP_I/ PPICLF_ER_MAP,PPICLF_ER_MAPC
      > ,PPICLF_ER_MAPS,PPICLF_ER_MAPG
      > ,PPICLF_EL_MAP,PPICLF_ER_MAPGS
@@ -63,22 +67,24 @@ C Grid
      > ,PPICLF_MODGP,PPICLF_NELTB,PPICLF_NELTBB
      > ,PPICLF_NELTBBB,PPICLF_NELTBG
      > ,PPICLF_NELTBBG
-      INTEGER*4 PPICLF_ER_MAP (6,100000),
-     > PPICLF_ER_MAPC(6,100000),
-     > PPICLF_ER_MAPS(6,100000),
-     > PPICLF_ER_MAPG(6,100000),
-     > PPICLF_ER_MAPGS(6,100000),
-     > PPICLF_ER_MAPGC(6,100000),
+      INTEGER*4 PPICLF_ER_MAP (6,20000),
+     > PPICLF_ER_MAPC(6,20000),
+     > PPICLF_ER_MAPS(6,20000),
+     > PPICLF_ER_MAPG(6,20000),
+     > PPICLF_ER_MAPGS(6,20000),
+     > PPICLF_ER_MAPGC(6,20000),
      > PPICLF_MODGP (2,2,2
-     > ,100000,4),
-     > PPICLF_EL_MAP (8,100000), PPICLF_NELTB,PPICLF_NELTBB,
+     > ,20000,4),
+     > PPICLF_EL_MAP (8,20000), PPICLF_NELTB,PPICLF_NELTBB,
      > PPICLF_NELTBBB,PPICLF_NELTBG, PPICLF_NELTBBG
       INTEGER*4 PPICLF_NEE
       COMMON /PPICLF_GRID_ORIG_CELL_N/ PPICLF_NEE
-      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(21)
+      INTEGER*4 PPICLF_INT_ICNT, PPICLF_INT_MAP(30)
       COMMON /PPICLF_INTERP_I/ PPICLF_INT_ICNT, PPICLF_INT_MAP
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 c Particle options
       LOGICAL PPICLF_RESTART, PPICLF_OVERLAP, PPICLF_LCOMM
@@ -108,8 +114,10 @@ c Particle options
      > ,PPICLF_RK3COEF, PPICLF_DT
      > ,PPICLF_TIME, PPICLF_D2CHK
      > ,PPICLF_RK3ARK
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 c Communication
       COMMON /PPICLF_PARALLEL_COMM_I/ PPICLF_COMM, PPICLF_NP, PPICLF_NID
@@ -119,11 +127,8 @@ c Communication
      > ,PPICLF_FP_HNDL, PPICLF_COMM_NID
       DATA PPICLF_NID /0/
 c Bins
-      INTEGER*4 PPICLF_N_BINS(3), PPICLF_BINS_SET(3),
-     > PPICLF_BINS_BALANCE(3)
+      INTEGER*4 PPICLF_N_BINS(3)
       COMMON /PPICLF_PARALLEL_BIN_GLOBAL_N/ PPICLF_N_BINS
-     > ,PPICLF_BINS_SET
-     > ,PPICLF_BINS_BALANCE
       REAL*8 PPICLF_BINS_DX(3), PPICLF_BINB(6)
       COMMON /PPICLF_PARALLEL_BIN_GLOBAL_R/ PPICLF_BINS_DX, PPICLF_BINB
       REAL*8 PPICLF_BINX(2,1), PPICLF_BINY(2,1)
@@ -144,8 +149,8 @@ c Bins
       COMMON /PPICLF_PARALLEL_BIN_LOCAL_N/ PPICLF_BX, PPICLF_BY
      > ,PPICLF_BZ
 C Ghost particles
-      REAL*8 PPICLF_RPROP_GP(12 +36 +10,26*20000)
-     > ,PPICLF_CP_MAP(12 +36 +10,20000)
+      REAL*8 PPICLF_RPROP_GP(12 +64 +10,26*20000)
+     > ,PPICLF_CP_MAP(12 +64 +10,20000)
       COMMON /PPICLF_PARALLEL_GHOST_R/ PPICLF_RPROP_GP, PPICLF_CP_MAP
       INTEGER*4 PPICLF_NB_R(3,20000)
      > ,PPICLF_NB_G(3,26*20000)
@@ -154,8 +159,10 @@ C Ghost particles
       COMMON /PPICLF_PARALLEL_GHOST_I/ PPICLF_IPROP_GP
       INTEGER*4 PPICLF_NPART_GP
       COMMON /PPICLF_PARALLEL_GHOST_N/ PPICLF_NPART_GP
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 !
 ! General useage
@@ -182,6 +189,11 @@ C Ghost particles
      > vx,vy,vz,
      > rcp_part,rpr
 !
+! For misc values
+!
+      real*8 OneThird
+      common /ppiclf_misc01/ OneThird
+!
 ! For ppiclf_user_Fluctuations.f
 !
       integer*4 icpmean
@@ -205,7 +217,7 @@ C Ghost particles
      > fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      > fqsx_total_max,fqsy_total_max,fqsz_total_max,
      > fvux_max,fvuy_max,fvuz_max,
-     > qq_max,tau_max
+     > qq_max,tau_max,lift_max
       common /user_debug/ phimax,
      > fqsx_max,fqsy_max,fqsz_max,
      > famx_max,famy_max,famz_max,
@@ -216,14 +228,16 @@ C Ghost particles
      > fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      > fqsx_total_max,fqsy_total_max,fqsz_total_max,
      > fvux_max,fvuy_max,fvuz_max,
-     > qq_max,tau_max
+     > qq_max,tau_max,lift_max
 !
 ! For ppiclf_user_AddedMass.f
 !
       integer*4 nneighbors
-      real*8 Fam(3), Wdot_neighbor_mean(3), R_pair(6,6)
+      real*8 Fam(3), FamUnary(3), FamBinary(3),
+     > Wdot_neighbor_mean(3), R_pair(6,6)
       common /user_AddedMass01/ nneighbors
-      common /user_AddedMass02/ Fam, Wdot_neighbor_mean, R_pair
+      common /user_AddedMass02/ Fam, FamUnary, FamBinary,
+     > Wdot_neighbor_mean, R_pair
 !
 ! For ppiclf_solve_InitAngularPeriodic
 !
@@ -244,16 +258,18 @@ C Ghost particles
      > xrot, vrot
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
      > y_per_min, y_per_max, z_per_min, z_per_max
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
 ! y, y1, ydot, ydotc: 12
-! rprop: 36
+! rprop: 64
 ! map: 10
 C Wall support
-      REAL*8 PPICLF_WALL_C(9,1000),PPICLF_WALL_N(4,1000)
+      REAL*8 PPICLF_WALL_C(9,20),PPICLF_WALL_N(4,20)
       COMMON /PPICLF_WALL_R/ PPICLF_WALL_C,PPICLF_WALL_N
       INTEGER*4 PPICLF_NWALL
       COMMON /PPICLF_WALL_N/ PPICLF_NWALL
 C Mirror wall particles
-      REAL*8 PPICLF_XYZ_MIRROR(3,1000)
+      REAL*8 PPICLF_XYZ_MIRROR(3,20)
       COMMON /PPICLF_WALL_MIRROR_R/ PPICLF_XYZ_MIRROR
       INTEGER*4 PPICLF_NWALL_M
       COMMON /PPICLF_WALL_MIRROR_N/ PPICLF_NWALL_M

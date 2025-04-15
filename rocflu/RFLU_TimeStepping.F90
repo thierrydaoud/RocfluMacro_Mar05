@@ -215,6 +215,8 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
 !CRN - begin
   REAL(RFREAL) :: timerStart, timerEnd
 !CRN - end
+  ! 03/24/2025 - Thierry - variable used to store max time and dt 
+  LOGICAL, SAVE :: initialized = .FALSE.
 
 ! ******************************************************************************
 ! Start
@@ -508,7 +510,6 @@ SUBROUTINE RFLU_TimeStepping(dTimeSystem,dIterSystem,regions)
     ! TLJ: Set dt fixed for unit test problems
     if (global%piclStationaryFlag<0) global%dtMin = 5.d-8
 #endif
-
 
 ! ==============================================================================
 !   Move or generate new grid

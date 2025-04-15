@@ -495,9 +495,19 @@ SUBROUTINE RFLU_AllocateMemorySolCv(pRegion)
 
   IF ( global%piclUsed .EQV. .TRUE. ) THEN
      ALLOCATE(pRegion%mixt%piclVF(pGrid%nCellsTot),STAT=errorFlag)
+     ! 03/19/2025 - Thierry - begins here
+     ALLOCATE(pRegion%mixt%piclVFg(1,pGrid%nCellsTot),STAT=errorFlag)
+     ALLOCATE(pRegion%mixt%piclgradRhog(3,1,pGrid%nCellsTot),STAT=errorFlag)
      global%error = errorFlag
      IF (global%error /= ERR_NONE) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,518,'pRegion%mixt%piclfVF')
+        CALL ErrorStop(global,ERR_ALLOCATE,521,'pRegion%mixt%piclfVF')
+     END IF ! global%error
+     ! 04/01/2025 - TLJ - begins here
+     ALLOCATE(pRegion%mixt%piclFeedback(3,pGrid%nCellsTot),STAT=errorFlag)
+     ALLOCATE(pRegion%mixt%piclgradFeedback(3,3,pGrid%nCellsTot),STAT=errorFlag)
+     global%error = errorFlag
+     IF (global%error /= ERR_NONE) THEN
+        CALL ErrorStop(global,ERR_ALLOCATE,528,'pRegion%mixt%piclFeedback')
      END IF ! global%error
    END IF
 
@@ -507,7 +517,7 @@ SUBROUTINE RFLU_AllocateMemorySolCv(pRegion)
   ALLOCATE(pRegion%plag%vFracE(1,0:1),STAT=errorFlag)
   global%error = errorFlag
   IF (global%error /= ERR_NONE) THEN 
-    CALL ErrorStop(global,ERR_ALLOCATE,547,'pPlag%vFracE')
+    CALL ErrorStop(global,ERR_ALLOCATE,557,'pPlag%vFracE')
   END IF ! global%error 
   
   pRegion%plag%vFracE(1,0:1) = 0.0_RFREAL
@@ -588,7 +598,7 @@ SUBROUTINE RFLU_AllocateMemorySolDv(pRegion)
                STAT=errorFlag)
       global%error = errorFlag
       IF (global%error /= ERR_NONE) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,629,'pRegion%mixt%dv')
+        CALL ErrorStop(global,ERR_ALLOCATE,639,'pRegion%mixt%dv')
       END IF ! global%error
     END IF ! pMixtInput%nDv 
   ELSE
@@ -596,7 +606,7 @@ SUBROUTINE RFLU_AllocateMemorySolDv(pRegion)
       ALLOCATE(pRegion%mixt%dv(pMixtInput%nDv,pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF (global%error /= ERR_NONE) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,637,'pRegion%mixt%dv')
+        CALL ErrorStop(global,ERR_ALLOCATE,647,'pRegion%mixt%dv')
       END IF ! global%error
     END IF ! pMixtInput%nDv 
   END IF ! global%solverType
@@ -677,7 +687,7 @@ SUBROUTINE RFLU_AllocateMemorySolGv(pRegion)
   END IF ! pRegion
   global%error = errorFlag
   IF (global%error /= ERR_NONE) THEN
-    CALL ErrorStop(global,ERR_ALLOCATE,718,'pRegion%mixt%gv')
+    CALL ErrorStop(global,ERR_ALLOCATE,728,'pRegion%mixt%gv')
   END IF ! global%error
 
 ! ******************************************************************************
@@ -753,7 +763,7 @@ SUBROUTINE RFLU_AllocateMemorySolTv(pRegion)
     ALLOCATE(pRegion%mixt%tv(pMixtInput%nTv,pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF (global%error /= ERR_NONE) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,794,'pRegion%mixt%tv')
+      CALL ErrorStop(global,ERR_ALLOCATE,804,'pRegion%mixt%tv')
     END IF ! global%error
   ELSE
     NULLIFY(pRegion%mixt%tv)
@@ -859,13 +869,13 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                  STAT=errorFlag)
         global%error = errorFlag
         IF (global%error /= ERR_NONE) THEN
-          CALL ErrorStop(global,ERR_ALLOCATE,900,'pRegion%mixt%cvRef')
+          CALL ErrorStop(global,ERR_ALLOCATE,910,'pRegion%mixt%cvRef')
         END IF ! global%error
       ELSE
         ALLOCATE(pRegion%mixt%cvRef(pMixtInput%nCv,0:1),STAT=errorFlag)
         global%error = errorFlag
         IF (global%error /= ERR_NONE) THEN
-          CALL ErrorStop(global,ERR_ALLOCATE,906,'pRegion%mixt%cvRef')
+          CALL ErrorStop(global,ERR_ALLOCATE,916,'pRegion%mixt%cvRef')
         END IF ! global%error
       END IF ! global%abcDistrib
     END IF ! global%abcKind
@@ -879,7 +889,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pRegion%mixt%cvOld(pMixtInput%nCv,pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF (global%error /= ERR_NONE) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,920,'pRegion%mixt%cvOld')
+      CALL ErrorStop(global,ERR_ALLOCATE,930,'pRegion%mixt%cvOld')
     END IF ! global%error
   END IF ! solverType
 
@@ -889,14 +899,14 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                STAT=errorFlag)
       global%error = errorFlag
       IF (global%error /= ERR_NONE) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,930,'pRegion%mixt%cvOld1')
+        CALL ErrorStop(global,ERR_ALLOCATE,940,'pRegion%mixt%cvOld1')
       END IF ! global%error
 
       ALLOCATE(pRegion%mixt%cvOld2(pMixtInput%nCv,pGrid%nCellsTot), &
                STAT=errorFlag)
       global%error = errorFlag
       IF (global%error /= ERR_NONE) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,937,'pRegion%mixt%cvOld2')
+        CALL ErrorStop(global,ERR_ALLOCATE,947,'pRegion%mixt%cvOld2')
       END IF ! global%error
     CASE ( SOLV_IMPLICIT_HM )
       CALL RFLU_AllocateMemoryAuxVars(pRegion)
@@ -910,7 +920,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pRegion%dt(pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,951,'pRegion%dt')
+      CALL ErrorStop(global,ERR_ALLOCATE,961,'pRegion%dt')
     END IF ! global%error
   END IF ! solverType
 
@@ -922,13 +932,13 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pRegion%mixt%rhs(pMixtInput%nCv,pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,963,'pRegion%mixt%rhs')
+      CALL ErrorStop(global,ERR_ALLOCATE,973,'pRegion%mixt%rhs')
     END IF ! global%error
 
     ALLOCATE(pRegion%mixt%diss(pMixtInput%nCv,pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,969,'pRegion%mixt%diss')
+      CALL ErrorStop(global,ERR_ALLOCATE,979,'pRegion%mixt%diss')
     END IF ! global%error
 
     IF ( global%flowType == FLOW_UNSTEADY ) THEN
@@ -936,7 +946,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,977,'pRegion%mixt%rhsSum')
+        CALL ErrorStop(global,ERR_ALLOCATE,987,'pRegion%mixt%rhsSum')
       END IF ! global%error
     ELSE
       NULLIFY(pRegion%mixt%rhsSum)
@@ -958,7 +968,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,999,'pRegion%mixt%gradCell')
+        CALL ErrorStop(global,ERR_ALLOCATE,1009,'pRegion%mixt%gradCell')
       END IF ! global%error
 
       ALLOCATE(pRegion%mixt%gradCellOld(XCOORD:ZCOORD, &
@@ -966,7 +976,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1007, &
+        CALL ErrorStop(global,ERR_ALLOCATE,1017, &
                        'pRegion%mixt%gradCellOld')
       END IF ! global%error
     ELSE
@@ -975,7 +985,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1016,'pRegion%mixt%gradCell')
+        CALL ErrorStop(global,ERR_ALLOCATE,1026,'pRegion%mixt%gradCell')
       END IF ! global%error
 
       ALLOCATE(pRegion%mixt%gradCellOld(XCOORD:ZCOORD, &
@@ -983,7 +993,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1024, &
+        CALL ErrorStop(global,ERR_ALLOCATE,1034, &
                        'pRegion%mixt%gradCellOld')
       END IF ! global%error
     END IF ! pMixtInput%flowModel 
@@ -993,7 +1003,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                    pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1034, & 
+      CALL ErrorStop(global,ERR_ALLOCATE,1044, & 
                      'pRegion%mixt%gradCellOld2')
     END IF ! global%error
   ELSE
@@ -1007,7 +1017,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                        pGrid%nCellsTot),STAT=errorFlag)
         global%error = errorFlag
         IF ( global%error /= ERR_NONE ) THEN
-          CALL ErrorStop(global,ERR_ALLOCATE,1048,'pRegion%mixt%gradCell')
+          CALL ErrorStop(global,ERR_ALLOCATE,1058,'pRegion%mixt%gradCell')
         END IF ! global%error
       ELSE
         NULLIFY(pRegion%mixt%gradCell)
@@ -1018,7 +1028,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1059,'pRegion%mixt%gradCell')
+        CALL ErrorStop(global,ERR_ALLOCATE,1069,'pRegion%mixt%gradCell')
       END IF ! global%error
     ELSE
       NULLIFY(pRegion%mixt%gradCell)
@@ -1036,7 +1046,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                      pGrid%nFaces),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1088,'pRegion%mixt%gradFace')
+        CALL ErrorStop(global,ERR_ALLOCATE,1098,'pRegion%mixt%gradFace')
       END IF ! global%error
     ELSE
       NULLIFY(pRegion%mixt%gradFace)
@@ -1053,7 +1063,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
                                       pPatch%nBFaces),STAT=errorFlag)
         global%error = errorFlag
         IF ( global%error /= ERR_NONE ) THEN
-          CALL ErrorStop(global,ERR_ALLOCATE,1105,'pPatch%mixt%gradFace')
+          CALL ErrorStop(global,ERR_ALLOCATE,1115,'pPatch%mixt%gradFace')
         END IF ! global%error
       ELSE
         NULLIFY(pPatch%mixt%gradFace)
@@ -1076,7 +1086,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pGrid%rhs(XCOORD:ZCOORD,pGrid%nVertTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1128,'pGrid%rhs')
+      CALL ErrorStop(global,ERR_ALLOCATE,1138,'pGrid%rhs')
     END IF ! global%error
 
     DO icmp = XCOORD,ZCOORD ! Explicit loop to avoid Frost problem
@@ -1093,7 +1103,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
       ALLOCATE(pGrid%disp(XCOORD:ZCOORD,pGrid%nVertTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1145,'pGrid%disp')
+        CALL ErrorStop(global,ERR_ALLOCATE,1155,'pGrid%disp')
       END IF ! global%error
 
       DO icmp = XCOORD,ZCOORD ! Explicit loop to avoid Frost problem
@@ -1110,7 +1120,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pGridOld%xyz(XCOORD:ZCOORD,pGrid%nVertTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1162,'pRegion%gridOld%xyz')
+      CALL ErrorStop(global,ERR_ALLOCATE,1172,'pRegion%gridOld%xyz')
     END IF ! global%error
 
     DO icmp = XCOORD,ZCOORD ! Explicit loop to avoid Frost problem
@@ -1123,7 +1133,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
       ALLOCATE(pGridOld2%xyz(XCOORD:ZCOORD,pGrid%nVertTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1175,'pRegion%gridOld2%xyz')
+        CALL ErrorStop(global,ERR_ALLOCATE,1185,'pRegion%gridOld2%xyz')
       END IF ! global%error
   
       DO icmp = XCOORD,ZCOORD ! Explicit loop to avoid Frost problem
@@ -1140,7 +1150,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
     ALLOCATE(pGridOld%vol(pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1192,'pRegion%gridOld%vol')
+      CALL ErrorStop(global,ERR_ALLOCATE,1202,'pRegion%gridOld%vol')
     END IF ! global%error
 
     DO ic = 1,pGrid%nCellsTot ! Explicit loop to avoid Frost problem
@@ -1151,7 +1161,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
       ALLOCATE(pGridOld2%vol(pGrid%nCellsTot),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1203,'pRegion%gridOld2%vol')
+        CALL ErrorStop(global,ERR_ALLOCATE,1213,'pRegion%gridOld2%vol')
       END IF ! global%error
   
       DO ic = 1,pGrid%nCellsTot ! Explicit loop to avoid Frost problem
@@ -1172,7 +1182,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
         ALLOCATE(pPatch%dXyz(XCOORD:ZCOORD,pPatch%nBVert),STAT=errorFlag)
         global%error = errorFlag
         IF ( global%error /= ERR_NONE ) THEN
-          CALL ErrorStop(global,ERR_ALLOCATE,1225,'pPatch%dXyz')
+          CALL ErrorStop(global,ERR_ALLOCATE,1235,'pPatch%dXyz')
         END IF ! global%error
 
         DO icmp = XCOORD,ZCOORD ! Explicit loop to avoid Frost problem
@@ -1207,14 +1217,14 @@ SUBROUTINE RFLU_AllocateMemoryTStep(pRegion)
       arrayLimLow = 1
       arrayLimUpp = pGrid%nCellsTot
     CASE DEFAULT
-      CALL ErrorStop(global,ERR_REACHED_DEFAULT,1277)
+      CALL ErrorStop(global,ERR_REACHED_DEFAULT,1287)
   END SELECT ! pMixtInput%indSd
 
   ALLOCATE(pRegion%mixt%sd(SD_XMOM:SD_ZMOM,arrayLimLow:arrayLimUpp), &
                            STAT=errorFlag)
   global%error = errorFlag
   IF ( global%error /= ERR_NONE ) THEN
-    CALL ErrorStop(global,ERR_ALLOCATE,1284,'pRegion%mixt%sd')
+    CALL ErrorStop(global,ERR_ALLOCATE,1294,'pRegion%mixt%sd')
   END IF ! global%error
 
 ! ******************************************************************************
@@ -1307,7 +1317,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep_C(pRegion)
   ALLOCATE(pRegion%mixt%mfMixt(arrayLimLow:arrayLimUpp),STAT=errorFlag)
   global%error = errorFlag
   IF ( global%error /= ERR_NONE ) THEN
-    CALL ErrorStop(global,ERR_ALLOCATE,1377,'pRegion%mixt%mfMixt')
+    CALL ErrorStop(global,ERR_ALLOCATE,1387,'pRegion%mixt%mfMixt')
   END IF ! global%error
 
   IF ( pRegion%grid%nPatches > 0 ) THEN
@@ -1325,7 +1335,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep_C(pRegion)
       ALLOCATE(pPatch%mfMixt(arrayLimLow:arrayLimUpp),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1395,'pPatch%mfMixt')
+        CALL ErrorStop(global,ERR_ALLOCATE,1405,'pPatch%mfMixt')
       END IF ! global%error
     END DO ! iPatch
   END IF ! pRegion%grid%nPatches
@@ -1338,7 +1348,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep_C(pRegion)
     ALLOCATE(pRegion%mixt%delP(pGrid%nCellsTot),STAT=errorFlag)
     global%error = errorFlag
     IF (global%error /= ERR_NONE) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1408,'pRegion%mixt%delP')
+      CALL ErrorStop(global,ERR_ALLOCATE,1418,'pRegion%mixt%delP')
     END IF ! global%error
   END IF ! solverType
 
@@ -1350,13 +1360,13 @@ SUBROUTINE RFLU_AllocateMemoryTStep_C(pRegion)
     ALLOCATE(pRegion%mixt%vfMixt(pGrid%nFaces),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1420,'pRegion%mixt%vfMixt')
+      CALL ErrorStop(global,ERR_ALLOCATE,1430,'pRegion%mixt%vfMixt')
     END IF ! global%error
 
     ALLOCATE(pRegion%mixt%vfMixtOld(pGrid%nFaces),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,1426,'pRegion%mixt%vfMixtOld')
+      CALL ErrorStop(global,ERR_ALLOCATE,1436,'pRegion%mixt%vfMixtOld')
     END IF ! global%error
   END IF ! solverType
 
@@ -1435,7 +1445,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep_I(pRegion)
   ALLOCATE(pRegion%mixt%vfMixt(pGrid%nFaces),STAT=errorFlag)
   global%error = errorFlag
   IF ( global%error /= ERR_NONE ) THEN
-    CALL ErrorStop(global,ERR_ALLOCATE,1505,'pRegion%mixt%vfMixt')
+    CALL ErrorStop(global,ERR_ALLOCATE,1515,'pRegion%mixt%vfMixt')
   END IF ! global%error
 
   IF ( pRegion%grid%nPatches > 0 ) THEN
@@ -1445,7 +1455,7 @@ SUBROUTINE RFLU_AllocateMemoryTStep_I(pRegion)
       ALLOCATE(pPatch%vfMixt(pPatch%nBFaces),STAT=errorFlag)
       global%error = errorFlag
       IF ( global%error /= ERR_NONE ) THEN
-        CALL ErrorStop(global,ERR_ALLOCATE,1515,'pPatch%vfMixt')
+        CALL ErrorStop(global,ERR_ALLOCATE,1525,'pPatch%vfMixt')
       END IF ! global%error
     END DO ! iPatch
   END IF ! pRegion%grid%nPatches

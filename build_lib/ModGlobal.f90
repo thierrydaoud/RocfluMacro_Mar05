@@ -110,6 +110,10 @@ MODULE ModGlobal
     INTEGER :: nrad,nthe,nz
 ! Subbu - End global variable declaration cyldet case
 
+    ! 03/24/2025 - Thierry - added store variables for grind time calculation
+    REAL(RFREAL) :: MMaxTTime, dttMinn
+    INTEGER :: ttotccells
+    ! 03/24/2025 - Thierry - ends here
 !BBR - begin
     CHARACTER(CHRLEN) :: execname
 !BBR - end
@@ -479,9 +483,6 @@ MODULE ModGlobal
 
     REAL(RFREAL) :: piclTemp, piclFilterWidth, piclNeighborWidth, piclKsp, &
                     piclERest, &
-                    piclPeriodicXMin, piclPeriodicXMax, &
-                    piclPeriodicYMin, piclPeriodicYMax, &
-                    piclPeriodicZMin, piclPeriodicZMax, &
                     piclAngularPeriodicAngle, piclAngularPeriodicXAngle, & 
                     piclAngularPeriodicRin, piclAngularPeriodicRout, &
                     ppiclf_p0

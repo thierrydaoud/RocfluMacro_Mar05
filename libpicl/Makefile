@@ -31,6 +31,7 @@ SRC = $(SOURCE_ROOT_USER)/ppiclf_user.f     \
       $(SOURCE_ROOT_USER)/Added_Mass/ppiclf_user_AddedMass_subroutines.f   \
       $(SOURCE_ROOT_USER)/ppiclf_user_HeatTransfer.f     \
       $(SOURCE_ROOT_USER)/ppiclf_user_Torque.f     \
+      $(SOURCE_ROOT_USER)/ppiclf_user_Lift.f     \
       $(SOURCE_ROOT_USER)/ppiclf_user_ViscousUnsteady.f     \
       $(SOURCE_ROOT_USER)/ppiclf_user_EvalNearestNeighbor.f     \
       $(SOURCE_ROOT_USER)/ppiclf_user_MapProjPart.f     \
@@ -52,6 +53,7 @@ OBJ = $(SOURCE_ROOT_USER)/ppiclf_user.o     \
       $(SOURCE_ROOT_USER)/Added_Mass/ppiclf_user_AddedMass_subroutines.o   \
       $(SOURCE_ROOT_USER)/ppiclf_user_HeatTransfer.o     \
       $(SOURCE_ROOT_USER)/ppiclf_user_Torque.o     \
+      $(SOURCE_ROOT_USER)/ppiclf_user_Lift.o     \
       $(SOURCE_ROOT_USER)/ppiclf_user_ViscousUnsteady.o     \
       $(SOURCE_ROOT_USER)/ppiclf_user_EvalNearestNeighbor.o     \
       $(SOURCE_ROOT_USER)/ppiclf_user_MapProjPart.o     \

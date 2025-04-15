@@ -97,12 +97,14 @@ SUBROUTINE WriteProbe( regions,iReg )
 
 
 
+! number of timesteps kept in history kernels
+! maximum number of triangular patch boundaries
+
 ! y, y1, ydot, ydotc: 12
 
-! rprop: 36
+! rprop: 64
 
 ! map: 10
-
 
 
 

@@ -29,6 +29,13 @@
      >   rcp_part,rpr
 
 !
+! For misc values
+!
+      real*8 OneThird
+      common /ppiclf_misc01/ OneThird
+ 
+
+!
 ! For ppiclf_user_Fluctuations.f
 !
       integer*4 icpmean
@@ -54,7 +61,7 @@
      >         fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      >         fqsx_total_max,fqsy_total_max,fqsz_total_max,
      >         fvux_max,fvuy_max,fvuz_max,
-     >         qq_max,tau_max
+     >         qq_max,tau_max,lift_max
       common /user_debug/ phimax,
      >         fqsx_max,fqsy_max,fqsz_max,
      >         famx_max,famy_max,famz_max,
@@ -65,16 +72,18 @@
      >         fqsx_fluct_max,fqsy_fluct_max,fqsz_fluct_max,
      >         fqsx_total_max,fqsy_total_max,fqsz_total_max,
      >         fvux_max,fvuy_max,fvuz_max,
-     >         qq_max,tau_max
+     >         qq_max,tau_max,lift_max
 
 !
 ! For ppiclf_user_AddedMass.f
 !
       integer*4 nneighbors
-      real*8 Fam(3), Wdot_neighbor_mean(3), R_pair(6,6)
+      real*8 Fam(3), FamUnary(3), FamBinary(3),
+     >       Wdot_neighbor_mean(3), R_pair(6,6)
 
       common /user_AddedMass01/ nneighbors
-      common /user_AddedMass02/ Fam, Wdot_neighbor_mean, R_pair
+      common /user_AddedMass02/ Fam, FamUnary, FamBinary,
+     >                          Wdot_neighbor_mean, R_pair
 
 !
 ! For ppiclf_solve_InitAngularPeriodic
