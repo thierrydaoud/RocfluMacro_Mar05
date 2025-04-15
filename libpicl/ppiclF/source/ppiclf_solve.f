@@ -5,9 +5,11 @@
       IMPLICIT NONE
 !
       INCLUDE "PPICLF"
+
 !
 ! Input:
 !
+
       INTEGER*4 xi1, yi1, zi1, ai1
       REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
      >       apa,apxa,aprin,aprout
@@ -73,9 +75,9 @@
       END IF
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
-     >                     .and.(ang_per_flag.eq.1))
-     >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
+      IF((x_per_flag.EQ.1).or.(y_per_flag.EQ.1).and.(ang_per_flag.EQ.1))
+     >   CALL ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
+
 
       ! Thierry - compute ang_case
 
@@ -434,6 +436,7 @@
       ENDdo
       do j=1,PPICLF_LIP
          ppiclf_iprop(j,i) = 0
+
       enddo
       enddo
       do i=1,PPICLF_LPART_GP
@@ -441,7 +444,7 @@
          ppiclf_rprop_gp(j,i) = 0.0d0
       enddo
       enddo
-
+      
       ppiclf_npart = 0
 
       do ie=1,PPICLF_LEE

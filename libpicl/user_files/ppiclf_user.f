@@ -271,11 +271,24 @@
 !     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
 !     >     ' GB: ',nsubbin_size*
 !     >             (ppiclf_npart+ppiclf_npart_gp)*4/1e9
+
 !         write(6,*) 'Viscous Unsteady',
 !     >     ppiclf_nUnsteadyData,ppiclf_nTimeBH,
 !     >     ppiclf_dt
 !
 !         endif ! end ppiclf_time = 0
+
+
+         if (ppiclf_debug==2) write(7001,*)
+     >     ppiclf_time,
+     >     ppiclf_bins_dx(1:3),
+     >     nsubbin_size,
+     >     tot_SBin,n_SBin(1:3),
+     >     ppiclf_npart,ppiclf_npart_gp,
+     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp),
+     >     nsubbin_size*(ppiclf_npart+ppiclf_npart_gp)*4/1e9 
+         ! last entry in GB; assuming 4 bytes for integer*4
+
 
          endif ! end iStage = 1
          endif ! end ppiclf_nid = 0

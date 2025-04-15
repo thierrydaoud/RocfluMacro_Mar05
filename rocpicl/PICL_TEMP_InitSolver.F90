@@ -163,11 +163,13 @@ INTEGER :: errorFlag,icg
           ang_per_rin, ang_per_rout
    ! 08/19/24 - Thierry - added for Periodicity - ends here
 
+
    REAL :: MaxPoint(3), MinPoint(3), EleLen(3), Max_EleLen(3)
    
    ! 04/04/2025 - TLJ - added min/max grid for periodicity
    integer :: errorFrag
    real*8 gridmin,gridmax
+
 #endif
 
    
@@ -363,6 +365,7 @@ IF (global%restartFromScratch) THEN
    i_global_min = npart_local*global%myProcid
    i_global_max = npart_local*(global%myProcid+1)
    IF(i_global_max > npart) i_global_max = npart
+
    !print*,global%myProcid,npart,i_global_min,i_global_max
 
    !IF ( global%myProcid == MASTERPROC) then
@@ -370,6 +373,9 @@ IF (global%restartFromScratch) THEN
    !ENDIF
 
    rprop(1:PPICLF_LRP,1:PPICLF_LPART) = 0.0d0
+
+   print*,global%myProcid,npart,i_global_min,i_global_max
+
   
    dp_max = 0.0d0
    xp_min_l = +17400000.0
