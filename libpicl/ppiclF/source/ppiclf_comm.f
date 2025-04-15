@@ -154,24 +154,6 @@
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
 
-      if (npt_total .gt. 0) then
-      do i=1,ppiclf_ndim
-         if (ppiclf_bins_balance(i) .eq. 1) then
-            rmiddle = 0.0
-            do j=1,ppiclf_npart
-               rmiddle = rmiddle + ppiclf_y(i,j)
-            enddo
-            rmiddle = ppiclf_glsum(rmiddle,1)
-            rmiddle = rmiddle/npt_total
-
-            rdiff =  max(abs(rmiddle-ppiclf_binb(2*(i-1)+1)),
-     >                   abs(ppiclf_binb(2*(i-1)+2)-rmiddle))
-            ppiclf_binb(2*(i-1)+1) = rmiddle - rdiff
-            ppiclf_binb(2*(i-1)+2) = rmiddle + rdiff
-         endif
-      enddo
-      endif
-
       if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
      >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
      >    iperiodicx .eq. 0) then
