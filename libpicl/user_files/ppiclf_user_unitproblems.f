@@ -7,6 +7,8 @@
 ! stationary = -1: azimuthal velocity only
 !            = -2: radial velocity only
 !            = -3: radial + azimuthal velocity
+!            = -4: x-velocity only
+!            = -5: y-velocity only
 !
 ! NOTE: Time step ppiclf_dt is hardcoded in ppiclf_solve_IntegrateRK3s_Rocflu
 !       subroutine to be ppiclf_dt = 5.0000000000000004E-008      
@@ -46,6 +48,10 @@
          call ppiclf_user_unit02(i,iStage,famx,famy,famz)
       elseif (stationary==-3) then
          call ppiclf_user_unit03(i,iStage,famx,famy,famz)
+      elseif (stationary==-4) then
+         call ppiclf_user_unit04(i,iStage,famx,famy,famz)
+      elseif (stationary==-5) then
+         call ppiclf_user_unit05(i,iStage,famx,famy,famz)
       endif
 
       return
@@ -172,6 +178,80 @@
       famy = -2.0d0*drdt00*omg00*cos(theta) 
      >       -omg02*ppiclf_y(PPICLF_JY,i)
       famz = 0.0d0
+
+      return
+      end
+!
+!-----------------------------------------------------------------------
+!
+! X-velocity only
+!
+      subroutine ppiclf_user_unit04(i,iStage,famx,famy,famz)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i, iStage
+      real*8 famx, famy, famz
+      real*8 drdt00, drdt02, theta
+!
+! Code:
+!
+      ! dx/dt = dr/dt
+      ! dy/dt = 0.0
+      drdt00 = 79.928163327808903
+      drdt02 = drdt00*drdt00
+      
+      if(ppiclf_time .eq. 0.0) then
+        ppiclf_y(PPICLF_JVX,i) =  -drdt00
+        ppiclf_y(PPICLF_JVY,i) =  0.0d0
+        ppiclf_y(PPICLF_JVZ,i) =  0.0d0
+      endif
+      
+      famx = -drdt02
+      famy = 0.0d0
+      famz = 0.0d0
+
+
+      return
+      end
+!
+!-----------------------------------------------------------------------
+!
+! Y-velocity only
+!
+      subroutine ppiclf_user_unit05(i,iStage,famx,famy,famz)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Internal:
+!
+      integer*4 i, iStage
+      real*8 famx, famy, famz
+      real*8 drdt00, drdt02, theta
+!
+! Code:
+!
+      ! dx/dt = 0.0d0
+      ! dy/dt = dr/dt
+      drdt00 = 79.928163327808903
+      drdt02 = drdt00*drdt00
+      
+      if(ppiclf_time .eq. 0.0) then
+        ppiclf_y(PPICLF_JVX,i) =  0.0d0
+        ppiclf_y(PPICLF_JVY,i) =  -drdt00
+        ppiclf_y(PPICLF_JVZ,i) =  0.0d0
+      endif
+      
+      famx = 0.0d0
+      famy = -drdt02
+      famz = 0.0d0
+
 
       return
       end

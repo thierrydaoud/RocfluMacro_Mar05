@@ -1316,6 +1316,14 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=4,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
+            write(1920,*) "Latefaces", ppiclf_time,                ! 0-1   
+     >              ip, ifc, ist, nrank,                           ! 2-5 
+     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+     >              ppiclf_npart_gp,                               ! 11
+     >              iig, jjg, kkg, ndumn,                          ! 12-15
+     >              rxnew(1:3), vrot(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   111 continue
          enddo
 
@@ -1798,6 +1806,14 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=4,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
+            write(1920,*) "Latefaces", ppiclf_time,                ! 0-1   
+     >              ip, ifc, ist, nrank,                           ! 2-5 
+     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+     >              ppiclf_npart_gp,                               ! 11
+     >              iig, jjg, kkg, ndumn,                          ! 12-15
+     >              rxnew(1:3), vrot(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   111 continue
          enddo
 
