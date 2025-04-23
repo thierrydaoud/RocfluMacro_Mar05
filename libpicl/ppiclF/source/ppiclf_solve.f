@@ -1966,7 +1966,8 @@ c----------------------------------------------------------------------
          if(ang_per_flag.eq.0) then
            call ppiclf_comm_CreateGhost
          elseif(ang_per_flag.eq.1) then
-           call ppiclf_comm_AngularCreateGhost
+           !call ppiclf_comm_AngularCreateGhost
+           call ppiclf_comm_CreateAngularGhost
          ENDif
          call ppiclf_comm_MoveGhost
       ENDif
