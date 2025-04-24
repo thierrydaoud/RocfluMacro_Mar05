@@ -6911,13 +6911,11 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
                iflgx = 1
                iig =modulo(iig,ppiclf_n_bins(1))
-               !iig =modulo(jjg,ppiclf_n_bins(2))
                if (iperiodicx .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
                iflgy = 1
                jjg =modulo(jjg,ppiclf_n_bins(2))
-               !jjg =modulo(iig,ppiclf_n_bins(1))
                if (iperiodicy .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
@@ -6998,103 +6996,119 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
      >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   111 continue
          enddo
-         ! Thierry - testing faces only for now
 
          ! edges
-!         do ifc=1,nedgegp
-!            ist = (ifc-1)*3
-!            ii1 = iip + el_edge_num(ist+1) 
-!            jj1 = jjp + el_edge_num(ist+2)
-!            kk1 = kkp + el_edge_num(ist+3)
-!
-!            iig = ii1
-!            jjg = jj1
-!            kkg = kk1
-!
-!            distchk = 0.0d0
-!            dist = 0.0d0
-!            if (ii1-iip .ne. 0) then
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-!               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2
-!               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
-!            endif
-!            if (jj1-jjp .ne. 0) then
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-!               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2
-!               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
-!            endif
-!            if (ppiclf_ndim .gt. 2) then
-!            if (kk1-kkp .ne. 0) then
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-!               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2
-!               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
-!            endif
-!            endif
-!            distchk = sqrt(distchk)
-!            dist = sqrt(dist)
-!            if (dist .gt. distchk) cycle
-!
-!            iflgx = 0
-!            iflgy = 0
-!            iflgz = 0
-!            ! periodic if out of domain - add some ifsss
-!            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
-!               iflgx = 1
-!               iig =modulo(iig,ppiclf_n_bins(1))
-!               if (iperiodicx .ne. 0) cycle
-!            endif
-!            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
-!               iflgy = 1
-!               jjg =modulo(jjg,ppiclf_n_bins(2))
-!               if (iperiodicy .ne. 0) cycle
-!            endif
-!            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
-!               iflgz = 1  
-!               kkg =modulo(kkg,ppiclf_n_bins(3))
-!               if (iperiodicz .ne. 0) cycle
-!            endif
-!
-!            iflgsum = iflgx + iflgy + iflgz
-!            ndumn = iig + ppiclf_n_bins(1)*jjg 
-!     >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
-!            nrank = ndumn
-!
-!            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
-!
-!            do i=1,isave
-!               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 222
-!            enddo
-!            isave = isave + 1
-!            gpsave(isave) = nrank
-!
-!            ibctype = iflgx+iflgy+iflgz
-!                 
-!            rxnew(1) = rxval
-!            rxnew(2) = ryval
-!            rxnew(3) = rzval
-!       
-!            iadd(1) = ii1
-!            iadd(2) = jj1
-!            iadd(3) = kk1
-!
-!            call ppiclf_comm_CheckPeriodicBC(rxnew,rxdrng,iadd)
-!                 
-!            ppiclf_npart_gp = ppiclf_npart_gp + 1
-!            ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
-!            ppiclf_iprop_gp(2,ppiclf_npart_gp) = iig
-!            ppiclf_iprop_gp(3,ppiclf_npart_gp) = jjg
-!            ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
-!            ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
-!
-!            ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
-!            ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
-!            ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
-!
-!            do k=4,PPICLF_LRP_GP
-!               ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
-!            enddo
-!  222 continue
-!         enddo
+         do ifc=1,nedgegp
+            ist = (ifc-1)*3
+            ii1 = iip + el_edge_num(ist+1) 
+            jj1 = jjp + el_edge_num(ist+2)
+            kk1 = kkp + el_edge_num(ist+3)
+
+            iig = ii1
+            jjg = jj1
+            kkg = kk1
+
+            distchk = 0.0d0
+            dist = 0.0d0
+            if (ii1-iip .ne. 0) then
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2
+               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
+            endif
+            if (jj1-jjp .ne. 0) then
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2
+               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
+            endif
+            if (ppiclf_ndim .gt. 2) then
+            if (kk1-kkp .ne. 0) then
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2
+               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
+            endif
+            endif
+            distchk = sqrt(distchk)
+            dist = sqrt(dist)
+            if (dist .gt. distchk) cycle
+
+            iflgx = 0
+            iflgy = 0
+            iflgz = 0
+            ! periodic if out of domain - add some ifsss
+            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
+               iflgx = 1
+               iig =modulo(iig,ppiclf_n_bins(1))
+               if (iperiodicx .ne. 0) cycle
+            endif
+            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
+               iflgy = 1
+               jjg =modulo(jjg,ppiclf_n_bins(2))
+               if (iperiodicy .ne. 0) cycle
+            endif
+            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
+               iflgz = 1  
+               kkg =modulo(kkg,ppiclf_n_bins(3))
+               if (iperiodicz .ne. 0) cycle
+            endif
+
+            iflgsum = iflgx + iflgy + iflgz
+            ndumn = iig + ppiclf_n_bins(1)*jjg 
+     >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
+            nrank = ndumn
+
+            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
+
+            do i=1,isave
+               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 222
+            enddo
+            isave = isave + 1
+            gpsave(isave) = nrank
+
+            ibctype = iflgx+iflgy+iflgz
+                 
+            rxnew(1) = rxval
+            rxnew(2) = ryval
+            rxnew(3) = rzval
+
+            vxnew(1) = vxval
+            vxnew(2) = vyval
+            vxnew(3) = vzval
+       
+            iadd(1) = ii1
+            iadd(2) = jj1
+            iadd(3) = kk1
+
+            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
+     >                                              rxdrng, iadd)
+                 
+            ppiclf_npart_gp = ppiclf_npart_gp + 1
+            ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
+            ppiclf_iprop_gp(2,ppiclf_npart_gp) = iig
+            ppiclf_iprop_gp(3,ppiclf_npart_gp) = jjg
+            ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
+            ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
+
+            ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
+            ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
+            ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
+
+            ppiclf_rprop_gp(4,ppiclf_npart_gp) = vxnew(1)
+            ppiclf_rprop_gp(5,ppiclf_npart_gp) = vxnew(2)
+            ppiclf_rprop_gp(6,ppiclf_npart_gp) = vxnew(3)
+
+            do k=7,PPICLF_LRP_GP
+               ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
+            enddo
+            write(1920+ppiclf_nid,*) "LateEdges", ppiclf_time,     ! 0-1   
+     >              ip, ifc, ist, nrank,                           ! 2-5 
+     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+     >              ppiclf_npart_gp,                               ! 11
+     >              iig, jjg, kkg, ndumn,                          ! 12-15
+     >              rxnew(1:3), vxnew(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
+  222 continue
+         enddo
 !
 !         ! corners
 !         do ifc=1,ncornergp
@@ -7909,6 +7923,7 @@ c----------------------------------------------------------------------
          print*, "rxnew =", rxnew
          print*, "vxnew =", vxnew
 
+         ! flip angle when applying angularly rotating in CW
          angle = -1.0*ang_per_angle
          ct = cos(angle)
          st = sin(angle)
