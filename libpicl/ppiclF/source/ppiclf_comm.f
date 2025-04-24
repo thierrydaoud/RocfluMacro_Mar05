@@ -1160,12 +1160,6 @@ c CREATING GHOST PARTICLES
       rxdrng(2) = ydlen
       rxdrng(3) = zdlen
       
-      print*, "========================"
-      print*, "rxdrng(1) = ", rxdrng(1)
-      print*, "rxdrng(2) = ", rxdrng(2)
-      print*, "rxdrng(3) = ", rxdrng(3)
-      print*, "========================"
-
       ppiclf_npart_gp = 0
 
       rfac = 1.0d0
@@ -1670,7 +1664,8 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             distchk = 0.0d0
             dist = 0.0d0
             if (ii1-iip .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     ! calculate x-distance check based on user-input neighbor-width
+              ! calculate x-distance check based on user-input max(filter-width, neighbor-width)
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     
                if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2 ! calculate x-distance of ip particle from x-bin boundary
                if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
             endif
@@ -1701,14 +1696,14 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             ! periodic if out of domain - add some ifsss
             if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
                iflgx = 1
-               !iig =modulo(iig,ppiclf_n_bins(1))
-               iig =modulo(jjg,ppiclf_n_bins(2))
+               iig =modulo(iig,ppiclf_n_bins(1))
+               !iig =modulo(jjg,ppiclf_n_bins(2))
                if (iperiodicx .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
                iflgy = 1
-               !jjg =modulo(jjg,ppiclf_n_bins(2))
-               jjg =modulo(iig,ppiclf_n_bins(1))
+               jjg =modulo(jjg,ppiclf_n_bins(2))
+               !jjg =modulo(iig,ppiclf_n_bins(1))
                if (iperiodicy .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
@@ -1725,7 +1720,10 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
 
             do i=1,isave
-               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 111
+               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) then 
+                 print*, "skipping ghost"
+                 goto 111
+               endif
             enddo
             isave = isave + 1
             gpsave(isave) = nrank
@@ -1764,10 +1762,19 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             ppiclf_rprop_gp(5,ppiclf_npart_gp) = vxnew(2)
             ppiclf_rprop_gp(6,ppiclf_npart_gp) = vxnew(3)
 
+            print*, "===================================="
+            print*, "In ppiclf_comm_CreateAngularGhost"
+            print*, "rxnew =", rxnew
+            print*, "vxnew =", vxnew
+            print*, "nrank =", nrank
+            print*, "ndummn =", ndumn
+            print*, "iig, jjg, kkg =", iig, jjg, kkg
+            print*, "===================================="
+
             do k=7,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
-            write(1920,*) "Latefaces", ppiclf_time,                ! 0-1   
+            write(1920+ppiclf_nid,*) "Latefaces", ppiclf_time,                ! 0-1   
      >              ip, ifc, ist, nrank,                           ! 2-5 
      >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
      >              ppiclf_npart_gp,                               ! 11
@@ -2688,7 +2695,7 @@ c----------------------------------------------------------------------
          print*, "rxnew =", rxnew
          print*, "vxnew =", vxnew
 
-         angle = -1.0*atan2(rxnew(2), rxnew(1))
+         angle = -1.0*ang_per_angle
          ct = cos(angle)
          st = sin(angle)
          ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
@@ -2719,32 +2726,52 @@ c----------------------------------------------------------------------
          goto 123
       endif
       endif
-      ! particle leaving from min x periodic face
-!      if (rxdrng(1) .gt. 0 ) then
-!      if (iadd(1) .lt. 0) then
-!         rxnew(1) = rxnew(1) + rxdrng(1)
-!         goto 123
-!      endif
-!      endif
+      
 
-  123 continue    
-      ! rxdrng(2) = ppiclf_xdrange(2,2) - ppiclf_xdrange(1,2)
+      ! rxdrng(2) = ppiclf_binb(4) - ppiclf_binb(3)
       ! rxdrng(2) = -1.0  if not periodic in Y
-      if (rxdrng(2) .gt. 0 ) then
-      ! particle leaving from max y periodic face
-      if (iadd(2) .ge. ppiclf_n_bins(2)) then
-         rxnew(2) = rxnew(2) - rxdrng(2)
-         goto 124
-      endif
-      endif
       if (rxdrng(2) .gt. 0 ) then
       ! particle leaving from min y periodic face
       if (iadd(2) .lt. 0) then
-         rxnew(2) = rxnew(2) + rxdrng(2)
-         goto 124
+         angle = ang_per_angle
+         ct = cos(angle)
+         st = sin(angle)
+         ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
+         ! Rotation Matrix calculation
+         rotmat(1,1) = ct + (1.0d0-ct)*ex*ex
+         rotmat(1,2) =      (1.0d0-ct)*ex*ey - st*ez
+         rotmat(1,3) =      (1.0d0-ct)*ex*ez + st*ey
+         rotmat(2,1) =      (1.0d0-ct)*ey*ex + st*ez
+         rotmat(2,2) = ct + (1.0d0-ct)*ey*ey
+         rotmat(2,3) =      (1.0d0-ct)*ey*ez - st*ex
+         rotmat(3,1) =      (1.0d0-ct)*ez*ex - st*ey
+         rotmat(3,2) =      (1.0d0-ct)*ez*ey + st*ex
+         rotmat(3,3) = ct + (1.0d0-ct)*ez*ez
+         
+         rxnew = MATMUL(rotmat, rxnew)
+         vxnew = MATMUL(rotmat, vxnew)
+         goto 123
       endif
       endif
-  124 continue
+
+  123 continue    
+!      ! rxdrng(2) = ppiclf_xdrange(2,2) - ppiclf_xdrange(1,2)
+!      ! rxdrng(2) = -1.0  if not periodic in Y
+!      if (rxdrng(2) .gt. 0 ) then
+!      ! particle leaving from max y periodic face
+!      if (iadd(2) .ge. ppiclf_n_bins(2)) then
+!         rxnew(2) = rxnew(2) - rxdrng(2)
+!         goto 124
+!      endif
+!      endif
+!      if (rxdrng(2) .gt. 0 ) then
+!      ! particle leaving from min y periodic face
+!      if (iadd(2) .lt. 0) then
+!         rxnew(2) = rxnew(2) + rxdrng(2)
+!         goto 124
+!      endif
+!      endif
+!  124 continue
 
       if (ppiclf_ndim .gt. 2) then
         ! rxdrng(3) = ppiclf_xdrange(2,3) - ppiclf_xdrange(1,3)
