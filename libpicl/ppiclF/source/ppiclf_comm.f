@@ -195,6 +195,19 @@
       endif ! ndim
       endif ! xdrange
 
+      ! Modify bin boundaries like that for now and add 10% offset
+      ! Will have to modify the bin algorithm in the future
+
+      !if(ang_per_flag .eq. 1) then
+      !  print*, "Modifying bin boundaries"
+      !  ppiclf_binb(1) = 0.01d0*1.01d0
+      !  ppiclf_binb(2) = 0.01d0*1.01d0
+      !  ppiclf_binb(3) = 0.01d0*1.01d0
+      !  ppiclf_binb(4) = 0.01d0*1.01d0
+      !  ppiclf_binb(5) = 0.0d0*1.010d0
+      !  ppiclf_binb(6) = 0.0025d0*1.01d0
+      !endif
+
       ! End subroutine if no particles present      
       IF(npt_total .LT. 1) RETURN
       LBMax = 0
@@ -1315,12 +1328,12 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=4,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
-            write(1920,*) "Latefaces", ppiclf_time,                ! 0-1   
+            write(1920+ppiclf_nid,*) "DavidFaces", ppiclf_time,                ! 0-1   
      >              ip, ifc, ist, nrank,                           ! 2-5 
      >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
      >              ppiclf_npart_gp,                               ! 11
      >              iig, jjg, kkg, ndumn,                          ! 12-15
-     >              rxnew(1:3), vrot(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              rxnew(1:3), ppiclf_y(4:6,ip), ppiclf_cp_map(4:6,ip),  ! 16-24
      >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
      >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   111 continue
@@ -1419,6 +1432,14 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=4,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
+            write(1920+ppiclf_nid,*) "DavidEdges", ppiclf_time,                ! 0-1   
+     >              ip, ifc, ist, nrank,                           ! 2-5 
+     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+     >              ppiclf_npart_gp,                               ! 11
+     >              iig, jjg, kkg, ndumn,                          ! 12-15
+     >              rxnew(1:3), ppiclf_y(4:6,ip), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   222 continue
          enddo
 
@@ -1515,6 +1536,14 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=4,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
+            write(1920+ppiclf_nid,*) "DavidCorners", ppiclf_time,                ! 0-1   
+     >              ip, ifc, ist, nrank,                           ! 2-5 
+     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+     >              ppiclf_npart_gp,                               ! 11
+     >              iig, jjg, kkg, ndumn,                          ! 12-15
+     >              rxnew(1:3), ppiclf_y(4:6,ip), ppiclf_cp_map(4:6,ip),  ! 16-24
+     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
   333 continue
          enddo
 
@@ -1533,7 +1562,8 @@ c-----------------------------------------------------------------------
 !
       real*8 xdlen,ydlen,zdlen,rxdrng(3),rxnew(3), rfac, rxval, ryval,
      >       rzval, rxl, ryl, rzl, rxr, ryr, rzr, distchk, dist,
-     >       vxval, vyval, vzval, vxnew(3)
+     >       vxval, vyval, vzval, vxnew(3), dist1, dist2,
+     >       rval(3), vval(3), cpx, cpy, cpz, cpvx, cpvy, cpvz
       integer*4 iadd(3),gpsave(27)
       real*8 map(PPICLF_LRP_PRO)
       integer*4  el_face_num(18),el_edge_num(36),el_corner_num(24),
@@ -1544,6 +1574,8 @@ c-----------------------------------------------------------------------
      >           k
 !
 
+
+      print*, "============================================"
       print*, "---------- CreateAngularGhost --------------"
 c     face, edge, and corner number, x,y,z are all inline, so stride=3
       el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1 /)
@@ -1588,21 +1620,18 @@ c CREATING GHOST PARTICLES
       rxdrng(2) = ydlen
       rxdrng(3) = zdlen
       
-      ppiclf_npart_gp = 0
+      ! do not zero out ghost here
+      ! accumulate ghosts from David's algorithm with angular particles to be evaluated
+      !ppiclf_npart_gp = 0
 
       rfac = 1.0d0
 
       do ip=1,ppiclf_npart
 
+        ! Step 1 - Get the mapped particle properties
+
          call ppiclf_user_MapProjPart(map,ppiclf_y(1,ip)
      >         ,ppiclf_ydot(1,ip),ppiclf_ydotc(1,ip),ppiclf_rprop(1,ip))
-
-c        idum = 1
-c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
-c        idum = 2
-c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
-c        idum = 3
-c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
 
          idum = 0
          do j=1,PPICLF_LRS
@@ -1619,27 +1648,104 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             idum = idum + 1
             ppiclf_cp_map(idum,ip) = map(j)
          enddo
-
-         rxval = ppiclf_cp_map(1,ip) ! ppiclf_y(PPICLF_JX,ip)
-         ryval = ppiclf_cp_map(2,ip) ! ppiclf_y(PPICLF_JY,ip)
-         rzval = 0.0d0
-         if (ppiclf_ndim .gt. 2) rzval = ppiclf_cp_map(3,ip) ! ppiclf_y(PPICLF_JZ,ip)
-
-         vxval = ppiclf_cp_map(4,ip) ! ppiclf_y(PPICLF_JVX,ip)
-         vyval = ppiclf_cp_map(5,ip) ! ppiclf_y(PPICLF_JVY,ip)
-         vzval = 0.0d0
-         if (ppiclf_ndim .gt. 2) vzval = ppiclf_cp_map(6,ip) ! ppiclf_y(PPICLF_JVZ,ip)
          
+         ! checking if I should use this to evalute distance to plane
+         ! instead of ppiclf_y
+         cpx = ppiclf_cp_map(PPICLF_JX,ip)
+         cpy = ppiclf_cp_map(PPICLF_JY,ip)
+         cpz = ppiclf_cp_map(PPICLF_JZ,ip)
+
+         cpvx = ppiclf_cp_map(PPICLF_JVX,ip)
+         cpvy = ppiclf_cp_map(PPICLF_JVY,ip)
+         cpvz = ppiclf_cp_map(PPICLF_JVZ,ip)
+
+         ! Step 2 - Evalute distance of particle relative to angular periodic planes
+         !          dist1 -> distance between particle and upper plane
+         !          dist2 -> distance between particle and lower plane
+         call ppiclf_comm_AngularPlane(ip, cpx, cpy,cpz, dist1, dist2)      
+
+         rval = (/ cpx, cpy, cpz /)
+
+         vval = (/ cpvx, cpvy, cpvz /)
+
+         print*, "rval =", rval
+         print*, "vval=", vval
+
+         distchk = (rfac*ppiclf_d2chk(1))
+         ! particle farther from both angular planes
+         if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
+           print*, "dist1 dist2 cycling"
+           print*, "dist1 =", dist1
+           print*, "dist2 =", dist2
+           print*, "distchk =", distchk
+           cycle
+         ! particle closer to lower angular periodic plane
+         elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
+           print*, "Particle Closer to Lower Angular Plane"
+           call ppiclf_comm_AngularRotate(ip, ang_per_angle,
+     >                                    rval, vval)
+
+         ! particle closer to upper angular periodic plane
+         ! flip angle since convention is CCW
+         elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
+           print*, "Particle Closer to Upper Angular Plane"
+           call ppiclf_comm_AngularRotate(ip,-1.0*ang_per_angle,
+     >                                    rval, vval)
+         else
+           print*, "***ERROR Ghost Periodic Angular Plane!"
+           print*, "dist1 =", dist1
+           print*, "dist2 =", dist2
+           print*, "distchk =", distchk
+           call ppiclf_exittr('Error Ghost Periodic 
+     >                                 Angular Plane!')
+         endif
+
+         ! These are the angularly rotated properties of computational particle
+         !                           i.e. the properties of the mirror particle
+
+         rxval = rval(1)
+         ryval = rval(2)
+         rzval = rval(3)
+
+         vxval = vval(1)
+         vxval = vval(2)
+         vxval = vval(3)
 
 
-         iip    = ppiclf_iprop(8,ip) ! i-index of bin where ip particle is located
-         jjp    = ppiclf_iprop(9,ip) ! j-index of bin where ip particle is located
-         kkp    = ppiclf_iprop(10,ip)! k-index of bin where ip particle is located
+         ! Step 3 - add the mirror particle as a ghost on the ghost list
 
-         rxl = ppiclf_binb(1) + ppiclf_bins_dx(1)*iip ! min-x of bin where ip is located
-         rxr = rxl + ppiclf_bins_dx(1)                ! max-x of bin where ip is located
-         ryl = ppiclf_binb(3) + ppiclf_bins_dx(2)*jjp ! min-y of bin where ip is located
-         ryr = ryl + ppiclf_bins_dx(2)                ! max-y of bin where ip is located
+         !**** stopped here - need to:
+         ! 1) fix the properties of the added mirror ghost particle
+         ! 2) fix the bin boundaries to evaluate the ghosts around it correctly
+
+         ppiclf_npart_gp = ppiclf_npart_gp + 1
+         ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
+         ppiclf_iprop_gp(2,ppiclf_npart_gp) = iig
+         ppiclf_iprop_gp(3,ppiclf_npart_gp) = jjg
+         ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
+         ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
+
+         ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
+         ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
+         ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
+
+         do k=4,PPICLF_LRP_GP
+            ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
+         enddo
+
+
+
+
+
+
+         iip  = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) ! i-index of bin where mirror particle is located
+         jjp  = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) ! j-index of bin where mirror particle is located
+         kkp  = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) ! k-index of bin where mirror particle is located
+
+         rxl = ppiclf_binb(1) + ppiclf_bins_dx(1)*iip ! min-x of bin where mirror is located
+         rxr = rxl + ppiclf_bins_dx(1)                ! max-x of bin where mirror is located
+         ryl = ppiclf_binb(3) + ppiclf_bins_dx(2)*jjp ! min-y of bin where mirror is located
+         ryr = ryl + ppiclf_bins_dx(2)                ! max-y of bin where mirror is located
          rzl = 0.0d0
          rzr = 0.0d0
          if (ppiclf_ndim .gt. 2) then
@@ -1660,60 +1766,65 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             jjg = jj1
             kkg = kk1
 
-            ! Step 1 - Check if particle is within user-input neighbor-width from bin boundary
-            distchk = 0.0d0
-            dist = 0.0d0
-            if (ii1-iip .ne. 0) then
-              ! calculate x-distance check based on user-input max(filter-width, neighbor-width)
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     
-               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2 ! calculate x-distance of ip particle from x-bin boundary
-               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
-            endif
-            if (jj1-jjp .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2 ! calculate y-distance of ip particle from y-bin boundary
-               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
-            endif
-            if (ppiclf_ndim .gt. 2) then
-            if (kk1-kkp .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2 ! calculate z-distance of ip particle from z-bin boundary
-               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
-            endif
-            endif
-            distchk = sqrt(distchk) ! calculate distance magnitude check based on neighbor-width
-            dist = sqrt(dist)    ! calculate distance magnitude of ip particle from bin boundary
+            ! We check this before the loop now for angular mirror particles - to delete later
 
-            ! if ip particle is farther away from bin boundary than the user-input neighbor-width -> dont create ghost
-            if (dist .gt. distchk) cycle
+!            ! Step 1 - Check if particle is within user-input neighbor-width from bin boundary
+!            distchk = 0.0d0
+!            dist = 0.0d0
+!            if (ii1-iip .ne. 0) then
+!              ! calculate x-distance check based on user-input max(filter-width, neighbor-width)
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     
+!               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2 ! calculate x-distance of ip particle from x-bin boundary
+!               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
+!            endif
+!            if (jj1-jjp .ne. 0) then
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+!               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2 ! calculate y-distance of ip particle from y-bin boundary
+!               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
+!            endif
+!            if (ppiclf_ndim .gt. 2) then
+!            if (kk1-kkp .ne. 0) then
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+!               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2 ! calculate z-distance of ip particle from z-bin boundary
+!               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
+!            endif
+!            endif
+!            distchk = sqrt(distchk) ! calculate distance magnitude check based on neighbor-width
+!            dist = sqrt(dist)    ! calculate distance magnitude of ip particle from bin boundary
+!
+!            ! if ip particle is farther away from bin boundary than the user-input neighbor-width -> dont create ghost
+!            if (dist .gt. distchk) cycle
 
             iflgx = 0
             iflgy = 0
             iflgz = 0
 
-            ! Step 2 - Check whether particle is about to leave the domain
-            
-            ! periodic if out of domain - add some ifsss
-            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
-               iflgx = 1
-               iig =modulo(iig,ppiclf_n_bins(1))
-               if (iperiodicx .ne. 0) cycle
-            endif
-            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
-               iflgy = 1
-               jjg =modulo(jjg,ppiclf_n_bins(2))
-               if (iperiodicy .ne. 0) cycle
-            endif
-            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
-               iflgz = 1  
-               kkg =modulo(kkg,ppiclf_n_bins(3))
-               if (iperiodicz .ne. 0) cycle
-            endif
+            ! There is no need for periodic check in angular mirror particles
+
+!            ! Step 2 - Check whether particle is about to leave the domain
+!            
+!            ! periodic if out of domain - add some ifsss
+!            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
+!               iflgx = 1
+!               iig =modulo(iig,ppiclf_n_bins(1))
+!               if (iperiodicx .ne. 0) cycle
+!            endif
+!            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
+!               iflgy = 1
+!               jjg =modulo(jjg,ppiclf_n_bins(2))
+!               if (iperiodicy .ne. 0) cycle
+!            endif
+!            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
+!               iflgz = 1  
+!               kkg =modulo(kkg,ppiclf_n_bins(3))
+!               if (iperiodicz .ne. 0) cycle
+!            endif
 
             iflgsum = iflgx + iflgy + iflgz
             ndumn = iig + ppiclf_n_bins(1)*jjg 
      >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
             nrank = ndumn
+
 
             if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
 
@@ -1738,12 +1849,15 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             vxnew(2) = vyval
             vxnew(3) = vzval
        
-            iadd(1) = ii1
-            iadd(2) = jj1
-            iadd(3) = kk1
+!            iadd(1) = ii1
+!            iadd(2) = jj1
+!            iadd(3) = kk1
 
-            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
-     >                                              rxdrng, iadd)
+            ! we don't need to modify particle coordinates or velocities
+            ! for angular mirror particles as we already do that
+
+!            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
+!     >                                              rxdrng, iadd)
                  
             ppiclf_npart_gp = ppiclf_npart_gp + 1
             ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
@@ -1760,8 +1874,6 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             ppiclf_rprop_gp(5,ppiclf_npart_gp) = vxnew(2)
             ppiclf_rprop_gp(6,ppiclf_npart_gp) = vxnew(3)
 
-            print*, "===================================="
-            print*, "In ppiclf_comm_CreateAngularGhost"
             print*, "rxnew =", rxnew
             print*, "vxnew =", vxnew
             print*, "nrank =", nrank
@@ -1772,129 +1884,132 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             do k=7,PPICLF_LRP_GP
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
             enddo
-            write(1920+ppiclf_nid,*) "Latefaces", ppiclf_time,                ! 0-1   
+            write(1920+ppiclf_nid,*) "NewFaces", ppiclf_time,                ! 0-1   
      >              ip, ifc, ist, nrank,                           ! 2-5 
      >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
      >              ppiclf_npart_gp,                               ! 11
      >              iig, jjg, kkg, ndumn,                          ! 12-15
      >              rxnew(1:3), vxnew(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
      >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
-     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
+     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip),             ! 28-30, 31-33
+     >              iip, jjp, kkp                                  ! 34-36
   111 continue
          enddo
 
-         ! edges
-         do ifc=1,nedgegp
-            ist = (ifc-1)*3
-            ii1 = iip + el_edge_num(ist+1) 
-            jj1 = jjp + el_edge_num(ist+2)
-            kk1 = kkp + el_edge_num(ist+3)
+         ! testing on faces only for now
 
-            iig = ii1
-            jjg = jj1
-            kkg = kk1
-
-            distchk = 0.0d0
-            dist = 0.0d0
-            if (ii1-iip .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2
-               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
-            endif
-            if (jj1-jjp .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2
-               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
-            endif
-            if (ppiclf_ndim .gt. 2) then
-            if (kk1-kkp .ne. 0) then
-               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2
-               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
-            endif
-            endif
-            distchk = sqrt(distchk)
-            dist = sqrt(dist)
-            if (dist .gt. distchk) cycle
-
-            iflgx = 0
-            iflgy = 0
-            iflgz = 0
-            ! periodic if out of domain - add some ifsss
-            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
-               iflgx = 1
-               iig =modulo(iig,ppiclf_n_bins(1))
-               if (iperiodicx .ne. 0) cycle
-            endif
-            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
-               iflgy = 1
-               jjg =modulo(jjg,ppiclf_n_bins(2))
-               if (iperiodicy .ne. 0) cycle
-            endif
-            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
-               iflgz = 1  
-               kkg =modulo(kkg,ppiclf_n_bins(3))
-               if (iperiodicz .ne. 0) cycle
-            endif
-
-            iflgsum = iflgx + iflgy + iflgz
-            ndumn = iig + ppiclf_n_bins(1)*jjg 
-     >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
-            nrank = ndumn
-
-            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
-
-            do i=1,isave
-               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 222
-            enddo
-            isave = isave + 1
-            gpsave(isave) = nrank
-
-            ibctype = iflgx+iflgy+iflgz
-                 
-            rxnew(1) = rxval
-            rxnew(2) = ryval
-            rxnew(3) = rzval
-
-            vxnew(1) = vxval
-            vxnew(2) = vyval
-            vxnew(3) = vzval
-       
-            iadd(1) = ii1
-            iadd(2) = jj1
-            iadd(3) = kk1
-
-            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
-     >                                              rxdrng, iadd)
-                 
-            ppiclf_npart_gp = ppiclf_npart_gp + 1
-            ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
-            ppiclf_iprop_gp(2,ppiclf_npart_gp) = iig
-            ppiclf_iprop_gp(3,ppiclf_npart_gp) = jjg
-            ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
-            ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
-
-            ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
-            ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
-            ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
-
-            ppiclf_rprop_gp(4,ppiclf_npart_gp) = vxnew(1)
-            ppiclf_rprop_gp(5,ppiclf_npart_gp) = vxnew(2)
-            ppiclf_rprop_gp(6,ppiclf_npart_gp) = vxnew(3)
-
-            do k=7,PPICLF_LRP_GP
-               ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
-            enddo
-            write(1920+ppiclf_nid,*) "LateEdges", ppiclf_time,     ! 0-1   
-     >              ip, ifc, ist, nrank,                           ! 2-5 
-     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
-     >              ppiclf_npart_gp,                               ! 11
-     >              iig, jjg, kkg, ndumn,                          ! 12-15
-     >              rxnew(1:3), vxnew(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
-     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
-     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
-  222 continue
-         enddo
+!         ! edges
+!         do ifc=1,nedgegp
+!            ist = (ifc-1)*3
+!            ii1 = iip + el_edge_num(ist+1) 
+!            jj1 = jjp + el_edge_num(ist+2)
+!            kk1 = kkp + el_edge_num(ist+3)
+!
+!            iig = ii1
+!            jjg = jj1
+!            kkg = kk1
+!
+!            distchk = 0.0d0
+!            dist = 0.0d0
+!            if (ii1-iip .ne. 0) then
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+!               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2
+!               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
+!            endif
+!            if (jj1-jjp .ne. 0) then
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+!               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2
+!               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
+!            endif
+!            if (ppiclf_ndim .gt. 2) then
+!            if (kk1-kkp .ne. 0) then
+!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+!               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2
+!               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
+!            endif
+!            endif
+!            distchk = sqrt(distchk)
+!            dist = sqrt(dist)
+!            if (dist .gt. distchk) cycle
+!
+!            iflgx = 0
+!            iflgy = 0
+!            iflgz = 0
+!            ! periodic if out of domain - add some ifsss
+!            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
+!               iflgx = 1
+!               iig =modulo(iig,ppiclf_n_bins(1))
+!               if (iperiodicx .ne. 0) cycle
+!            endif
+!            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
+!               iflgy = 1
+!               jjg =modulo(jjg,ppiclf_n_bins(2))
+!               if (iperiodicy .ne. 0) cycle
+!            endif
+!            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
+!               iflgz = 1  
+!               kkg =modulo(kkg,ppiclf_n_bins(3))
+!               if (iperiodicz .ne. 0) cycle
+!            endif
+!
+!            iflgsum = iflgx + iflgy + iflgz
+!            ndumn = iig + ppiclf_n_bins(1)*jjg 
+!     >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
+!            nrank = ndumn
+!
+!            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
+!
+!            do i=1,isave
+!               if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 222
+!            enddo
+!            isave = isave + 1
+!            gpsave(isave) = nrank
+!
+!            ibctype = iflgx+iflgy+iflgz
+!                 
+!            rxnew(1) = rxval
+!            rxnew(2) = ryval
+!            rxnew(3) = rzval
+!
+!            vxnew(1) = vxval
+!            vxnew(2) = vyval
+!            vxnew(3) = vzval
+!       
+!            iadd(1) = ii1
+!            iadd(2) = jj1
+!            iadd(3) = kk1
+!
+!            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
+!     >                                              rxdrng, iadd)
+!                 
+!            ppiclf_npart_gp = ppiclf_npart_gp + 1
+!            ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
+!            ppiclf_iprop_gp(2,ppiclf_npart_gp) = iig
+!            ppiclf_iprop_gp(3,ppiclf_npart_gp) = jjg
+!            ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
+!            ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
+!
+!            ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
+!            ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
+!            ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
+!
+!            ppiclf_rprop_gp(4,ppiclf_npart_gp) = vxnew(1)
+!            ppiclf_rprop_gp(5,ppiclf_npart_gp) = vxnew(2)
+!            ppiclf_rprop_gp(6,ppiclf_npart_gp) = vxnew(3)
+!
+!            do k=7,PPICLF_LRP_GP
+!               ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
+!            enddo
+!            write(1920+ppiclf_nid,*) "LateEdges", ppiclf_time,     ! 0-1   
+!     >              ip, ifc, ist, nrank,                           ! 2-5 
+!     >              ii1, jj1, kk1, dist, distchk,                  ! 6-10
+!     >              ppiclf_npart_gp,                               ! 11
+!     >              iig, jjg, kkg, ndumn,                          ! 12-15
+!     >              rxnew(1:3), vxnew(1:3), ppiclf_cp_map(4:6,ip),  ! 16-24
+!     >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
+!     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)             ! 28-30, 31-33
+!  222 continue
+!         enddo
 !
 !         ! corners
 !         do ifc=1,ncornergp
@@ -2680,8 +2795,8 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
-     >                                              rxdrng, iadd)
+      subroutine ppiclf_comm_AngularRotate(i, angle, 
+     >                                     rxnew, vxnew)
 !
       implicit none
 !
@@ -2689,125 +2804,46 @@ c----------------------------------------------------------------------
 !
 ! Input:
 !
-      real*8 rxdrng(3)
-      integer*4 iadd(3)
+      real*8 angle
+      integer*4 i
 !
-! Input/Output:
+! Output:
 !
       real*8 rxnew(3), vxnew(3)
 !      
 ! Local : 
-      real*8 angle, ex, ey, ez, rotmat(3,3), ct, st
+      real*8 ex, ey, ez, rotmat(3,3), ct, st
 !
-      ! rxdrng(1) = ppiclf_binb(2) - ppiclf_binb(1)
-      ! rxdrng(1) = -1.0  if not periodic in X
-      if (rxdrng(1) .gt. 0 ) then
-      ! particle leaving from min x periodic face
-      if (iadd(1) .lt. 0) then
-         print*, "==========================================="
-         print*, "ppiclf_comm_CheckPeriodicAngularBC"
-         print*, "rxnew =", rxnew
-         print*, "vxnew =", vxnew
+      ct = cos(angle)
+      st = sin(angle)
+      ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
+      ! Rotation Matrix calculation
+      rotmat(1,1) = ct + (1.0d0-ct)*ex*ex
+      rotmat(1,2) =      (1.0d0-ct)*ex*ey - st*ez
+      rotmat(1,3) =      (1.0d0-ct)*ex*ez + st*ey
+      rotmat(2,1) =      (1.0d0-ct)*ey*ex + st*ez
+      rotmat(2,2) = ct + (1.0d0-ct)*ey*ey
+      rotmat(2,3) =      (1.0d0-ct)*ey*ez - st*ex
+      rotmat(3,1) =      (1.0d0-ct)*ez*ex - st*ey
+      rotmat(3,2) =      (1.0d0-ct)*ez*ey + st*ex
+      rotmat(3,3) = ct + (1.0d0-ct)*ez*ez
 
-         ! flip angle when applying angularly rotating in CW
-         angle = -1.0*ang_per_angle
-         ct = cos(angle)
-         st = sin(angle)
-         ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
-         ! Rotation Matrix calculation
-         rotmat(1,1) = ct + (1.0d0-ct)*ex*ex
-         rotmat(1,2) =      (1.0d0-ct)*ex*ey - st*ez
-         rotmat(1,3) =      (1.0d0-ct)*ex*ez + st*ey
-         rotmat(2,1) =      (1.0d0-ct)*ey*ex + st*ez
-         rotmat(2,2) = ct + (1.0d0-ct)*ey*ey
-         rotmat(2,3) =      (1.0d0-ct)*ey*ez - st*ex
-         rotmat(3,1) =      (1.0d0-ct)*ez*ex - st*ey
-         rotmat(3,2) =      (1.0d0-ct)*ez*ey + st*ex
-         rotmat(3,3) = ct + (1.0d0-ct)*ez*ez
-         
-         rxnew = MATMUL(rotmat, rxnew)
-         vxnew = MATMUL(rotmat, vxnew)
-         
-         print*, "angle =", angle
-         print*, "ct =", ct
-         print*, "st =", st
-         print*, "ex, ey, ez", ex, ey, ez
-         print*, "rotmat(1,:)", rotmat(1,:)
-         print*, "rotmat(2,:)", rotmat(2,:)
-         print*, "rotmat(3,:)", rotmat(3,:)
-         print*, "rxnew", rxnew
-         print*, "vxnew", vxnew
-         print*, "==========================================="
-         goto 123
-      endif
-      endif
+      print*, "==========================="
+      print*, "ppiclf_comm_AngularRotate"
+      print*, "rotmat(1,:) =", rotmat(1,:)
+      print*, "rotmat(2,:) =", rotmat(2,:)
+      print*, "rotmat(3,:) =", rotmat(3,:)
+
+      print*, "Before rxnew =", rxnew
+      print*, "Before vxnew =", vxnew
       
+      rxnew = MATMUL(rotmat, rxnew)
+      vxnew = MATMUL(rotmat, vxnew)
 
-      ! rxdrng(2) = ppiclf_binb(4) - ppiclf_binb(3)
-      ! rxdrng(2) = -1.0  if not periodic in Y
-      if (rxdrng(2) .gt. 0 ) then
-      ! particle leaving from min y periodic face
-      if (iadd(2) .lt. 0) then
-         angle = ang_per_angle
-         ct = cos(angle)
-         st = sin(angle)
-         ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
-         ! Rotation Matrix calculation
-         rotmat(1,1) = ct + (1.0d0-ct)*ex*ex
-         rotmat(1,2) =      (1.0d0-ct)*ex*ey - st*ez
-         rotmat(1,3) =      (1.0d0-ct)*ex*ez + st*ey
-         rotmat(2,1) =      (1.0d0-ct)*ey*ex + st*ez
-         rotmat(2,2) = ct + (1.0d0-ct)*ey*ey
-         rotmat(2,3) =      (1.0d0-ct)*ey*ez - st*ex
-         rotmat(3,1) =      (1.0d0-ct)*ez*ex - st*ey
-         rotmat(3,2) =      (1.0d0-ct)*ez*ey + st*ex
-         rotmat(3,3) = ct + (1.0d0-ct)*ez*ez
+      print*, "After rxnew =", rxnew
+      print*, "After vxnew =", vxnew
+      print*, "==========================="
          
-         rxnew = MATMUL(rotmat, rxnew)
-         vxnew = MATMUL(rotmat, vxnew)
-         goto 123
-      endif
-      endif
-
-  123 continue    
-!      ! rxdrng(2) = ppiclf_xdrange(2,2) - ppiclf_xdrange(1,2)
-!      ! rxdrng(2) = -1.0  if not periodic in Y
-!      if (rxdrng(2) .gt. 0 ) then
-!      ! particle leaving from max y periodic face
-!      if (iadd(2) .ge. ppiclf_n_bins(2)) then
-!         rxnew(2) = rxnew(2) - rxdrng(2)
-!         goto 124
-!      endif
-!      endif
-!      if (rxdrng(2) .gt. 0 ) then
-!      ! particle leaving from min y periodic face
-!      if (iadd(2) .lt. 0) then
-!         rxnew(2) = rxnew(2) + rxdrng(2)
-!         goto 124
-!      endif
-!      endif
-!  124 continue
-
-      if (ppiclf_ndim .gt. 2) then
-        ! rxdrng(3) = ppiclf_xdrange(2,3) - ppiclf_xdrange(1,3)
-        ! rxdrng(3) = -1.0  if not periodic in Z
-         if (rxdrng(3) .gt. 0 ) then
-      ! particle leaving from max z periodic face
-         if (iadd(3) .ge. ppiclf_n_bins(3)) then
-            rxnew(3) = rxnew(3) - rxdrng(3)
-            goto 125
-         endif
-         endif
-         if (rxdrng(3) .gt. 0 ) then
-      ! particle leaving from min z periodic face
-         if (iadd(3) .lt. 0) then
-            rxnew(3) = rxnew(3) + rxdrng(3)
-            goto 125
-         endif
-         endif
-      endif
-  125 continue
-
       return
       end
 c----------------------------------------------------------------------
@@ -2870,3 +2906,90 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
+      subroutine ppiclf_comm_AngularPlane(i,cpx,cpy,cpz,dist1,dist2)
+!
+      implicit none
+!
+      include "PPICLF"
+! Inputs 
+!
+      integer*4 i
+      real*8 cpx, cpy, cpz
+! Local Variables:
+!     
+      real*8 p1(3), p2(3), p3(3), p4(3), p5(3), p6(3),
+     >       v1(3), v2(3), v3(3), v4(3), n1(3), n2(3),
+     >       A, B, C, D, E, F, G, H, zt, xp, yp, zp
+!
+! Outputs
+      real*8 dist1, dist2
+!
+      xp = cpx
+      yp = cpy
+      zp = cpz
+      
+      zt = ppiclf_binb(6) - ppiclf_binb(5) ! bin thickness in z-direction
+
+      !!! upper plane calculation !!! 
+      
+      ! plane equation
+      ! Ax + By + Cz + D = 0
+
+      ! p1, p2, p3 are 3 points in the upper plane
+      ! Hard-coded values for Quarter Cylinder
+      ! Need to find a general approach for general wedge + quarter cylinder
+      p1 = (/0.0d0, 0.00d0, 0.0d0/) 
+      p2 = (/0.0d0, 0.01d0, 0.0d0/) 
+      p3 = (/0.0d0, 0.00d0, 0.0025d0/) 
+
+      v1 = p2 - p1 ! vector P1P2
+      v2 = p3 - p1 ! vector P1P3
+      
+      ! upper plane normal vector - n1(A,B,C) = v1 x v2
+      ! cross product calculation
+      n1(1) =  v1(2)*v2(3) - v1(3)*v2(2)
+      n1(2) =  v1(3)*v2(1) - v1(1)*v2(3)
+      n1(3) =  v1(1)*v2(2) - v1(2)*v2(1) 
+      A = n1(1)  
+      B = n1(2) 
+      C = n1(3)
+      
+      ! values of either p1, p2, or p3 can be used to calculate D
+      D = -A*p1(1) - B*p1(2) - C*p1(3)
+      
+      ! P(xp, yp, zp) arbitrary point
+      ! dist = distance between P and upper plane 
+      dist1 = abs(A*xp + B*yp + C*zp + D)
+      dist1 = dist1/sqrt(A**2 + B**2 + C**2)
+      
+      !!! lower plane calculation !!! 
+      ! plane equation
+      ! Ex + Fy + Gz + H = 0
+
+      ! p4, p5, p6 are 3 points in the lower plane
+
+      p4 = (/0.00d0, 0.0d0, 0.0d0/) 
+      p5 = (/0.01d0, 0.0d0, 0.0d0/) 
+      p6 = (/0.00d0, 0.0d0, 0.0025d0/) 
+
+      v3 = p5 - p4 ! vector P4P5
+      v4 = p6 - p4 ! vector P4P6
+      
+      ! lower plane normal vector - n2(E,F,G) = v3 x v4
+      ! cross product calculation
+      E =  v3(2)*v4(3) - v3(3)*v4(2)
+      F =  v3(3)*v4(1) - v3(1)*v4(3)
+      G =  v3(1)*v4(2) - v3(2)*v4(1)
+      n2(1)=E ; n2(2)=F; n2(3)=G
+      
+      ! values of either p4, p5, or p6 can be used to calculate H
+      H = -E*p4(1) - F*p4(2) - G*p4(3)
+
+      ! P(xp, yp, zp) arbitrary point
+      ! dist = distance between P and lower plane 
+      dist2 = abs(E*xp + F*yp + G*zp + H)
+      dist2 = dist2/sqrt(E**2 + F**2 + G**2)
+
+      return
+      end
+!-----------------------------------------------------------------------

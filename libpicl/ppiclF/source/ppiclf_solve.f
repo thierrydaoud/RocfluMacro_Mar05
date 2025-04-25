@@ -64,8 +64,10 @@
       ! Angular Periodicity
       ang_per_flag = ai1
       IF(ang_per_flag.EQ.1) THEN
-        ppiclf_iperiodic(1) = 0 ! X-Periodicity
-        ppiclf_iperiodic(2) = 0 ! Y-Periodicity
+        ! Thierry - comment to prevent David's ghost algorithm for linear periodicity
+        !           need to fix it later
+        !ppiclf_iperiodic(1) = 0 ! X-Periodicity
+        !ppiclf_iperiodic(2) = 0 ! Y-Periodicity
         ang_per_angle  = apa
         ang_per_xangle = apxa
         ang_per_rin    = aprin
@@ -1189,8 +1191,10 @@
         if (rin .ge. rout)
      >   call ppiclf_exittr('Angular Per must have rin < rout$',rout,0)
 
-            ppiclf_iperiodic(1) = 0 ! X-periodic
-            ppiclf_iperiodic(2) = 0 ! Y-periodic
+            ! Thierry - comment out to prevent confusion in ghost algorithm 
+            !           for linear periodicity. cleanup later. 
+            !ppiclf_iperiodic(1) = 0 ! X-periodic
+            !ppiclf_iperiodic(2) = 0 ! Y-periodic
 
             SELECT CASE (ang_case)
               CASE (1) ! general wedge ; 0 <= angle < 90
@@ -1207,6 +1211,7 @@
                 ppiclf_xdrange(2,1) = rout 
                 ppiclf_xdrange(1,2) = tan(xangle)*rout
                 ppiclf_xdrange(2,2) = rout 
+
               
               CASE (3) ! half cylinder ; angle = 180
                 if (ppiclf_nid.eq.0)
@@ -1962,15 +1967,13 @@ c----------------------------------------------------------------------
      >   call ppiclf_solve_InterpParticleGrid
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
-         ! Thierry - standard ghost algorithm when no angular periodicity
-         if(ang_per_flag.eq.0) then
            call ppiclf_comm_CreateGhost
-         elseif(ang_per_flag.eq.1) then
+         if(ang_per_flag.eq.1) then
            !call ppiclf_comm_AngularCreateGhost
            call ppiclf_comm_CreateAngularGhost
-         ENDif
+         endif
          call ppiclf_comm_MoveGhost
-      ENDif
+      endif
 
       if (ppiclf_lproj .and. ppiclf_overlap) 
      >   call ppiclf_solve_ProjectParticleGrid
