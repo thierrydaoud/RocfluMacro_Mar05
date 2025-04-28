@@ -1268,7 +1268,7 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
             iflgy = 0
             iflgz = 0
             
-            ! Step 2 - Check whether particle is about to leave the domain
+            ! Step 2 - Check whether particle is about to leave the periodic domain
 
             ! periodic if out of domain - add some ifsss
             if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
@@ -1287,13 +1287,19 @@ c        ppiclf_cp_map(idum,ip) = ppiclf_y(idum,ip)
                if (iperiodicz .ne. 0) cycle
             endif
 
+            ! if particle is crossing the periodic domain in each direction -> iflgsum = 1 crossing in 1-direction
+            !                                                     otherwise -> iflgsum = 0
             iflgsum = iflgx + iflgy + iflgz
             ndumn = iig + ppiclf_n_bins(1)*jjg 
      >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
             nrank = ndumn
 
+            ! if particle is still in the same processor and not crossing the periodic domain -> do not create a ghost
             if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
 
+            ! gpsave keeps track of which nrank destinations we've already created ghosts for
+            ! if a ghost for destination nrank was already created earlier, and this is not a boundary crossing -> don't duplicate
+            ! it.
             do i=1,isave
                if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) goto 111
             enddo
@@ -1715,8 +1721,21 @@ c CREATING GHOST PARTICLES
          ! Step 3 - add the mirror particle as a ghost on the ghost list
 
          !**** stopped here - need to:
-         ! 1) fix the properties of the added mirror ghost particle
+         ! 1) fix the properties of the added mirror ghost particle               -> DONE ! 
          ! 2) fix the bin boundaries to evaluate the ghosts around it correctly
+
+         iip  = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) ! i-index of bin where mirror particle is located
+         jjp  = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) ! j-index of bin where mirror particle is located
+         kkp  = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) ! k-index of bin where mirror particle is located
+        
+         iig = iip
+         jjg = jjp
+         kkg = kkp
+
+         ndumn = iig + ppiclf_n_bins(1)*jjg
+     >               + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
+
+         nrank = ndumn
 
          ppiclf_npart_gp = ppiclf_npart_gp + 1
          ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
@@ -1725,22 +1744,20 @@ c CREATING GHOST PARTICLES
          ppiclf_iprop_gp(4,ppiclf_npart_gp) = kkg
          ppiclf_iprop_gp(5,ppiclf_npart_gp) = ndumn
 
-         ppiclf_rprop_gp(1,ppiclf_npart_gp) = rxnew(1)
-         ppiclf_rprop_gp(2,ppiclf_npart_gp) = rxnew(2)
-         ppiclf_rprop_gp(3,ppiclf_npart_gp) = rxnew(3)
+         ppiclf_rprop_gp(1,ppiclf_npart_gp) = rval(1) ! angularly rotated coordinates of mirror particle
+         ppiclf_rprop_gp(2,ppiclf_npart_gp) = rval(2)
+         ppiclf_rprop_gp(3,ppiclf_npart_gp) = rval(3)
 
-         do k=4,PPICLF_LRP_GP
+         ppiclf_rprop_gp(4,ppiclf_npart_gp) = vval(1) ! angularly rotated velocities of mirror particle
+         ppiclf_rprop_gp(5,ppiclf_npart_gp) = vval(2)
+         ppiclf_rprop_gp(6,ppiclf_npart_gp) = vval(3)
+
+         do k=7,PPICLF_LRP_GP
             ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
          enddo
 
 
-
-
-
-
-         iip  = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) ! i-index of bin where mirror particle is located
-         jjp  = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) ! j-index of bin where mirror particle is located
-         kkp  = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) ! k-index of bin where mirror particle is located
+         ! Step 4 - check the neighborhood of the mirror ghost particle by looping over the faces, edges, and corners.
 
          rxl = ppiclf_binb(1) + ppiclf_bins_dx(1)*iip ! min-x of bin where mirror is located
          rxr = rxl + ppiclf_bins_dx(1)                ! max-x of bin where mirror is located
@@ -1766,68 +1783,70 @@ c CREATING GHOST PARTICLES
             jjg = jj1
             kkg = kk1
 
-            ! We check this before the loop now for angular mirror particles - to delete later
+            ! Check if particle is within user-input neighbor-width from bin boundary
+            distchk = 0.0d0
+            dist = 0.0d0
+            if (ii1-iip .ne. 0) then
+              ! calculate x-distance check based on user-input max(filter-width, neighbor-width)
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     
+               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2 ! calculate x-distance of ip particle from x-bin boundary
+               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
+            endif
+            if (jj1-jjp .ne. 0) then
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2 ! calculate y-distance of ip particle from y-bin boundary
+               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
+            endif
+            if (ppiclf_ndim .gt. 2) then
+            if (kk1-kkp .ne. 0) then
+               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
+               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2 ! calculate z-distance of ip particle from z-bin boundary
+               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
+            endif
+            endif
+            distchk = sqrt(distchk) ! calculate distance magnitude check based on neighbor-width
+            dist = sqrt(dist)    ! calculate distance magnitude of ip particle from bin boundary
 
-!            ! Step 1 - Check if particle is within user-input neighbor-width from bin boundary
-!            distchk = 0.0d0
-!            dist = 0.0d0
-!            if (ii1-iip .ne. 0) then
-!              ! calculate x-distance check based on user-input max(filter-width, neighbor-width)
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2     
-!               if (ii1-iip .lt. 0) dist = dist +(rxval - rxl)**2 ! calculate x-distance of ip particle from x-bin boundary
-!               if (ii1-iip .gt. 0) dist = dist +(rxval - rxr)**2
-!            endif
-!            if (jj1-jjp .ne. 0) then
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-!               if (jj1-jjp .lt. 0) dist = dist +(ryval - ryl)**2 ! calculate y-distance of ip particle from y-bin boundary
-!               if (jj1-jjp .gt. 0) dist = dist +(ryval - ryr)**2
-!            endif
-!            if (ppiclf_ndim .gt. 2) then
-!            if (kk1-kkp .ne. 0) then
-!               distchk = distchk + (rfac*ppiclf_d2chk(1))**2
-!               if (kk1-kkp .lt. 0) dist = dist +(rzval - rzl)**2 ! calculate z-distance of ip particle from z-bin boundary
-!               if (kk1-kkp .gt. 0) dist = dist +(rzval - rzr)**2
-!            endif
-!            endif
-!            distchk = sqrt(distchk) ! calculate distance magnitude check based on neighbor-width
-!            dist = sqrt(dist)    ! calculate distance magnitude of ip particle from bin boundary
-!
-!            ! if ip particle is farther away from bin boundary than the user-input neighbor-width -> dont create ghost
-!            if (dist .gt. distchk) cycle
+            ! if ip particle is farther away from bin boundary than the user-input neighbor-width -> dont create ghost
+            if (dist .gt. distchk) cycle
 
             iflgx = 0
             iflgy = 0
             iflgz = 0
 
             ! There is no need for periodic check in angular mirror particles
+            ! But we keep it for now
 
-!            ! Step 2 - Check whether particle is about to leave the domain
-!            
-!            ! periodic if out of domain - add some ifsss
-!            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
-!               iflgx = 1
-!               iig =modulo(iig,ppiclf_n_bins(1))
-!               if (iperiodicx .ne. 0) cycle
-!            endif
-!            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
-!               iflgy = 1
-!               jjg =modulo(jjg,ppiclf_n_bins(2))
-!               if (iperiodicy .ne. 0) cycle
-!            endif
-!            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
-!               iflgz = 1  
-!               kkg =modulo(kkg,ppiclf_n_bins(3))
-!               if (iperiodicz .ne. 0) cycle
-!            endif
+            ! Check whether particle is about to leave the periodic domain
+            if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
+               iflgx = 1
+               iig =modulo(iig,ppiclf_n_bins(1))
+               if (iperiodicx .ne. 0) cycle
+            endif
+            if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
+               iflgy = 1
+               jjg =modulo(jjg,ppiclf_n_bins(2))
+               if (iperiodicy .ne. 0) cycle
+            endif
+            if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
+               iflgz = 1  
+               kkg =modulo(kkg,ppiclf_n_bins(3))
+               if (iperiodicz .ne. 0) cycle
+            endif
 
+            ! if particle is crossing the periodic domain in each direction -> iflgsum = 1 crossing in 1-direction 
+            !                                                     otherwise -> iflgsum = 0                         
             iflgsum = iflgx + iflgy + iflgz
             ndumn = iig + ppiclf_n_bins(1)*jjg 
      >                  + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
             nrank = ndumn
-
-
+          
+            ! if particle is still in the same processor and not crossing the periodic domain -> do not create a ghost
             if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
 
+            ! gpsave keeps track of which nrank destinations we've already created ghosts for                                     
+            ! if a ghost for destination nrank was already created earlier, and this is not a boundary crossing -> don't duplicate
+            ! it.                                                                                                                 
             do i=1,isave
                if (gpsave(i) .eq. nrank .and. iflgsum .eq.0) then 
                  print*, "skipping ghost"
@@ -1849,15 +1868,12 @@ c CREATING GHOST PARTICLES
             vxnew(2) = vyval
             vxnew(3) = vzval
        
-!            iadd(1) = ii1
-!            iadd(2) = jj1
-!            iadd(3) = kk1
-
-            ! we don't need to modify particle coordinates or velocities
-            ! for angular mirror particles as we already do that
-
-!            call ppiclf_comm_CheckPeriodicAngularBC(rxnew, vxnew,
-!     >                                              rxdrng, iadd)
+            iadd(1) = ii1
+            iadd(2) = jj1
+            iadd(3) = kk1
+          
+            ! This is also not needed in the angular case, but we keep the logic as it is
+            call ppiclf_comm_CheckPeriodicBC(rxnew,rxdrng,iadd)
                  
             ppiclf_npart_gp = ppiclf_npart_gp + 1
             ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
