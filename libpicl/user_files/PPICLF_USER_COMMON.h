@@ -92,7 +92,10 @@
      >          ang_case 
       real*8 ang_per_angle, ang_per_xangle,
      >       ang_per_rin, ang_per_rout,
-     >       xrot(3) , vrot(3)
+     >       xrot(3) , vrot(3),
+     >       ang_per_xmin, ang_per_xmax,
+     >       ang_per_ymin, ang_per_ymax,
+     >       ang_per_zmin, ang_per_zmax
       real*8 x_per_min, x_per_max,
      >  y_per_min, y_per_max, z_per_min, z_per_max
 
@@ -103,6 +106,9 @@
      >                                ang_per_xangle,
      >                                ang_per_rin, 
      >                                ang_per_rout,
-     >                                xrot, vrot
+     >                                xrot, vrot,
+     >                                ang_per_xmin, ang_per_xmax,
+     >                                ang_per_ymin, ang_per_ymax,
+     >                                ang_per_zmin, ang_per_zmax
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
      >  y_per_min, y_per_max, z_per_min, z_per_max

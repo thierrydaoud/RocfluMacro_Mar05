@@ -172,6 +172,8 @@
 !      enddo
 !      endif
 
+      ! David's Algorithm sets the bin boundaries as big as 
+      ! the periodic direction when periodicity is invoked
       if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
      >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
      >    iperiodicx .eq. 0) then
@@ -194,19 +196,6 @@
          ppiclf_binb(6) = ppiclf_xdrange(2,3)
       endif ! ndim
       endif ! xdrange
-
-      ! Modify bin boundaries like that for now and add 10% offset
-      ! Will have to modify the bin algorithm in the future
-
-      !if(ang_per_flag .eq. 1) then
-      !  print*, "Modifying bin boundaries"
-      !  ppiclf_binb(1) = 0.01d0*1.01d0
-      !  ppiclf_binb(2) = 0.01d0*1.01d0
-      !  ppiclf_binb(3) = 0.01d0*1.01d0
-      !  ppiclf_binb(4) = 0.01d0*1.01d0
-      !  ppiclf_binb(5) = 0.0d0*1.010d0
-      !  ppiclf_binb(6) = 0.0025d0*1.01d0
-      !endif
 
       ! End subroutine if no particles present      
       IF(npt_total .LT. 1) RETURN
@@ -2935,7 +2924,7 @@ c----------------------------------------------------------------------
 !     
       real*8 p1(3), p2(3), p3(3), p4(3), p5(3), p6(3),
      >       v1(3), v2(3), v3(3), v4(3), n1(3), n2(3),
-     >       A, B, C, D, E, F, G, H, zt, xp, yp, zp
+     >       A, B, C, D, E, F, G, H, xp, yp, zp
 !
 ! Outputs
       real*8 dist1, dist2
@@ -2944,8 +2933,6 @@ c----------------------------------------------------------------------
       yp = cpy
       zp = cpz
       
-      zt = ppiclf_binb(6) - ppiclf_binb(5) ! bin thickness in z-direction
-
       !!! upper plane calculation !!! 
       
       ! plane equation
@@ -2954,9 +2941,27 @@ c----------------------------------------------------------------------
       ! p1, p2, p3 are 3 points in the upper plane
       ! Hard-coded values for Quarter Cylinder
       ! Need to find a general approach for general wedge + quarter cylinder
-      p1 = (/0.0d0, 0.00d0, 0.0d0/) 
-      p2 = (/0.0d0, 0.01d0, 0.0d0/) 
-      p3 = (/0.0d0, 0.00d0, 0.0025d0/) 
+!      p1 = (/0.0d0, 0.00d0, 0.0d0/)    ! origin
+!      p2 = (/0.0d0, 0.01d0, 0.0d0/)    ! ymax of mesh 
+!      p3 = (/0.0d0, 0.00d0, 0.0025d0/) ! zmax of mesh
+
+      p1 = (/0.0d0, 0.00d0, 0.0d0/)    ! origin
+      p2 = (/0.0d0, ang_per_ymax, 0.0d0/)    ! ymax of mesh 
+      p3 = (/0.0d0, 0.00d0, ang_per_zmax/) ! zmax of mesh
+
+      print*, "======================================================"
+      print*, "ppiclf_comm_AngularPlane"
+      print*, "ang_per_xmin =", ang_per_xmin
+      print*, "ang_per_xmax =", ang_per_xmax
+      print*, " "
+      print*, "ang_per_ymin =", ang_per_ymin
+      print*, "ang_per_ymax =", ang_per_ymax
+      print*, " "
+      print*, "ang_per_zmin =", ang_per_zmin
+      print*, "ang_per_zmax =", ang_per_zmax
+      print*, "======================================================"
+
+      STOP
 
       v1 = p2 - p1 ! vector P1P2
       v2 = p3 - p1 ! vector P1P3
@@ -2984,9 +2989,13 @@ c----------------------------------------------------------------------
 
       ! p4, p5, p6 are 3 points in the lower plane
 
-      p4 = (/0.00d0, 0.0d0, 0.0d0/) 
-      p5 = (/0.01d0, 0.0d0, 0.0d0/) 
-      p6 = (/0.00d0, 0.0d0, 0.0025d0/) 
+!      p4 = (/0.00d0, 0.0d0, 0.0d0/)    ! origin
+!      p5 = (/0.01d0, 0.0d0, 0.0d0/)    ! xmax of mesh
+!      p6 = (/0.00d0, 0.0d0, 0.0025d0/) ! zmax of mesh
+
+      p4 = p1   ! origin
+      p5 = (/ang_per_xmax, 0.0d0, 0.0d0/)    ! xmax of mesh
+      p6 = (/0.00d0, 0.0d0, ang_per_zmax/) ! zmax of mesh
 
       v3 = p5 - p4 ! vector P4P5
       v4 = p6 - p4 ! vector P4P6

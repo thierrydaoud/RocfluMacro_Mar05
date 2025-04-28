@@ -194,8 +194,10 @@ INTEGER :: errorFlag,icg
    real*8 x_per_min, x_per_max, & 
           y_per_min, y_per_max, & 
           z_per_min, z_per_max, & 
-          ang_per_angle, ang_per_xangle, &
-          ang_per_rin, ang_per_rout
+          ang_per_xmin, ang_per_xmax, & 
+          ang_per_ymin, ang_per_ymax, &
+          ang_per_zmin, ang_per_zmax, &
+          ang_per_angle, ang_per_xangle
    ! 08/19/24 - Thierry - added for Periodicity - ends here
 
    REAL :: MaxPoint(3), MinPoint(3), EleLen(3), Max_EleLen(3)
@@ -227,7 +229,7 @@ INTEGER :: errorFlag,icg
 !MOVING 1 HERE TO AVOID SEG FAULT OF ROCFLU STORED VF
 
 IF (global%rkscheme /= RK_SCHEME_3_WRAY) THEN
-  CALL ErrorStop(global,ERR_PICL_WRONG_RK,197,'Wrong RK Scheme for ppiclf. Needs RK3')
+  CALL ErrorStop(global,ERR_PICL_WRONG_RK,199,'Wrong RK Scheme for ppiclf. Needs RK3')
 END IF
 
 stationary = global%piclStationaryFlag
@@ -264,6 +266,10 @@ x_per_min=-10000.0; x_per_max= 10000.0; ! set crazy value if not used
 y_per_min=-10000.0; y_per_max= 10000.0; ! set crazy value if not used
 z_per_min=-10000.0; z_per_max= 10000.0; ! set crazy value if not used
 
+ang_per_xmin=-10000.0; ang_per_xmax= 10000.0; ! set crazy value if not used
+ang_per_ymin=-10000.0; ang_per_ymax= 10000.0; ! set crazy value if not used
+ang_per_zmin=-10000.0; ang_per_zmax= 10000.0; ! set crazy value if not used
+
 x_per_flag = global%piclPeriodicXFlag 
 if (x_per_flag == 1) then
     gridmin = MINVAL(pGrid%xyz(XCOORD,1:pGrid%nVert))
@@ -294,27 +300,73 @@ if (z_per_flag == 1) then
             global%mpiComm,errorFlag)
 endif
 
+! 04/28/2025 - Thierry - Get mesh xmax, ymax, zmax to use in angular periodic plane
 ang_per_flag   = global%piclAngularPeriodicFlag
-ang_per_angle  = global%piclAngularPeriodicAngle
-ang_per_xangle = global%piclAngularPeriodicXAngle
-ang_per_rin    = global%piclAngularPeriodicRin
-ang_per_rout   = global%piclAngularPeriodicRout
+if (ang_per_flag .eq. 1) then
+    
+    ! get xmin and xmax of the mesh
+    gridmin = MINVAL(pGrid%xyz(XCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(XCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,ang_per_xmin,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,ang_per_xmax,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
+    
+    ! get ymin and ymax of the mesh
+    gridmin = MINVAL(pGrid%xyz(YCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(YCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,ang_per_ymin,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,ang_per_ymax,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
 
-pi = acos(-1.0d0)
-ang_per_angle  = global%piclAngularPeriodicAngle * pi / 180.0d0
-ang_per_xangle = global%piclAngularPeriodicXAngle * pi / 180.0d0
+    ! get zmin and zmax of the mesh
+    gridmin = MINVAL(pGrid%xyz(ZCOORD,1:pGrid%nVert))
+    gridmax = MAXVAL(pGrid%xyz(ZCOORD,1:pGrid%nVert))
+    CALL MPI_AllReduce(gridmin,ang_per_zmin,1,MPI_RFREAL,MPI_MIN, &
+            global%mpiComm,errorFlag)
+    CALL MPI_AllReduce(gridmax,ang_per_zmax,1,MPI_RFREAL,MPI_MAX, &
+            global%mpiComm,errorFlag)
+endif
+
+
+! 04/28/2025 - Thierry - the way of calculating these two angles is currently only valid for
+!                        a) Quarter Cylinder
+!                        b) Wedge symmetric about x-axis
+ang_per_angle  = 2.0*ABS(atan2(ang_per_ymax, ang_per_xmax)) ! angle between two periodic faces
+ang_per_xangle = atan2(ang_per_ymin, ang_per_xmax) ! angle of lower face w/ x-axis, CCW +ve
+
+if(global%myprocid .eq. MASTERPROC) then
+  print*, "======================================================"
+  print*, "PICL_TEMP_InitSolver"
+  print*, "ang_per_xmin =", ang_per_xmin
+  print*, "ang_per_xmax =", ang_per_xmax
+  print*, " "
+  print*, "ang_per_ymin =", ang_per_ymin
+  print*, "ang_per_ymax =", ang_per_ymax
+  print*, " "
+  print*, "ang_per_zmin =", ang_per_zmin
+  print*, "ang_per_zmax =", ang_per_zmax
+  print*, "  "
+  print*, "ang_per_angle=",  ang_per_angle 
+  print*, "ang_per_xangle=", ang_per_xangle
+  print*,"======================================================"
+endif
 
 call ppiclf_solve_Initialize( &
    x_per_flag, x_per_min, x_per_max, &
    y_per_flag, y_per_min, y_per_max, &
    z_per_flag, z_per_min, z_per_max, &
-   ang_per_flag, ang_per_angle, ang_per_xangle, ang_per_rin, ang_per_rout)
+   ang_per_flag, ang_per_angle, ang_per_xangle, &
+   ang_per_xmin, ang_per_xmax, & 
+   ang_per_ymin, ang_per_ymax, &
+   ang_per_zmin, ang_per_zmax)
 
 ! 08/13/24 - Thierry - added for Periodicity - ends here
 
 ! Sanity check for viscosity
 if (rmu_ref .lt. 0.0d0) then
-    CALL ErrorStop(global,ERR_PICL_INVALID_VISC,284,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_VISC,336,&
         'Negative viscosity for ppiclF')
 end if
 
@@ -371,7 +423,7 @@ IF (global%restartFromScratch) THEN
    OPEN(iFile,FILE=iFileName,FORM="FORMATTED",STATUS="OLD",IOSTAT=errorFlag)
    global%error = errorFlag   
    IF ( global%error /= ERR_NONE ) THEN 
-      CALL ErrorStop(global,ERR_FILE_OPEN,341,iFileName)
+      CALL ErrorStop(global,ERR_FILE_OPEN,393,iFileName)
    END IF
 
    ! check for comments at beginning of file
@@ -386,7 +438,7 @@ IF (global%restartFromScratch) THEN
   
    READ(iFile,*) npart ! global number of particles
    IF (npart .gt. 20000*global%nProcs) THEN
-      CALL ErrorStop(global,ERR_ILLEGAL_VALUE,356,'PPICLF:too &
+      CALL ErrorStop(global,ERR_ILLEGAL_VALUE,408,'PPICLF:too &
         many particles to initialize')
    END IF
   
@@ -452,7 +504,7 @@ IF (global%restartFromScratch) THEN
 
          IF (.NOT. foundMat) THEN
             print*,global%myProcid,'stopping foundMat = False'
-            CALL ErrorStop(global,ERR_INRT_MISSPLAGMAT,422,matName)
+            CALL ErrorStop(global,ERR_INRT_MISSPLAGMAT,474,matName)
          END IF
 
          IF ( global%myProcid == MASTERPROC) then
@@ -503,7 +555,7 @@ IF (global%restartFromScratch) THEN
    CALL MPI_Barrier(global%mpiComm,errorFlag)
    global%error = errorFlag   
    IF ( global%error /= ERR_NONE ) THEN 
-      CALL ErrorStop(global,ERR_FILE_CLOSE,473,iFileName)
+      CALL ErrorStop(global,ERR_FILE_CLOSE,525,iFileName)
    END IF ! global%error  
 
 ELSE
@@ -528,7 +580,7 @@ ELSE
    ENDIF
 
    IF (ii .lt. 0) THEN
-      CALL ErrorStop(global,ERR_FILE_EXIST,498,vtuFile)
+      CALL ErrorStop(global,ERR_FILE_EXIST,550,vtuFile)
    END IF
 
    ! TLJ - 11/23/2024
@@ -575,19 +627,19 @@ lz = 2
 ALLOCATE(xGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,545,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,597,'PPICLF:xGrid')
 END IF ! global%error
 
 ALLOCATE(yGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,551,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,603,'PPICLF:yGrid')
 END IF ! global%error
 
 ALLOCATE(zGrid(lx,ly,lz,nCells),STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_ALLOCATE,557,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_ALLOCATE,609,'PPICLF:zGrid')
 END IF ! global%error
 
 !Loop cells
@@ -720,18 +772,19 @@ call ppiclf_comm_InitOverlapMesh(nCells,lx,ly,lz,xGrid,yGrid,zGrid)
 !           angular periodicity around z-axis
 IF(((ang_per_flag.eq.1) .and. (x_per_flag.eq.1 .or. y_per_flag.eq.1)) .or. & 
     (ang_per_flag .gt. 1)) THEN
-    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,690,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,742,&
       'Wrong periodicity choices for ppiclF')
 END IF 
 
 ! Angular-Periodic
-IF(ang_per_flag .eq. 1) then
-   IF(global%myProcid == MASTERPROC) print*, "PPICLF Angular Periodic Invoked"
-     call ppiclf_solve_InitAngularPeriodic(ang_per_flag , &
-                                           ang_per_rin  , ang_per_rout, &
-                                           ang_per_angle, ang_per_xangle)
-   IF(global%myProcid == MASTERPROC) print*, "PPICLF Angular Periodic Done"
-END IF
+! 04/28/2025 - Thierry - no need to call this subroutine for now with the new ghost algorithm in angular periodic
+!IF(ang_per_flag .eq. 1) then
+!   IF(global%myProcid == MASTERPROC) print*, "PPICLF Angular Periodic Invoked"
+!     call ppiclf_solve_InitAngularPeriodic(ang_per_flag , &
+!                                           ang_per_rin  , ang_per_rout, &
+!                                           ang_per_angle, ang_per_xangle)
+!   IF(global%myProcid == MASTERPROC) print*, "PPICLF Angular Periodic Done"
+!END IF
 
 ! Linear X-Periodic
 IF(x_per_flag .eq. 1) then  
@@ -780,31 +833,31 @@ end if
 DEALLOCATE(xGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,750,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,803,'PPICLF:xGrid')
 END IF ! global%error
 
 DEALLOCATE(yGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,756,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,809,'PPICLF:yGrid')
 END IF ! global%error
 
 DEALLOCATE(zGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,762,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,815,'PPICLF:zGrid')
 END IF ! global%error
 
 ALLOCATE(vfP(2,2,2,nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,768,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,821,'PPICLF:xGrid')
     END IF ! global%error
 
 ALLOCATE(volp(nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,774,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,827,'PPICLF:xGrid')
     END IF ! global%error
 
 do i=1,pGrid%nCellsTot
@@ -823,7 +876,7 @@ DO i = 1,pRegion%grid%nCells
 
        IF (pRegion%mixtInput%axiFlag) THEN
            WRITE(*,*) "Need to properly implement axi-sym for phip init."
-           CALL ErrorStop(global,ERR_OPTION_TYPE,793,'PPICLF:axi')
+           CALL ErrorStop(global,ERR_OPTION_TYPE,846,'PPICLF:axi')
        END IF
 
        tester = tester + (0.125*vfP(lx,ly,lz,i))*pRegion%grid%vol(i)
@@ -855,7 +908,7 @@ DO icg = 1,pGrid%nCellsTot
     pRegion%mixt%cv(CV_MIXT_ENER,icg) = vFrac*pRegion%mixt%cv(CV_MIXT_ENER,icg)
     if (pRegion%mixt%cv(CV_MIXT_DENS,icg) .le. 0.0) then
          WRITE(*,*) "Error: negative density: ",pRegion%mixt%cv(CV_MIXT_DENS,icg)      
-         CALL ErrorStop(global,ERR_INVALID_VALUE,825,'PPICLF:init')
+         CALL ErrorStop(global,ERR_INVALID_VALUE,878,'PPICLF:init')
     end if    
 
 END DO ! icg
@@ -863,12 +916,12 @@ END DO ! icg
 DEALLOCATE(vfP,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,833,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,886,'PPICLF:zGrid')
     END IF ! global%error
 DEALLOCATE(volp,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,838,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,891,'PPICLF:zGrid')
     END IF ! global%error
 
 !!Josh - Removed Brad Comments and Restart Section
@@ -931,9 +984,8 @@ DEALLOCATE(volp,STAT=errorFlag)
        print*, "ppiclF Z-periodic (min, max) ", z_per_min, z_per_max
      endif  
      if(ang_per_flag.eq.1) then
-       print*, "ppiclF Angular-periodic (axis, rin, rout, angle, x-angle) ", &
-       ang_per_flag, ang_per_rin, ang_per_rout, &
-       ang_per_angle, ang_per_xangle
+       print*, "ppiclF Angular-periodic (axis, angle, x-angle) ", &
+       ang_per_flag, ang_per_angle, ang_per_xangle
      endif  
   
      print*, ' '
