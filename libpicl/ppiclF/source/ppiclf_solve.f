@@ -78,6 +78,8 @@
         ang_per_ymax   = apymax
         ang_per_zmin   = apzmin
         ang_per_zmax   = apzmax
+        ! initialize rotation matrices
+        call ppiclf_solve_AngularRotate(ang_per_angle)
       END IF
       if(ppiclf_nid .eq. 0) then
         print*, "======================================================"
@@ -3660,3 +3662,46 @@ c        do i=il,ir
       RETURN
       END
 !-----------------------------------------------------------------------
+      subroutine ppiclf_solve_AngularRotate(angle)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Input:
+!
+      real*8 angle
+! Local : 
+      real*8 ex, ey, ez, ct, st
+!
+      ! Sign convention for rotation matrix is +ve CCW !
+      ct = cos(angle)
+      st = sin(angle)
+      ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
+      ! Counter-ClockWise Rotation Matrix
+      rotCCW(1,1) = ct + (1.0d0-ct)*ex*ex
+      rotCCW(1,2) =      (1.0d0-ct)*ex*ey - st*ez
+      rotCCW(1,3) =      (1.0d0-ct)*ex*ez + st*ey
+      rotCCW(2,1) =      (1.0d0-ct)*ey*ex + st*ez
+      rotCCW(2,2) = ct + (1.0d0-ct)*ey*ey
+      rotCCW(2,3) =      (1.0d0-ct)*ey*ez - st*ex
+      rotCCW(3,1) =      (1.0d0-ct)*ez*ex - st*ey
+      rotCCW(3,2) =      (1.0d0-ct)*ez*ey + st*ex
+      rotCCW(3,3) = ct + (1.0d0-ct)*ez*ez
+
+      ct = cos(-angle)
+      st = sin(-angle)
+      ! ClockWise Rotation Matrix
+      rotCW(1,1) = ct + (1.0d0-ct)*ex*ex
+      rotCW(1,2) =      (1.0d0-ct)*ex*ey - st*ez
+      rotCW(1,3) =      (1.0d0-ct)*ex*ez + st*ey
+      rotCW(2,1) =      (1.0d0-ct)*ey*ex + st*ez
+      rotCW(2,2) = ct + (1.0d0-ct)*ey*ey
+      rotCW(2,3) =      (1.0d0-ct)*ey*ez - st*ex
+      rotCW(3,1) =      (1.0d0-ct)*ez*ex - st*ey
+      rotCW(3,2) =      (1.0d0-ct)*ez*ey + st*ex
+      rotCW(3,3) = ct + (1.0d0-ct)*ez*ez
+
+      return
+      end
+c----------------------------------------------------------------------

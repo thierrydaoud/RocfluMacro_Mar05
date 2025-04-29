@@ -95,7 +95,8 @@
      >       xrot(3) , vrot(3),
      >       ang_per_xmin, ang_per_xmax,
      >       ang_per_ymin, ang_per_ymax,
-     >       ang_per_zmin, ang_per_zmax
+     >       ang_per_zmin, ang_per_zmax,
+     >       rotCCW(3,3), rotCW(3,3)
       real*8 x_per_min, x_per_max,
      >  y_per_min, y_per_max, z_per_min, z_per_max
 
@@ -109,6 +110,7 @@
      >                                xrot, vrot,
      >                                ang_per_xmin, ang_per_xmax,
      >                                ang_per_ymin, ang_per_ymax,
-     >                                ang_per_zmin, ang_per_zmax
+     >                                ang_per_zmin, ang_per_zmax,
+     >                                rotCCW, rotCW
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
      >  y_per_min, y_per_max, z_per_min, z_per_max

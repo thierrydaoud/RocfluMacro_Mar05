@@ -173,15 +173,14 @@
         ! particle farther from both angular planes
         if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
           cycle
-        ! particle closer to lower angular periodic plane
+        ! particle closer to lower angular periodic plane -> rotate CCW
         elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
-          call ppiclf_comm_AngularRotate(i, ang_per_angle,
-     >                                    rval, vval)
-        ! particle closer to upper angular periodic plane
-        ! flip angle since convention is CCW
+          rval = MATMUL(rotCCW, rval)
+          vval = MATMUL(rotCCW, vval)
+        ! particle closer to upper angular periodic plane -> rotate CW
         elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
-          call ppiclf_comm_AngularRotate(i,-1.0*ang_per_angle,
-     >                                    rval, vval)
+          rval = MATMUL(rotCW, rval)
+          vval = MATMUL(rotCW, vval)
         else
           print*, "***ERROR Bin Periodic Angular Plane!"
           print*, "dist1, dist2, distchk =",dist1,dist2,distchk
@@ -1738,18 +1737,17 @@ c CREATING GHOST PARTICLES
            print*, "dist2 =", dist2
            print*, "distchk =", distchk
            cycle
-         ! particle closer to lower angular periodic plane
+         ! particle closer to lower angular periodic plane -> rotate CCW
          elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
+           rval = MATMUL(rotCCW, rval)
+           vval = MATMUL(rotCCW, vval)
            print*, "Particle Closer to Lower Angular Plane"
-           call ppiclf_comm_AngularRotate(ip, ang_per_angle,
-     >                                    rval, vval)
 
-         ! particle closer to upper angular periodic plane
-         ! flip angle since convention is CCW
+         ! particle closer to upper angular periodic plane -> rotate CW
          elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
+           rval = MATMUL(rotCW, rval)
+           vval = MATMUL(rotCW, vval)
            print*, "Particle Closer to Upper Angular Plane"
-           call ppiclf_comm_AngularRotate(ip,-1.0*ang_per_angle,
-     >                                    rval, vval)
          else
            print*, "***ERROR Ghost Periodic Angular Plane!"
            print*, "dist1 =", dist1
@@ -1772,10 +1770,6 @@ c CREATING GHOST PARTICLES
 
 
          ! Step 3 - add the mirror particle as a ghost on the ghost list
-
-         !**** stopped here - need to:
-         ! 1) fix the properties of the added mirror ghost particle               -> DONE ! 
-         ! 2) fix the bin boundaries to evaluate the ghosts around it correctly
 
          iip  = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) ! i-index of bin where mirror particle is located
          jjp  = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) ! j-index of bin where mirror particle is located
@@ -1804,6 +1798,30 @@ c CREATING GHOST PARTICLES
          ppiclf_rprop_gp(4,ppiclf_npart_gp) = vval(1) ! angularly rotated velocities of mirror particle
          ppiclf_rprop_gp(5,ppiclf_npart_gp) = vval(2)
          ppiclf_rprop_gp(6,ppiclf_npart_gp) = vval(3)
+         
+         ! *** stopped here 
+
+         ! Angularly rotate the rest of the properties of the mirror particle
+         ! Rotation Matrix (Q)
+         ! vector property (V) -> Q.V
+         ! tensor property (T) -> Q.T.Q^T
+
+         ! This is just how the order is done to import the properties, need to implement the same order but with rotated properties
+!         idum = 0
+!         do j=1,PPICLF_LRS
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = ppiclf_y(j,ip)
+!         enddo
+!         idum = PPICLF_LRS
+!         do j=1,PPICLF_LRP
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = ppiclf_rprop(j,ip)
+!         enddo
+!         idum = PPICLF_LRS+PPICLF_LRP
+!         do j=1,PPICLF_LRP_PRO
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = map(j)
+!         enddo
 
          do k=7,PPICLF_LRP_GP
             ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
