@@ -5289,9 +5289,11 @@
      >          npt_total, j, i, idum, jdum, kdum, total_bin, 
      >          sum_value, count, targetTotBin, idealBin(3), iBin(3),
      >          iBinTot, temp,nBinMax,nBinMed,nBinMin, m, l, k,
-     >          LBMax,LBMin
+     >          LBMax,LBMin,
+     >          ivx, ivy, ivz
       REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
-     >       rmiddle, rdiff, binb_length(3),temp1,temp2
+     >       rmiddle, rdiff, binb_length(3),temp1,temp2,
+     >       distchk, dist1, dist2, rval(3), vval(3)
       INTEGER*4 ppiclf_iglsum
       EXTERNAL ppiclf_iglsum
       REAL*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
@@ -5317,11 +5319,15 @@
          ncornergp = 8  ! number of corners
       END IF
 
-      ix = 1
-      iy = 2
+      ix = PPICLF_JX
+      iy = PPICLF_JY
       iz = 1
       IF(ppiclf_ndim .EQ. 3)
-     >iz = 3
+     >iz = PPICLF_JZ
+      
+      ivx = PPICLF_JVX
+      ivy = PPICLF_JVY
+      ivz = PPICLF_JVZ
 
       iperiodicx = ppiclf_iperiodic(1)
       iperiodicy = ppiclf_iperiodic(2)
@@ -5337,8 +5343,9 @@
       ymax = -1E10
       zmax = -1E10
       ! Looping through particles on this processor
+      ! Find the bin boundaries based on the REAL particles
       DO i=1,ppiclf_npart
-         ! Finding min/max particle extremes.
+         ! Finding min/max REAL particle extremes.
          ! Need to consider filter/neighborwidths
          ! to ensure ppiclf_bins_dx > ppiclf_d2chk(1)
          rduml = ppiclf_y(ix,i) - ppiclf_d2chk(1)
@@ -5358,6 +5365,63 @@
             IF(rdumr .GT. zmax) zmax = rdumr
          END IF
       END DO
+
+
+      if(ang_per_flag .eq. 1) then
+      ! Looping through particles on this processor
+      ! Find the bin boundaries based on the MIRROR particles
+      DO i=1,ppiclf_npart
+
+        ! Finding min/max MIRROR particle extremes.
+
+        ! Check first if particle is close to periodic angular planes
+        rval=(/ ppiclf_y(ix,i), ppiclf_y(iy,i), 
+     >                   ppiclf_y(iz,i) /)
+        vval=(/ ppiclf_y(ivx,i), ppiclf_y(ivy,i), 
+     >                   ppiclf_y(ivz,i) /)
+        distchk = ppiclf_d2chk(1)
+        
+        call ppiclf_comm_AngularPlane(i, rval(1), rval(2), 
+     >                                   rval(3), dist1, dist2)
+
+        ! particle farther from both angular planes
+        if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
+          cycle
+        ! particle closer to lower angular periodic plane
+        elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
+          call ppiclf_comm_AngularRotate(i, ang_per_angle,
+     >                                    rval, vval)
+        ! particle closer to upper angular periodic plane
+        ! flip angle since convention is CCW
+        elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
+          call ppiclf_comm_AngularRotate(i,-1.0*ang_per_angle,
+     >                                    rval, vval)
+        else
+          print*, "***ERROR Bin Periodic Angular Plane!"
+          print*, "dist1, dist2, distchk =",dist1,dist2,distchk
+          call ppiclf_exittr('Error Bin Periodic 
+     >                                Angular Plane!')
+        endif
+
+        rduml = rval(1) - ppiclf_d2chk(1)
+        rdumr = rval(1) + ppiclf_d2chk(1)
+        IF(rduml .LT. xmin) xmin = rduml
+        IF(rdumr .GT. xmax) xmax = rdumr
+
+        rduml = rval(2) - ppiclf_d2chk(1)
+        rdumr = rval(2) + ppiclf_d2chk(1)
+        IF(rduml .LT. ymin) ymin = rduml
+        IF(rdumr .GT. ymax) ymax = rdumr
+
+        IF(ppiclf_ndim .EQ. 3) THEN
+           rduml = rval(3) - ppiclf_d2chk(1)
+           rdumr = rval(3) + ppiclf_d2chk(1)
+           IF(rduml .LT. zmin) zmin = rduml
+           IF(rdumr .GT. zmax) zmax = rdumr
+        END IF
+      END DO
+      endif ! ang_per_flag
+
       ! Finds global max/mins across MPI ranks
       ppiclf_binb(1) = ppiclf_glmin(xmin,1)
       ppiclf_binb(2) = ppiclf_glmax(xmax,1)
@@ -8175,8 +8239,6 @@ c----------------------------------------------------------------------
       print*, "ang_per_zmax =", ang_per_zmax
       print*, "======================================================"
 
-      STOP
-
       v1 = p2 - p1 ! vector P1P2
       v2 = p3 - p1 ! vector P1P3
       
@@ -10786,8 +10848,8 @@ c1511 continue
 !-----------------------------------------------------------------------
       SUBROUTINE ppiclf_solve_Initialize(xi1,xpmin,xpmax,
      >        yi1,ypmin,ypmax,zi1,zpmin,zpmax,
-     >        ai1,apa,apxa,aprin,aprout, 
-     >        apxmin,apxmax,apymin,apymax,apzmin,apzmax)
+     >        ai1,apa,apxa,apxmin,apxmax,
+     >        apymin,apymax,apzmin,apzmax)
 !
       IMPLICIT NONE
 !
@@ -10797,7 +10859,7 @@ c1511 continue
 !
       INTEGER*4 xi1, yi1, zi1, ai1
       REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
-     >       apa,apxa,aprin,aprout, apxmin, apxmax,
+     >       apa,apxa, apxmin, apxmax,
      <       apymin, apymax, apzmin, apzmax
       REAL*8 pi, angled
 
@@ -10858,8 +10920,6 @@ c1511 continue
         !ppiclf_iperiodic(2) = 0 ! Y-Periodicity
         ang_per_angle  = apa
         ang_per_xangle = apxa
-        ang_per_rin    = aprin
-        ang_per_rout   = aprout
         ang_per_xmin   = apxmin
         ang_per_xmax   = apxmax
         ang_per_ymin   = apymin
@@ -10883,7 +10943,6 @@ c1511 continue
         print*, "ang_per_xangle=", ang_per_xangle
         print*,"======================================================"
       endif
-      STOP
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
       if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))

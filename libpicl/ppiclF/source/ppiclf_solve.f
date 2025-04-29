@@ -1,7 +1,7 @@
       SUBROUTINE ppiclf_solve_Initialize(xi1,xpmin,xpmax,
      >        yi1,ypmin,ypmax,zi1,zpmin,zpmax,
-     >        ai1,apa,apxa,aprin,aprout, 
-     >        apxmin,apxmax,apymin,apymax,apzmin,apzmax)
+     >        ai1,apa,apxa,apxmin,apxmax,
+     >        apymin,apymax,apzmin,apzmax)
 !
       IMPLICIT NONE
 !
@@ -11,7 +11,7 @@
 !
       INTEGER*4 xi1, yi1, zi1, ai1
       REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
-     >       apa,apxa,aprin,aprout, apxmin, apxmax,
+     >       apa,apxa, apxmin, apxmax,
      <       apymin, apymax, apzmin, apzmax
       REAL*8 pi, angled
 
@@ -72,8 +72,6 @@
         !ppiclf_iperiodic(2) = 0 ! Y-Periodicity
         ang_per_angle  = apa
         ang_per_xangle = apxa
-        ang_per_rin    = aprin
-        ang_per_rout   = aprout
         ang_per_xmin   = apxmin
         ang_per_xmax   = apxmax
         ang_per_ymin   = apymin
@@ -97,7 +95,6 @@
         print*, "ang_per_xangle=", ang_per_xangle
         print*,"======================================================"
       endif
-      STOP
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
       if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
