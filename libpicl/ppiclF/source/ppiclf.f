@@ -5367,59 +5367,59 @@
       END DO
 
 
-      if(ang_per_flag .eq. 1) then
-      ! Looping through particles on this processor
-      ! Find the bin boundaries based on the MIRROR particles
-      DO i=1,ppiclf_npart
-
-        ! Finding min/max MIRROR particle extremes.
-
-        ! Check first if particle is close to periodic angular planes
-        rval=(/ ppiclf_y(ix,i), ppiclf_y(iy,i), 
-     >                   ppiclf_y(iz,i) /)
-        vval=(/ ppiclf_y(ivx,i), ppiclf_y(ivy,i), 
-     >                   ppiclf_y(ivz,i) /)
-        distchk = ppiclf_d2chk(1)
-        
-        call ppiclf_comm_AngularPlane(i, rval(1), rval(2), 
-     >                                   rval(3), dist1, dist2)
-
-        ! particle farther from both angular planes
-        if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
-          cycle
-        ! particle closer to lower angular periodic plane -> rotate CCW
-        elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
-          rval = MATMUL(rotCCW, rval)
-          vval = MATMUL(rotCCW, vval)
-        ! particle closer to upper angular periodic plane -> rotate CW
-        elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
-          rval = MATMUL(rotCW, rval)
-          vval = MATMUL(rotCW, vval)
-        else
-          print*, "***ERROR Bin Periodic Angular Plane!"
-          print*, "dist1, dist2, distchk =",dist1,dist2,distchk
-          call ppiclf_exittr('Error Bin Periodic 
-     >                                Angular Plane!')
-        endif
-
-        rduml = rval(1) - ppiclf_d2chk(1)
-        rdumr = rval(1) + ppiclf_d2chk(1)
-        IF(rduml .LT. xmin) xmin = rduml
-        IF(rdumr .GT. xmax) xmax = rdumr
-
-        rduml = rval(2) - ppiclf_d2chk(1)
-        rdumr = rval(2) + ppiclf_d2chk(1)
-        IF(rduml .LT. ymin) ymin = rduml
-        IF(rdumr .GT. ymax) ymax = rdumr
-
-        IF(ppiclf_ndim .EQ. 3) THEN
-           rduml = rval(3) - ppiclf_d2chk(1)
-           rdumr = rval(3) + ppiclf_d2chk(1)
-           IF(rduml .LT. zmin) zmin = rduml
-           IF(rdumr .GT. zmax) zmax = rdumr
-        END IF
-      END DO
-      endif ! ang_per_flag
+!      if(ang_per_flag .eq. 1) then
+!      ! Looping through particles on this processor
+!      ! Find the bin boundaries based on the MIRROR particles
+!      DO i=1,ppiclf_npart
+!
+!        ! Finding min/max MIRROR particle extremes.
+!
+!        ! Check first if particle is close to periodic angular planes
+!        rval=(/ ppiclf_y(ix,i), ppiclf_y(iy,i), 
+!     >                   ppiclf_y(iz,i) /)
+!        vval=(/ ppiclf_y(ivx,i), ppiclf_y(ivy,i), 
+!     >                   ppiclf_y(ivz,i) /)
+!        distchk = ppiclf_d2chk(1)
+!        
+!        call ppiclf_comm_AngularPlane(i, rval(1), rval(2), 
+!     >                                   rval(3), dist1, dist2)
+!
+!        ! particle farther from both angular planes
+!        if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
+!          cycle
+!        ! particle closer to lower angular periodic plane -> rotate CCW
+!        elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
+!          rval = MATMUL(rotCCW, rval)
+!          vval = MATMUL(rotCCW, vval)
+!        ! particle closer to upper angular periodic plane -> rotate CW
+!        elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
+!          rval = MATMUL(rotCW, rval)
+!          vval = MATMUL(rotCW, vval)
+!        else
+!          print*, "***ERROR Bin Periodic Angular Plane!"
+!          print*, "dist1, dist2, distchk =",dist1,dist2,distchk
+!          call ppiclf_exittr('Error Bin Periodic 
+!     >                                Angular Plane!')
+!        endif
+!
+!        rduml = rval(1) - ppiclf_d2chk(1)
+!        rdumr = rval(1) + ppiclf_d2chk(1)
+!        IF(rduml .LT. xmin) xmin = rduml
+!        IF(rdumr .GT. xmax) xmax = rdumr
+!
+!        rduml = rval(2) - ppiclf_d2chk(1)
+!        rdumr = rval(2) + ppiclf_d2chk(1)
+!        IF(rduml .LT. ymin) ymin = rduml
+!        IF(rdumr .GT. ymax) ymax = rdumr
+!
+!        IF(ppiclf_ndim .EQ. 3) THEN
+!           rduml = rval(3) - ppiclf_d2chk(1)
+!           rdumr = rval(3) + ppiclf_d2chk(1)
+!           IF(rduml .LT. zmin) zmin = rduml
+!           IF(rdumr .GT. zmax) zmax = rdumr
+!        END IF
+!      END DO
+!      endif ! ang_per_flag
 
       ! Finds global max/mins across MPI ranks
       ppiclf_binb(1) = ppiclf_glmin(xmin,1)
@@ -6940,9 +6940,6 @@ c CREATING GHOST PARTICLES
 
          vval = (/ cpvx, cpvy, cpvz /)
 
-         print*, "rval =", rval
-         print*, "vval=", vval
-
          distchk = (rfac*ppiclf_d2chk(1))
          ! particle farther from both angular planes
          if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
@@ -6984,23 +6981,37 @@ c CREATING GHOST PARTICLES
 
 
          ! Step 3 - add the mirror particle as a ghost on the ghost list
+         
+         iip = NINT((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1))  ! i-index of bin where mirror particle is located
+         jjp = NINT((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2))  ! j-index of bin where mirror particle is located
+         kkp = NINT((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3))  ! k-index of bin where mirror particle is located
 
-         !**** stopped here - need to:
-         ! 1) fix the properties of the added mirror ghost particle               -> DONE ! 
-         ! 2) fix the bin boundaries to evaluate the ghosts around it correctly
+         !iig = modulo(iip+ppiclf_n_bins(1),ppiclf_n_bins(1)) 
+         !jjg = modulo(jjp+ppiclf_n_bins(2),ppiclf_n_bins(2)) 
+         !kkg = modulo(kkp+ppiclf_n_bins(3),ppiclf_n_bins(3)) 
 
-         iip  = floor((rxval-ppiclf_binb(1))/ppiclf_bins_dx(1)) ! i-index of bin where mirror particle is located
-         jjp  = floor((ryval-ppiclf_binb(3))/ppiclf_bins_dx(2)) ! j-index of bin where mirror particle is located
-         kkp  = floor((rzval-ppiclf_binb(5))/ppiclf_bins_dx(3)) ! k-index of bin where mirror particle is located
+         iig = max(0, min(iip, ppiclf_n_bins(1)-1))
+         jjg = max(0, min(jjp, ppiclf_n_bins(2)-1))
+         kkg = max(0, min(kkp, ppiclf_n_bins(3)-1))
+
         
-         iig = iip
-         jjg = jjp
-         kkg = kkp
+         iip = iig
+         jjp = jjg
+         kkp = kkg
 
          ndumn = iig + ppiclf_n_bins(1)*jjg
      >               + ppiclf_n_bins(1)*ppiclf_n_bins(2)*kkg
 
          nrank = ndumn
+
+         write(600+ppiclf_nid,*) "NewFaces", ppiclf_time,
+     >              ppiclf_nid, nrank,
+     >              iip, jjp, kkp, 
+     >              iig, jjg, kkg,
+     >              ppiclf_n_bins(1:3),
+     >              ppiclf_binb(1), ppiclf_binb(3), ppiclf_binb(5),
+     >              rxval, ryval, rzval,
+     >              ppiclf_bins_dx(1:3)
 
          ppiclf_npart_gp = ppiclf_npart_gp + 1
          ppiclf_iprop_gp(1,ppiclf_npart_gp) = nrank
@@ -7016,6 +7027,30 @@ c CREATING GHOST PARTICLES
          ppiclf_rprop_gp(4,ppiclf_npart_gp) = vval(1) ! angularly rotated velocities of mirror particle
          ppiclf_rprop_gp(5,ppiclf_npart_gp) = vval(2)
          ppiclf_rprop_gp(6,ppiclf_npart_gp) = vval(3)
+         
+         ! *** stopped here 
+
+         ! Angularly rotate the rest of the properties of the mirror particle
+         ! Rotation Matrix (Q)
+         ! vector property (V) -> Q.V
+         ! tensor property (T) -> Q.T.Q^T
+
+         ! This is just how the order is done to import the properties, need to implement the same order but with rotated properties
+!         idum = 0
+!         do j=1,PPICLF_LRS
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = ppiclf_y(j,ip)
+!         enddo
+!         idum = PPICLF_LRS
+!         do j=1,PPICLF_LRP
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = ppiclf_rprop(j,ip)
+!         enddo
+!         idum = PPICLF_LRS+PPICLF_LRP
+!         do j=1,PPICLF_LRP_PRO
+!            idum = idum + 1
+!            ppiclf_cp_map(idum,ip) = map(j)
+!         enddo
 
          do k=7,PPICLF_LRP_GP
             ppiclf_rprop_gp(k,ppiclf_npart_gp) = ppiclf_cp_map(k,ip)
@@ -7086,16 +7121,19 @@ c CREATING GHOST PARTICLES
             if (iig .lt. 0 .or. iig .gt. ppiclf_n_bins(1)-1) then
                iflgx = 1
                iig =modulo(iig,ppiclf_n_bins(1))
+               print*, 'cycling in linear periodic X'
                if (iperiodicx .ne. 0) cycle
             endif
             if (jjg .lt. 0 .or. jjg .gt. ppiclf_n_bins(2)-1) then
                iflgy = 1
                jjg =modulo(jjg,ppiclf_n_bins(2))
+               print*, 'cycling in linear periodic Y'
                if (iperiodicy .ne. 0) cycle
             endif
             if (kkg .lt. 0 .or. kkg .gt. ppiclf_n_bins(3)-1) then
                iflgz = 1  
                kkg =modulo(kkg,ppiclf_n_bins(3))
+               print*, 'cycling in linear periodic Z'
                if (iperiodicz .ne. 0) cycle
             endif
 
@@ -7107,7 +7145,10 @@ c CREATING GHOST PARTICLES
             nrank = ndumn
           
             ! if particle is still in the same processor and not crossing the periodic domain -> do not create a ghost
-            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) cycle
+            if (nrank .eq. ppiclf_nid .and. iflgsum .eq. 0) then 
+              print*, "same proc and not crossing per domain"
+              cycle
+            endif
 
             ! gpsave keeps track of which nrank destinations we've already created ghosts for                                     
             ! if a ghost for destination nrank was already created earlier, and this is not a boundary crossing -> don't duplicate
@@ -7174,6 +7215,8 @@ c CREATING GHOST PARTICLES
      >              ppiclf_rprop_gp(4:6, ppiclf_npart_gp),         ! 25-27
      >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip),             ! 28-30, 31-33
      >              iip, jjp, kkp                                  ! 34-36
+
+
   111 continue
          enddo
 
