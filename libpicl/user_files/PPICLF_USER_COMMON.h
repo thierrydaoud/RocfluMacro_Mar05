@@ -98,7 +98,13 @@
      >       ang_per_zmin, ang_per_zmax,
      >       rotCCW(3,3), rotCW(3,3)
       real*8 x_per_min, x_per_max,
-     >  y_per_min, y_per_max, z_per_min, z_per_max
+     >  y_per_min, y_per_max, z_per_min, z_per_max,
+     >  A_xmin, B_xmin, C_xmin, D_xmin, 
+     >  A_ymin, B_ymin, C_ymin, D_ymin, 
+     >  A_zmin, B_zmin, C_zmin, D_zmin, 
+     >  A_xmax, B_xmax, C_xmax, D_xmax,
+     >  A_ymax, B_ymax, C_ymax, D_ymax,
+     >  A_zmax, B_zmax, C_zmax, D_zmax
 
       common /solve_InitAngularPeriodic01/ x_per_flag, y_per_flag, 
      >                                z_per_flag, ang_per_flag,
@@ -113,4 +119,10 @@
      >                                ang_per_zmin, ang_per_zmax,
      >                                rotCCW, rotCW
       common /solve_InitAngularPeriodic03/ x_per_min, x_per_max,
-     >  y_per_min, y_per_max, z_per_min, z_per_max
+     >  y_per_min, y_per_max, z_per_min, z_per_max,
+     >  A_xmin, B_xmin, C_xmin, D_xmin, 
+     >  A_ymin, B_ymin, C_ymin, D_ymin, 
+     >  A_zmin, B_zmin, C_zmin, D_zmin, 
+     >  A_xmax, B_xmax, C_xmax, D_xmax,
+     >  A_ymax, B_ymax, C_ymax, D_ymax,
+     >  A_zmax, B_zmax, C_zmax, D_zmax

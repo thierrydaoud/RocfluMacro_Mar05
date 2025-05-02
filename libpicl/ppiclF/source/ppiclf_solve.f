@@ -36,6 +36,7 @@
         x_per_max = xpmax
         ppiclf_xdrange(1,1) = xpmin
         ppiclf_xdrange(2,1) = xpmax
+        call ppiclf_solve_LinearPlane ! Initialize periodic plane
       END IF
 
       ! Linear Y-Periodicity
@@ -48,6 +49,7 @@
         y_per_max = ypmax
         ppiclf_xdrange(1,2) = ypmin
         ppiclf_xdrange(2,2) = ypmax
+        call ppiclf_solve_LinearPlane ! Initialize periodic plane
       END IF
 
       ! Linear Z-Periodicity
@@ -60,6 +62,7 @@
         z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
+        call ppiclf_solve_LinearPlane !Initialize periodic plane
       END IF
 
 
@@ -1992,8 +1995,12 @@ c----------------------------------------------------------------------
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
            call ppiclf_comm_CreateGhost
+         if(x_per_flag.eq.1 .or. 
+     >      y_per_flag.eq.1 .or. 
+     >      z_per_flag.eq.1) then
+         call ppiclf_comm_CreateLinearGhost
+         endif
          if(ang_per_flag.eq.1) then
-           !call ppiclf_comm_AngularCreateGhost
            call ppiclf_comm_CreateAngularGhost
          endif
          call ppiclf_comm_MoveGhost
@@ -3701,6 +3708,56 @@ c        do i=il,ir
       rotCW(3,1) =      (1.0d0-ct)*ez*ex - st*ey
       rotCW(3,2) =      (1.0d0-ct)*ez*ey + st*ex
       rotCW(3,3) = ct + (1.0d0-ct)*ez*ez
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine ppiclf_solve_LinearPlane
+!
+      implicit none
+!
+      include "PPICLF"
+!
+      ! Plane equation : Ax + By + Cz + D = 0 
+      !
+      ! Initialize minimum and maximum periodic planes for each
+      ! periodic direction
+
+      if(ppiclf_iperiodic(1) .eq. 0) then ! x-periodic
+        A_xmin = 1.0d0
+        B_xmin = 0.0d0
+        C_xmin = 0.0d0
+        D_xmin = -ppiclf_xdrange(1,1)
+        
+        A_xmax = 1.0d0
+        B_xmax = 0.0d0
+        C_xmax = 0.0d0
+        D_xmax = -ppiclf_xdrange(2,1)
+      endif
+
+      if(ppiclf_iperiodic(2) .eq. 0) then ! y-periodic
+        A_ymin = 0.0d0
+        B_ymin = 1.0d0
+        C_ymin = 0.0d0
+        D_ymin = -ppiclf_xdrange(1,2)
+        
+        A_ymax = 0.0d0
+        B_ymax = 1.0d0
+        C_ymax = 0.0d0
+        D_ymax = -ppiclf_xdrange(2,2)
+      endif
+
+      if(ppiclf_iperiodic(3) .eq. 0) then ! z-periodic
+        A_zmin = 0.0d0
+        B_zmin = 0.0d0
+        C_zmin = 1.0d0
+        D_zmin = -ppiclf_xdrange(1,3)
+        
+        A_zmax = 0.0d0
+        B_zmax = 0.0d0
+        C_zmax = 1.0d0
+        D_zmax = -ppiclf_xdrange(2,3)
+      endif
 
       return
       end
