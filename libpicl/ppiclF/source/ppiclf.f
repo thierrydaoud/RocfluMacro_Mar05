@@ -5293,7 +5293,7 @@
      >          ivx, ivy, ivz
       REAL*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
      >       rmiddle, rdiff, binb_length(3),temp1,temp2,
-     >       distchk, dist1, dist2, rval(3), vval(3)
+     >       distchk
       INTEGER*4 ppiclf_iglsum
       EXTERNAL ppiclf_iglsum
       REAL*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
@@ -5366,61 +5366,6 @@
          END IF
       END DO
 
-
-!      if(ang_per_flag .eq. 1) then
-!      ! Looping through particles on this processor
-!      ! Find the bin boundaries based on the MIRROR particles
-!      DO i=1,ppiclf_npart
-!
-!        ! Finding min/max MIRROR particle extremes.
-!
-!        ! Check first if particle is close to periodic angular planes
-!        rval=(/ ppiclf_y(ix,i), ppiclf_y(iy,i), 
-!     >                   ppiclf_y(iz,i) /)
-!        vval=(/ ppiclf_y(ivx,i), ppiclf_y(ivy,i), 
-!     >                   ppiclf_y(ivz,i) /)
-!        distchk = ppiclf_d2chk(1)
-!        
-!        call ppiclf_comm_AngularPlane(i, rval(1), rval(2), 
-!     >                                   rval(3), dist1, dist2)
-!
-!        ! particle farther from both angular planes
-!        if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
-!          cycle
-!        ! particle closer to lower angular periodic plane -> rotate CCW
-!        elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
-!          rval = MATMUL(rotCCW, rval)
-!          vval = MATMUL(rotCCW, vval)
-!        ! particle closer to upper angular periodic plane -> rotate CW
-!        elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
-!          rval = MATMUL(rotCW, rval)
-!          vval = MATMUL(rotCW, vval)
-!        else
-!          print*, "***ERROR Bin Periodic Angular Plane!"
-!          print*, "dist1, dist2, distchk =",dist1,dist2,distchk
-!          call ppiclf_exittr('Error Bin Periodic 
-!     >                                Angular Plane!')
-!        endif
-!
-!        rduml = rval(1) - ppiclf_d2chk(1)
-!        rdumr = rval(1) + ppiclf_d2chk(1)
-!        IF(rduml .LT. xmin) xmin = rduml
-!        IF(rdumr .GT. xmax) xmax = rdumr
-!
-!        rduml = rval(2) - ppiclf_d2chk(1)
-!        rdumr = rval(2) + ppiclf_d2chk(1)
-!        IF(rduml .LT. ymin) ymin = rduml
-!        IF(rdumr .GT. ymax) ymax = rdumr
-!
-!        IF(ppiclf_ndim .EQ. 3) THEN
-!           rduml = rval(3) - ppiclf_d2chk(1)
-!           rdumr = rval(3) + ppiclf_d2chk(1)
-!           IF(rduml .LT. zmin) zmin = rduml
-!           IF(rdumr .GT. zmax) zmax = rdumr
-!        END IF
-!      END DO
-!      endif ! ang_per_flag
-
       ! Finds global max/mins across MPI ranks
       ppiclf_binb(1) = ppiclf_glmin(xmin,1)
       ppiclf_binb(2) = ppiclf_glmax(xmax,1)
@@ -5430,6 +5375,52 @@
       ppiclf_binb(6) = 0.0d0
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
       IF(ppiclf_ndim .GT. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
+
+
+
+
+      ! For linear periodicity:
+      !     1) bin boundary greater than periodic domain      -> set it equal to periodic domain
+      !     2) bin boundary within distchk to periodic domain -> set it equal to periodic domain
+      !     3) ghost creation is now taken care of by the periodic planes
+
+      distchk = ppiclf_d2chk(1)                                    ! max(filter_width, neighbor_width)
+
+      if( iperiodicx .eq. 0) then                                  ! Linear x-periodic
+        if((ppiclf_binb(1).lt.ppiclf_xdrange(1,1)) .or.            ! min binb .lt. periodic domain
+     >  (abs(ppiclf_binb(1)-ppiclf_xdrange(1,1)).le.distchk)) then ! min binb within distchk to min periodic domain
+          ppiclf_binb(1) = ppiclf_xdrange(1,1)
+        endif
+        if((ppiclf_binb(2) .gt. ppiclf_xdrange(2,1)) .or.          ! max binb .gt. periodic domain
+     >  (abs(ppiclf_binb(2)-ppiclf_xdrange(2,1)).le.distchk)) then ! max binb within distchk to max periodic domain
+          ppiclf_binb(2) = ppiclf_xdrange(2,1)
+        endif
+      endif ! iperiodicx
+
+      if(iperiodicy .eq. 0) then                                   ! Linear y-periodic
+        if((ppiclf_binb(3) .lt. ppiclf_xdrange(1,2)) .or.
+     > (abs(ppiclf_binb(3)-ppiclf_xdrange(1,2)).le.distchk)) then
+          ppiclf_binb(3) = ppiclf_xdrange(1,2)
+        endif
+        if((ppiclf_binb(4) .gt. ppiclf_xdrange(2,2)) .or. 
+     > (abs(ppiclf_binb(4)-ppiclf_xdrange(2,2)).le.distchk)) then
+          ppiclf_binb(4) = ppiclf_xdrange(2,2)
+        endif
+      endif ! iperiodicy
+
+      if(ppiclf_ndim .gt. 2) then                                  ! 3D runs
+        if(iperiodicz .eq. 0) then                                 ! Linear z-periodic
+          if((ppiclf_binb(5) .lt. ppiclf_xdrange(1,3)) .or.
+     >   (abs(ppiclf_binb(5)-ppiclf_xdrange(1,3)).le.distchk)) then
+            ppiclf_binb(5) = ppiclf_xdrange(1,3)
+          endif
+          if((ppiclf_binb(6) .gt. ppiclf_xdrange(2,3)) .or. 
+     >   (abs(ppiclf_binb(6)-ppiclf_xdrange(2,3)).le.distchk)) then
+            ppiclf_binb(6) = ppiclf_xdrange(2,3)
+          endif
+        endif ! iperiodicz
+      endif ! ppiclf_ndim
+
 
 !      if (npt_total .gt. 0) then
 !      do i=1,ppiclf_ndim
@@ -5451,28 +5442,30 @@
 
       ! David's Algorithm sets the bin boundaries as big as 
       ! the periodic direction when periodicity is invoked
-      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
-     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
-     >    iperiodicx .eq. 0) then
-         ppiclf_binb(1) = ppiclf_xdrange(1,1)
-         ppiclf_binb(2) = ppiclf_xdrange(2,1)
-      endif
-
-      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
-     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
-     >    iperiodicy .eq. 0) then
-         ppiclf_binb(3) = ppiclf_xdrange(1,2)
-         ppiclf_binb(4) = ppiclf_xdrange(2,2)
-      endif
-      
-      if (ppiclf_ndim .gt. 2) then
-      if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
-     >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 
-     >    iperiodicz .eq. 0) then
-         ppiclf_binb(5) = ppiclf_xdrange(1,3)
-         ppiclf_binb(6) = ppiclf_xdrange(2,3)
-      endif ! ndim
-      endif ! xdrange
+      ! we comment it out now as this is taken care of by invoking
+      ! the periodic plane for both linear and angular periodicity
+!      if (ppiclf_xdrange(2,1) .lt. ppiclf_binb(2) .or.
+!     >    ppiclf_xdrange(1,1) .gt. ppiclf_binb(1) .or. 
+!     >    iperiodicx .eq. 0) then
+!         ppiclf_binb(1) = ppiclf_xdrange(1,1)
+!         ppiclf_binb(2) = ppiclf_xdrange(2,1)
+!      endif
+!
+!      if (ppiclf_xdrange(2,2) .lt. ppiclf_binb(4) .or.
+!     >    ppiclf_xdrange(1,2) .gt. ppiclf_binb(3) .or.
+!     >    iperiodicy .eq. 0) then
+!         ppiclf_binb(3) = ppiclf_xdrange(1,2)
+!         ppiclf_binb(4) = ppiclf_xdrange(2,2)
+!      endif
+!      
+!      if (ppiclf_ndim .gt. 2) then
+!      if (ppiclf_xdrange(2,3) .lt. ppiclf_binb(6) .or.
+!     >    ppiclf_xdrange(1,3) .gt. ppiclf_binb(5) .or. 
+!     >    iperiodicz .eq. 0) then
+!         ppiclf_binb(5) = ppiclf_xdrange(1,3)
+!         ppiclf_binb(6) = ppiclf_xdrange(2,3)
+!      endif ! ndim
+!      endif ! xdrange
 
       ! End subroutine if no particles present      
       IF(npt_total .LT. 1) RETURN
