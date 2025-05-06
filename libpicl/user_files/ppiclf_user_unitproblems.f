@@ -202,7 +202,7 @@
 !
       ! dx/dt = dr/dt
       ! dy/dt = 0.0
-      drdt00 = 79.928163327808903
+      drdt00 = 799.28163327808903
       drdt02 = drdt00*drdt00
       
       if(ppiclf_time .eq. 0.0) then
@@ -239,7 +239,7 @@
 !
       ! dx/dt = 0.0d0
       ! dy/dt = dr/dt
-      drdt00 = 79.928163327808903
+      drdt00 = 2.0d0*79.928163327808903
       drdt02 = drdt00*drdt00
       
       if(ppiclf_time .eq. 0.0) then
