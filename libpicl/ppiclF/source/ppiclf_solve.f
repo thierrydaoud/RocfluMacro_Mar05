@@ -361,6 +361,18 @@
 
       PPICLF_INT_ICNT = 0
 
+      ppiclf_linear_bxmin = .false. 
+      ppiclf_linear_bxmax = .false.
+      ppiclf_linear_bx    = .false. ! bool check for linear periodic ghost
+
+      ppiclf_linear_bymin = .false. 
+      ppiclf_linear_bymax = .false.
+      ppiclf_linear_by    = .false. ! bool check for linear periodic ghost
+
+      ppiclf_linear_bzmin = .false. 
+      ppiclf_linear_bzmax = .false.
+      ppiclf_linear_bz    = .false. ! bool check for linear periodic ghost
+
       RETURN
       END
 !-----------------------------------------------------------------------
@@ -1995,11 +2007,9 @@ c----------------------------------------------------------------------
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
            call ppiclf_comm_CreateGhost
-         if(x_per_flag.eq.1 .or. 
-     >      y_per_flag.eq.1 .or. 
-     >      z_per_flag.eq.1) then
-         call ppiclf_comm_CreateLinearGhost
-         endif
+         if(ppiclf_linear_bx .or. ppiclf_linear_by .or.
+     >      ppiclf_linear_bz)
+     >    call ppiclf_comm_CreateLinearGhost
          if(ang_per_flag.eq.1) then
            call ppiclf_comm_CreateAngularGhost
          endif

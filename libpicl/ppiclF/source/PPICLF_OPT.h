@@ -5,6 +5,10 @@ c Particle options
      >       ,PPICLF_LINIT, PPICLF_LFILT, PPICLF_LINTP, PPICLF_LPROJ
      >       ,PPICLF_LSUBBIN, PPICLF_LSUBSUBBIN
      >       ,PPICLF_LFILTGAUSS, PPICLF_LFILTBOX, PPICLF_SNGL_ELEM
+     >       ,PPICLF_LINEAR_BXMIN, PPICLF_LINEAR_BXMAX
+     >       ,PPICLF_LINEAR_BX, PPICLF_LINEAR_BY, PPICLF_LINEAR_BZ
+     >       ,PPICLF_LINEAR_BYMIN, PPICLF_LINEAR_BYMAX 
+     >       ,PPICLF_LINEAR_BZMIN, PPICLF_LINEAR_BZMAX 
       COMMON /PPICLF_OPT_PARAM_L/ PPICLF_RESTART, PPICLF_OVERLAP
      >                           ,PPICLF_LCOMM, PPICLF_LINIT
      >                           ,PPICLF_LFILT, PPICLF_LINTP
@@ -12,6 +16,14 @@ c Particle options
      >                           ,PPICLF_LSUBSUBBIN
      >                           ,PPICLF_LFILTGAUSS, PPICLF_LFILTBOX
      >                           ,PPICLF_SNGL_ELEM
+     >                           ,PPICLF_LINEAR_BXMIN
+     >                           ,PPICLF_LINEAR_BXMAX
+     >                           ,PPICLF_LINEAR_BX, PPICLF_LINEAR_BY
+     >                           ,PPICLF_LINEAR_BYMIN 
+     >                           ,PPICLF_LINEAR_BYMAX
+     >                           ,PPICLF_LINEAR_BZMIN
+     >                           ,PPICLF_LINEAR_BZMAX
+     >                           ,PPICLF_LINEAR_BZ
       DATA PPICLF_LCOMM /.false./
       DATA PPICLF_RESTART /.false./
 
