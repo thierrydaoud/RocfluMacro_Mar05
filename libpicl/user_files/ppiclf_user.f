@@ -737,9 +737,9 @@
          ppiclf_rprop(PPICLF_R_FQSX,i)  = fqsx
          ppiclf_rprop(PPICLF_R_FQSY,i)  = fqsy
          ppiclf_rprop(PPICLF_R_FQSZ,i)  = fqsz
-         ppiclf_rprop(PPICLF_R_FAMX,i)  = famx
-         ppiclf_rprop(PPICLF_R_FAMY,i)  = famy
-         ppiclf_rprop(PPICLF_R_FAMZ,i)  = famz
+         ppiclf_rprop(PPICLF_R_FAMX,i)  = famx-rmass_add*ppiclf_ydot(PPICLF_JVX,i)
+         ppiclf_rprop(PPICLF_R_FAMY,i)  = famy-rmass_add*ppiclf_ydot(PPICLF_JVY,i)
+         ppiclf_rprop(PPICLF_R_FAMZ,i)  = famz-rmass_add*ppiclf_ydot(PPICLF_JVZ,i)
          ppiclf_rprop(PPICLF_R_FAMBX,i) = FamBinary(1)
          ppiclf_rprop(PPICLF_R_FAMBY,i) = FamBinary(2)
          ppiclf_rprop(PPICLF_R_FAMBZ,i) = FamBinary(3)
