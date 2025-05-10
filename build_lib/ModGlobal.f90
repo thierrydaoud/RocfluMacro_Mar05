@@ -482,7 +482,8 @@ MODULE ModGlobal
 
 
     REAL(RFREAL) :: piclTemp, piclFilterWidth, piclNeighborWidth, piclKsp, &
-                    piclERest, ppiclf_p0
+                    piclERest, ppiclf_p0, &
+                    piclAngularPeriodicAngle, piclAngularPeriodicXAngle 
 
   END TYPE t_global
 

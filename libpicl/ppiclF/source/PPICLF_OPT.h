@@ -9,6 +9,7 @@ c Particle options
      >       ,PPICLF_LINEAR_BX, PPICLF_LINEAR_BY, PPICLF_LINEAR_BZ
      >       ,PPICLF_LINEAR_BYMIN, PPICLF_LINEAR_BYMAX 
      >       ,PPICLF_LINEAR_BZMIN, PPICLF_LINEAR_BZMAX 
+     >       ,PPICLF_ANGULAR_PER
       COMMON /PPICLF_OPT_PARAM_L/ PPICLF_RESTART, PPICLF_OVERLAP
      >                           ,PPICLF_LCOMM, PPICLF_LINIT
      >                           ,PPICLF_LFILT, PPICLF_LINTP
@@ -24,6 +25,7 @@ c Particle options
      >                           ,PPICLF_LINEAR_BZMIN
      >                           ,PPICLF_LINEAR_BZMAX
      >                           ,PPICLF_LINEAR_BZ
+     >                           ,PPICLF_ANGULAR_PER
       DATA PPICLF_LCOMM /.false./
       DATA PPICLF_RESTART /.false./
 

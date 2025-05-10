@@ -88,6 +88,9 @@
       ! Thierry - 06/27/204 - added mass variables declaration
       integer*4 j, l
       real*8 SDrho
+
+
+      real*8 omg00, omg02
 !-----------------------------------------------------------------------
 
       real*8 vgradrhog
@@ -719,6 +722,7 @@
             endif
          elseif(stationary .lt. 0) then
             call ppiclf_user_unit_tests(i,iStage,famx,famy,famz)
+            
             ppiclf_ydot(PPICLF_JX ,i) = ppiclf_y(PPICLF_JVX,i)
             ppiclf_ydot(PPICLF_JY ,i) = ppiclf_y(PPICLF_JVY,i)
             ppiclf_ydot(PPICLF_JZ, i) = ppiclf_y(PPICLF_JVZ,i)

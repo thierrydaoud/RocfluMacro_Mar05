@@ -1,7 +1,7 @@
-      SUBROUTINE ppiclf_solve_Initialize(xi1,xpmin,xpmax,
-     >        yi1,ypmin,ypmax,zi1,zpmin,zpmax,
-     >        ai1,apa,apxa,apxmin,apxmax,
-     >        apymin,apymax,apzmin,apzmax)
+      SUBROUTINE ppiclf_solve_Initialize(xpflag, xpmin, xpmax,
+     >                                   ypflag, ypmin, ypmax,
+     >                                   zpflag, zpmin, zpmax,
+     >                                   apflag, apa, apxa)
 !
       IMPLICIT NONE
 !
@@ -9,11 +9,9 @@
 !
 ! Input:
 !
-      INTEGER*4 xi1, yi1, zi1, ai1
-      REAL*8 xpmin,xpmax,ypmin,ypmax,zpmin,zpmax,
-     >       apa,apxa, apxmin, apxmax,
-     <       apymin, apymax, apzmin, apzmax
-      REAL*8 pi, angled
+      INTEGER*4 xpflag, ypflag, zpflag, apflag
+      REAL*8 pi, xpmin, xpmax, ypmin, ypmax, zpmin, zpmax,
+     >       apa, apxa
 
 !
 ! Code:
@@ -26,8 +24,10 @@
       ! domain boundaries.
 !*** future work - can we automate finding fluid domain boundaries?
 
+      pi = ACOS(-1.0)
+
       ! Linear X-Periodicity
-      x_per_flag = xi1
+      x_per_flag = xpflag
       IF(x_per_flag.EQ.1) THEN
         IF(xpmin .ge. xpmax) CALL ppiclf_exittr('PeriodicX 
      >      must have xmin < xmax$',xpmin,0)
@@ -36,11 +36,11 @@
         x_per_max = xpmax
         ppiclf_xdrange(1,1) = xpmin
         ppiclf_xdrange(2,1) = xpmax
-        call ppiclf_solve_LinearPlane ! Initialize periodic plane
+        call ppiclf_solve_LinearPlanes ! Initialize periodic planes
       END IF
 
       ! Linear Y-Periodicity
-      y_per_flag = yi1
+      y_per_flag = ypflag
       IF(y_per_flag.EQ.1) THEN
         IF(ypmin .ge. ypmax) CALL ppiclf_exittr('PeriodicY 
      >     must have ymin < ymax$',ypmin,0)
@@ -49,11 +49,11 @@
         y_per_max = ypmax
         ppiclf_xdrange(1,2) = ypmin
         ppiclf_xdrange(2,2) = ypmax
-        call ppiclf_solve_LinearPlane ! Initialize periodic plane
+        call ppiclf_solve_LinearPlanes ! Initialize periodic planes
       END IF
 
       ! Linear Z-Periodicity
-      z_per_flag = zi1
+      z_per_flag = zpflag
       IF(z_per_flag.EQ.1) THEN
         IF(zpmin .ge. zpmax) CALL ppiclf_exittr('PeriodicZ 
      >     must have zmin < zmax$',zpmin,0)
@@ -62,77 +62,49 @@
         z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
-        call ppiclf_solve_LinearPlane !Initialize periodic plane
+        call ppiclf_solve_LinearPlanes !Initialize periodic planes
       END IF
 
+        ppiclf_xdrange(1,1) = xpmin
+        ppiclf_xdrange(2,1) = xpmax
+        ppiclf_xdrange(1,2) = ypmin
+        ppiclf_xdrange(2,2) = ypmax
+        ppiclf_xdrange(1,3) = zpmin
+        ppiclf_xdrange(2,3) = zpmax
 
       ! Angular Periodicity
-      ang_per_flag = ai1
-      IF(ang_per_flag.EQ.1) THEN
-        ! Thierry - comment to prevent David's ghost algorithm for linear periodicity
-        !           need to fix it later
-        !ppiclf_iperiodic(1) = 0 ! X-Periodicity
-        !ppiclf_iperiodic(2) = 0 ! Y-Periodicity
-        ang_per_angle  = apa
-        ang_per_xangle = apxa
-        ang_per_xmin   = apxmin
-        ang_per_xmax   = apxmax
-        ang_per_ymin   = apymin
-        ang_per_ymax   = apymax
-        ang_per_zmin   = apzmin
-        ang_per_zmax   = apzmax
+      ang_per_flag = apflag
+      IF(ang_per_flag.GE.1) THEN
+        ppiclf_angular_per = .true.
+        ! degrees to radians
+        ang_per_angle  = apa * pi / 180.0d0
+        ang_per_xangle = apxa * pi / 180.0d0
+        ! initialize angular planes
+        call ppiclf_solve_AngularPlanes(ang_per_flag, ang_per_angle, 
+     >                                  ang_per_xangle)
         ! initialize rotation matrices
-        call ppiclf_solve_AngularRotate(ang_per_angle)
+        call ppiclf_solve_AngularRotate(ang_per_flag, ang_per_angle)
       END IF
-      if(ppiclf_nid .eq. 0) then
-        print*, "======================================================"
-        print*, "ppiclf_solve_Initialize"
-        print*, "ang_per_xmin =", ang_per_xmin
-        print*, "ang_per_xmax =", ang_per_xmax
-        print*, " "
-        print*, "ang_per_ymin =", ang_per_ymin
-        print*, "ang_per_ymax =", ang_per_ymax
-        print*, " "
-        print*, "ang_per_zmin =", ang_per_zmin
-        print*, "ang_per_zmax =", ang_per_zmax
-        print*, "  "
-        print*, "ang_per_angle=",  ang_per_angle 
-        print*, "ang_per_xangle=", ang_per_xangle
-        print*,"======================================================"
-      endif
 
       ! User cannot initialize X/Y-Periodicity with Angular Periodicity
       if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
-     >                     .and.(ang_per_flag.eq.1))
+     >                     .and.(ang_per_flag.ge.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       ! Thierry - compute ang_case
 
-      pi = ACOS(-1.0)
-      angled = ang_per_angle * 180.0d0 / pi ! store angle value in degrees
 
-      IF(ang_per_flag.EQ.0) THEN
-         ang_case = 0 ! standard geometry
-      ELSE
-         IF(angled .lt. 90.0)        ang_case = 1 ! general wedge
-         IF(NINT(angled) .EQ. 90.0)  ang_case = 2 ! quarter cylinder
-         IF(NINT(angled) .EQ. 180.0) ang_case = 3 ! half cylinder
-      END IF
-
-      IF(ppiclf_nid.EQ.0 .AND. ang_case.NE.0) THEN
+      !IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
+      IF(ang_per_flag.GE.1) THEN
          PRINT*, " "
          PRINT*, " ======================================="
          PRINT*, " "
-         PRINT*, "!!! PPICLF Angular Periodicity Initialized !!!!"
+         PRINT*, "  PPICLF Angular Periodicity Initialized   "
          PRINT*, "  Angular periodicity flag =", ang_per_flag
-         !IF(ang_per_flag.EQ.0) THEN
-         !   PRINT*, "  Init Angular- ang_case =", ang_case
-         !ELSE
-         PRINT*, "  Init Angular- angle =", ang_per_angle
-         PRINT*, "  Init Angular- angled =", angled
-         PRINT*, "  Init Angular- nint(angled) =", NINT(angled)
-         PRINT*, "  Init Angular- ang_case =", ang_case
-         !END IF
+         PRINT*, "  Angular periodicity angle (deg, rad) =", 
+     >                                            apa, ang_per_angle
+         PRINT*, "  Angular periodicity x-angle (deg, rad) =", 
+     >                                            apxa, ang_per_xangle
          PRINT*, " "
          PRINT*, " ======================================="
          PRINT*, " "
@@ -372,6 +344,8 @@
       ppiclf_linear_bzmin = .false. 
       ppiclf_linear_bzmax = .false.
       ppiclf_linear_bz    = .false. ! bool check for linear periodic ghost
+      
+      ppiclf_angular_per = .false.
 
       RETURN
       END
@@ -1204,156 +1178,6 @@
       RETURN
       END
 !-----------------------------------------------------------------------
-      subroutine ppiclf_solve_InitAngularPeriodic(flag,
-     >              rin, rout, angle, xangle)
-!
-      implicit none
-!
-      include "PPICLF"
-! 
-! Input: 
-! 
-      ! Thierry -  07/24/24 - modified code begings here
-      ! global variables - user input file
-      integer*4 flag
-      real*8 rin, rout, angle, xangle
-      ! local variables
-      real*8 pi, angled
-
-        ! Thierry - 07/24/24 - modified code begins here
-        ! Implementation of Angular Periodicity
-        ! Just like how Rocflu does it in modflu/RFLU_ModRelatedPatches.F90
-        ! this is invoked when particle is leaving x-axis or y-axis
-       
-        ! sign convention for theta is +ve when measured CCW
-        ! switch angle sign when particle is leaving from upper face
-        if (rin .ge. rout)
-     >   call ppiclf_exittr('Angular Per must have rin < rout$',rout,0)
-
-            ! Thierry - comment out to prevent confusion in ghost algorithm 
-            !           for linear periodicity. cleanup later. 
-            !ppiclf_iperiodic(1) = 0 ! X-periodic
-            !ppiclf_iperiodic(2) = 0 ! Y-periodic
-
-            SELECT CASE (ang_case)
-              CASE (1) ! general wedge ; 0 <= angle < 90
-                if (ppiclf_nid.eq.0) print*,"General Wedge Initialized!"
-                ppiclf_xdrange(1,1) = rin  ! Min X-periodic face
-                ppiclf_xdrange(2,1) = rout ! Max X-periodic face
-                ppiclf_xdrange(1,2) = tan(xangle)*rout ! Min Y-periodic face
-                ppiclf_xdrange(2,2) = tan(angle - abs(xangle))*rout ! Max Y-periodic face
-
-              CASE (2) ! quarter cylinder ; angle = 90
-                if (ppiclf_nid.eq.0)
-     >             print*,"Quarter Cylinder Initialized!"
-                ppiclf_xdrange(1,1) = rin  
-                ppiclf_xdrange(2,1) = rout 
-                ppiclf_xdrange(1,2) = tan(xangle)*rout
-                ppiclf_xdrange(2,2) = rout 
-
-              
-              CASE (3) ! half cylinder ; angle = 180
-                if (ppiclf_nid.eq.0)
-     >             print*,"Half Cylinder Initialized!"
-                ppiclf_xdrange(1,1) = -1.0*rout
-                ppiclf_xdrange(2,1) = rout 
-                ppiclf_xdrange(1,2) = tan(xangle)*rout
-                ppiclf_xdrange(2,2) = rout 
-              
-              CASE DEFAULT
-                call ppiclf_exittr('Invalid Rotational Case!$',0.0d0
-     >             ,ppiclf_nid)
-              END SELECT
-
-      call ppiclf_solve_InitSolve
-      
-      RETURN
-      END
-!-----------------------------------------------------------------------
-      subroutine ppiclf_solve_InitAngularPlane(i,rin, rout,
-     >                                         angle, xangle,
-     >                                         dist1, dist2)
-!
-      implicit none
-!
-      include "PPICLF"
-! Inputs 
-!
-      integer*4 i
-      real*8 rin, rout, angle, xangle
-! Local Variables:
-!     
-      real*8 p1(3), p2(3), p3(3), p4(3), p5(3), p6(3),
-     >       v1(3), v2(3), v3(3), v4(3), n1(3), n2(3),
-     >       A, B, C, D, E, F, G, H, zt, xp, yp, zp
-!
-! Outputs
-      real*8 dist1, dist2
-!
-      xp = ppiclf_y(PPICLF_JX,i)
-      yp = ppiclf_y(PPICLF_JY,i)
-      zp = ppiclf_y(PPICLF_JZ,i)
-      
-      zt = ppiclf_binb(6) - ppiclf_binb(5) ! bin thickness in z-direction
-
-      !!! upper plane calculation !!! 
-      
-      ! plane equation
-      ! Ax + By + Cz + D = 0
-
-      ! p1, p2, p3 are 3 points in the upper plane
-      p1 = (/rin, tan(angle - abs(xangle))*rin, 0.0d0/) 
-      p2 = (/rout, tan(angle - abs(xangle))*rout, 0.0d0/) 
-      p3 = (/rin, tan(angle - abs(xangle))*rin, zt/) 
-
-      v1 = p2 - p1 ! vector P1P2
-      v2 = p3 - p1 ! vector P1P3
-      
-      ! upper plane normal vector - n1(A,B,C) = v1 x v2
-      ! cross product calculation
-      A =  v1(2)*v2(3) - v1(3)*v2(2)
-      B = -v1(1)*v2(3) + v1(3)*v2(1)
-      C =  v1(1)*v2(2) - v1(2)*v2(1)
-      n1(1)=A ; n1(2)=B; n1(3)=C
-      
-      ! values of either p1, p2, or p3 can be used to calculate D
-      D = -A*p1(1) - B*p1(2) - C*p1(3)
-      
-      ! P(xp, yp, zp) arbitrary point
-      ! dist = distance between P and upper plane 
-      dist1 = abs(A*xp + B*yp + C*zp + D)
-      dist1 = dist1/sqrt(A**2 + B**2 + C**2)
-      
-      !!! lower plane calculation !!! 
-      ! plane equation
-      ! Ex + Fy + Gz + H = 0
-
-      ! p4, p5, p6 are 3 points in the lower plane
-      p4 = (/rin, -tan(angle - abs(xangle))*rin, 0.0d0/)
-      p5 = (/rout, -tan(angle - abs(xangle))*rout, 0.0d0/)
-      p6 = (/rin, -tan(angle - abs(xangle))*rin, zt/)
-      
-      v3 = p5 - p4 ! vector P4P5
-      v4 = p6 - p4 ! vector P4P6
-      
-      ! lower plane normal vector - n2(E,F,G) = v3 x v4
-      ! cross product calculation
-      E =  v3(2)*v4(3) - v3(3)*v4(2)
-      F = -v3(1)*v4(3) + v3(3)*v4(1)
-      G =  v3(1)*v4(2) - v3(2)*v4(1)
-      n2(1)=E ; n2(2)=F; n2(3)=G
-      
-      ! values of either p4, p5, or p6 can be used to calculate H
-      H = -E*p4(1) - F*p4(2) - G*p4(3)
-
-      ! P(xp, yp, zp) arbitrary point
-      ! dist = distance between P and lower plane 
-      dist2 = abs(E*xp + F*yp + G*zp + H)
-      dist2 = dist2/sqrt(E**2 + F**2 + G**2)
-
-      RETURN
-      END
-!-----------------------------------------------------------------------
       subroutine ppiclf_solve_InvokeLinearPeriodic(i)
 !
       implicit none
@@ -1493,7 +1317,7 @@
           !  ez = 0.0d0
           !  print*, "Y-Rotational Axis"
 
-          CASE(1)
+          CASE(3)
             ex = 0.0d0
             ey = 0.0d0
             ez = 1.0d0
@@ -2010,9 +1834,7 @@ c----------------------------------------------------------------------
          if(ppiclf_linear_bx .or. ppiclf_linear_by .or.
      >      ppiclf_linear_bz)
      >    call ppiclf_comm_CreateLinearGhost
-         if(ang_per_flag.eq.1) then
-           call ppiclf_comm_CreateAngularGhost
-         endif
+         if(ppiclf_angular_per) call ppiclf_comm_CreateAngularGhost
          call ppiclf_comm_MoveGhost
       endif
 
@@ -2897,7 +2719,7 @@ c----------------------------------------------------------------------
             ! and only check theta component and not radial
             ! applying the radial periodicity is very straightforward, but not needed for now
 
-            if(ang_per_flag .eq. 1) then  ! Angular periodicity
+            if(ang_per_flag .ge. 1) then  ! Angular periodicity
            
             ! particle angle w/ x-axis
             ! per_alpha here is obtained in radians
@@ -3679,7 +3501,7 @@ c        do i=il,ir
       RETURN
       END
 !-----------------------------------------------------------------------
-      subroutine ppiclf_solve_AngularRotate(angle)
+      subroutine ppiclf_solve_AngularRotate(axis, angle)
 !
       implicit none
 !
@@ -3687,6 +3509,7 @@ c        do i=il,ir
 !
 ! Input:
 !
+      integer*4 axis
       real*8 angle
 ! Local : 
       real*8 ex, ey, ez, ct, st
@@ -3694,7 +3517,34 @@ c        do i=il,ir
       ! Sign convention for rotation matrix is +ve CCW !
       ct = cos(angle)
       st = sin(angle)
-      ex=0.0d0; ey = 0.0d0 ; ez = 1.0d0
+      SELECT CASE(axis)
+
+      CASE(1)
+        ex = 1.0d0
+        ey = 0.0d0
+        ez = 0.0d0
+        if(ppiclf_nid.eq.0) print*, "Angular X-Rotational Axis"
+        print*, "Angular X-Rotational Axis"
+
+      CASE(2)
+        ex = 0.0d0
+        ey = 1.0d0
+        ez = 0.0d0
+        if(ppiclf_nid.eq.0) print*, "Angular Y-Rotational Axis"
+        print*, "Angular Y-Rotational Axis"
+
+      CASE(3)
+        ex = 0.0d0
+        ey = 0.0d0
+        ez = 1.0d0
+        if(ppiclf_nid.eq.0) print*, "Angular Z-Rotational Axis"
+        print*, "Angular Z-Rotational Axis"
+
+      CASE DEFAULT
+        call ppiclf_exittr('Invalid Axis of Rotation!$',0.0d0
+     >         ,ppiclf_nid)
+
+      END SELECT 
       ! Counter-ClockWise Rotation Matrix
       rotCCW(1,1) = ct + (1.0d0-ct)*ex*ex
       rotCCW(1,2) =      (1.0d0-ct)*ex*ey - st*ez
@@ -3709,20 +3559,20 @@ c        do i=il,ir
       ct = cos(-angle)
       st = sin(-angle)
       ! ClockWise Rotation Matrix
-      rotCW(1,1) = ct + (1.0d0-ct)*ex*ex
-      rotCW(1,2) =      (1.0d0-ct)*ex*ey - st*ez
-      rotCW(1,3) =      (1.0d0-ct)*ex*ez + st*ey
-      rotCW(2,1) =      (1.0d0-ct)*ey*ex + st*ez
-      rotCW(2,2) = ct + (1.0d0-ct)*ey*ey
-      rotCW(2,3) =      (1.0d0-ct)*ey*ez - st*ex
-      rotCW(3,1) =      (1.0d0-ct)*ez*ex - st*ey
-      rotCW(3,2) =      (1.0d0-ct)*ez*ey + st*ex
-      rotCW(3,3) = ct + (1.0d0-ct)*ez*ez
+      rotCW(1,1)  = ct + (1.0d0-ct)*ex*ex
+      rotCW(1,2)  =      (1.0d0-ct)*ex*ey - st*ez
+      rotCW(1,3)  =      (1.0d0-ct)*ex*ez + st*ey
+      rotCW(2,1)  =      (1.0d0-ct)*ey*ex + st*ez
+      rotCW(2,2)  = ct + (1.0d0-ct)*ey*ey
+      rotCW(2,3)  =      (1.0d0-ct)*ey*ez - st*ex
+      rotCW(3,1)  =      (1.0d0-ct)*ez*ex - st*ey
+      rotCW(3,2)  =      (1.0d0-ct)*ez*ey + st*ex
+      rotCW(3,3)  = ct + (1.0d0-ct)*ez*ez
 
       return
       end
 c----------------------------------------------------------------------
-      subroutine ppiclf_solve_LinearPlane
+      subroutine ppiclf_solve_LinearPlanes
 !
       implicit none
 !
@@ -3768,6 +3618,78 @@ c----------------------------------------------------------------------
         C_zmax = 1.0d0
         D_zmax = -ppiclf_xdrange(2,3)
       endif
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine ppiclf_solve_AngularPlanes(axis, angle, xangle)
+!
+      implicit none
+!
+      include "PPICLF"
+
+! Input:
+!
+      integer*4 axis
+      real*8 angle, xangle
+!
+      ! Plane equation : Ax + By + Cz + D = 0 
+      !
+      ! Initialize two angular periodic planes
+      !
+      ! We assume the planes of rotation will always intersect at the origin
+      ! Hence D = 0 (always!) for now
+
+      SELECT CASE(axis)
+      CASE(1) ! x-axis of rotation (z-y plane); xangle with respect to z-axis                                                
+        ! Lower plane
+        Ap1 = 0.0
+        Bp1 = sin(xangle)
+        Cp1 = cos(xangle)
+
+        ! Upper plane
+        Ap2 = 0.0d0
+        Bp2 = sin(angle + xangle)
+        Cp2 = cos(angle + xangle)
+       ! if(ppiclf_nid.eq.0) then 
+          print*, "Angular X-Rotational Axis"
+          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
+          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
+       ! endif
+                                                                   
+      CASE(2) ! y-axis of rotation (x-z plane); xangle with respect to x-axis                         
+        Ap1 = cos(xangle)
+        Bp1 = 0.0
+        Cp1 = sin(xangle)
+
+        Ap2 = cos(angle + xangle)
+        Bp2 = 0.0
+        Cp2 = sin(angle + xangle)
+       ! if(ppiclf_nid.eq.0) then 
+          print*, "Angular Y-Rotational Axis"
+          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
+          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
+       ! endif
+                                                                   
+      CASE(3) ! z-axis of rotation (x-y plane); xangle with respect to x-axis                      
+        Ap1 = cos(xangle)
+        Bp1 = sin(xangle)
+        Cp1 = 0.0 
+
+        Ap2 = cos(angle + xangle)
+        Bp2 = sin(angle + xangle)
+        Cp2 = 0.0 
+       ! if(ppiclf_nid.eq.0) then 
+          print*, "Angular Z-Rotational Axis"
+          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
+          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
+       ! endif
+                                                                   
+      CASE DEFAULT                                                 
+        call ppiclf_exittr('Invalid Axis for Angular Plane!$', 0.0d0      
+     >         ,ppiclf_nid)                                        
+                                                                   
+      END SELECT                                                   
 
       return
       end

@@ -136,8 +136,10 @@ SUBROUTINE PICL_ReadPiclSection( global )
   keys(20)  = 'PERIODICY'
   keys(21)  = 'PERIODICZ'
   keys(22)  = 'ANGULARPERIODIC'
-  keys(23)  = 'SUBBIN'
-  keys(24)  = 'REACTIVE'
+  keys(23)  = 'ANGLE'
+  keys(24)  = 'XANGLE'
+  keys(25)  = 'SUBBIN'
+  keys(26)  = 'REACTIVE'
  
   CALL ReadSection( global,IF_INPUT,nVals,keys(1:nVals),vals(1:nVals), & 
                     defined(1:nVals) ) 
@@ -188,7 +190,7 @@ SUBROUTINE PICL_ReadPiclSection( global )
     global%piclFilterWidth = vals(11)
   ELSE
     IF (global%piclUsed) THEN
-      CAll ErrorStop(global,ERR_PICL_FWIDTH_UNDEF,180,'')
+      CAll ErrorStop(global,ERR_PICL_FWIDTH_UNDEF,182,'')
     END IF
   END IF
 
@@ -235,13 +237,21 @@ SUBROUTINE PICL_ReadPiclSection( global )
   IF (defined(22) .EQV. .TRUE. ) THEN
     global%piclAngularPeriodicFlag = NINT(vals(22))
   END IF
-  
+
   IF (defined(23) .EQV. .TRUE. ) THEN
-    global%piclSBNearFlag = NINT(vals(23))
+    global%piclAngularPeriodicAngle = vals(23)
   END IF
 
   IF (defined(24) .EQV. .TRUE. ) THEN
-    global%piclBurnRateFlag = NINT(vals(24))
+    global%piclAngularPeriodicXAngle = vals(24)
+  END IF
+  
+  IF (defined(25) .EQV. .TRUE. ) THEN
+    global%piclSBNearFlag = NINT(vals(25))
+  END IF
+
+  IF (defined(26) .EQV. .TRUE. ) THEN
+    global%piclBurnRateFlag = NINT(vals(26))
   END IF
 
 ! finalize

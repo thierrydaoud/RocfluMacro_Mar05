@@ -104,7 +104,8 @@
      >  A_zmin, B_zmin, C_zmin, D_zmin, 
      >  A_xmax, B_xmax, C_xmax, D_xmax,
      >  A_ymax, B_ymax, C_ymax, D_ymax,
-     >  A_zmax, B_zmax, C_zmax, D_zmax
+     >  A_zmax, B_zmax, C_zmax, D_zmax,
+     >  Ap1, Bp1, Cp1, Ap2, Bp2, Cp2
 
       common /solve_InitAngularPeriodic01/ x_per_flag, y_per_flag, 
      >                                z_per_flag, ang_per_flag,
@@ -125,4 +126,5 @@
      >  A_zmin, B_zmin, C_zmin, D_zmin, 
      >  A_xmax, B_xmax, C_xmax, D_xmax,
      >  A_ymax, B_ymax, C_ymax, D_ymax,
-     >  A_zmax, B_zmax, C_zmax, D_zmax
+     >  A_zmax, B_zmax, C_zmax, D_zmax,
+     >  Ap1, Bp1, Cp1, Ap2, Bp2, Cp2
