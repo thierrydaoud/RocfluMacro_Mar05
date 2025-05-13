@@ -1,7 +1,7 @@
-#define PPICLF_LPART 20000
+#define PPICLF_LPART 25000
 #define PPICLF_LRS 12
 #define PPICLF_LRP 64
-#define PPICLF_LEE 75000
+#define PPICLF_LEE 60000
 #define PPICLF_LEX 2
 #define PPICLF_LEY 2
 #define PPICLF_LEZ 2

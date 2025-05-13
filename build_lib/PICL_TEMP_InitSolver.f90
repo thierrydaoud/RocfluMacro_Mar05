@@ -158,8 +158,8 @@ INTEGER :: errorFlag,icg
                    yMaxCell,zMinCell,zMaxCell,x,vFrac,volpclsum,xLoc,yLoc,zLoc,yL, &
                    zpf_factor,xpf_factor,dp,neighborWidth,dp_max_l,xp_min,xp_max, &
                    xp_min_l,xp_max_l
-   REAL(KIND=8) :: y(12, 20000), &
-                   rprop(64, 20000)
+   REAL(KIND=8) :: y(12, 25000), &
+                   rprop(64, 25000)
    REAL(KIND=8), DIMENSION(:,:,:,:), ALLOCATABLE :: xGrid, yGrid, zGrid,vfP
    REAL(RFREAL),ALLOCATABLE,DIMENSION(:) :: xData,yData,zData,rData,dumData     
    REAL(KIND=8), DIMENSION(:), ALLOCATABLE :: volp,SPL 
@@ -383,7 +383,7 @@ IF (global%restartFromScratch) THEN
    BACKSPACE(iFile, IOSTAT=ErrorFlag)
   
    READ(iFile,*) npart ! global number of particles
-   IF (npart .gt. 20000*global%nProcs) THEN
+   IF (npart .gt. 25000*global%nProcs) THEN
       CALL ErrorStop(global,ERR_ILLEGAL_VALUE,354,'PPICLF:too &
         many particles to initialize')
    END IF
@@ -400,7 +400,7 @@ IF (global%restartFromScratch) THEN
     !  print*,global%myProcid,npart,i_global_min,i_global_max
    !ENDIF
 
-   rprop(1:64,1:20000) = 0.0d0
+   rprop(1:64,1:25000) = 0.0d0
   
    dp_max = 0.0d0
    xp_min_l = +17400000.0

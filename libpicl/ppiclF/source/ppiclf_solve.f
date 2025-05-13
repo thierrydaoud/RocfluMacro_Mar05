@@ -86,13 +86,17 @@
         call ppiclf_solve_AngularRotate(ang_per_flag, ang_per_angle)
       END IF
 
-      ! User cannot initialize X/Y-Periodicity with Angular Periodicity
-      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1))
-     >                     .and.(ang_per_flag.ge.1))
+      ! User cannot initialize Linear Y/X-Periodicity with X-Angular Periodicity
+      if((ang_per_flag.eq.1).and.(y_per_flag.eq.1 .or. z_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
-      ! Thierry - compute ang_case
+      ! User cannot initialize Linear X/Z-Periodicity with Y-Angular Periodicity
+      if((ang_per_flag.eq.2).and.(x_per_flag.eq.1 .or. z_per_flag.eq.1))
+     >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
+      ! User cannot initialize Linear X/Z-Periodicity with Y-Angular Periodicity
+      if((ang_per_flag.eq.3).and.(x_per_flag.eq.1 .or. y_per_flag.eq.1))
+     >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
       !IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
       IF(ang_per_flag.GE.1) THEN
@@ -1175,206 +1179,6 @@
 
       call ppiclf_solve_InitSolve
 
-      RETURN
-      END
-!-----------------------------------------------------------------------
-      subroutine ppiclf_solve_InvokeLinearPeriodic(i)
-!
-      implicit none
-!
-      include "PPICLF"
-! 
-! Internal: 
-! 
-      integer*4 i, j, jj(3), jchk, in_part(PPICLF_LPART)
-!
-      jj(1) = 1 ; jj(2) = 2 ; jj(3) = 3
-
-! Case 1 - Linear Periodicity in any of 3 directions ; NO Anuglar Periodicity
-      if(((x_per_flag.eq.1).or.(y_per_flag.eq.1).or.(z_per_flag.eq.1))
-     >   .and.(ang_per_flag.eq.0)) then
-
-      do j=0,ppiclf_ndim-1
-        jchk = jj(j+1)
-        ! particle leaving min. periodic face -> move it relative to 
-        !                                         max periodic face
-        if(ppiclf_y(jchk,i).lt.ppiclf_xdrange(1,j+1)) then
-          ppiclf_y(jchk,i) = ppiclf_xdrange(2,j+1) - 
-     >                  abs(ppiclf_xdrange(1,j+1) - ppiclf_y(jchk,i))
-          goto 1512
-        ENDif
-
-        ! particle leaving max. periodic face -> move it relative to 
-        !                                         min periodic face
-        if(ppiclf_y(jchk,i).gt.ppiclf_xdrange(2,j+1)) then
-          ppiclf_y(jchk,i) = ppiclf_xdrange(1,j+1) + 
-     >                  abs(ppiclf_y(jchk,i) - ppiclf_xdrange(2,j+1))
-          goto 1512
-        ENDif
-        
-        ! Thierry - I'm not sure what this does but this is how it was implemented
-        if (ppiclf_iprop(1,i) .eq. 2) then
-             in_part(i) = -1 ! only if periodic check fails it will get here
-        ENDif
- 1512 continue
-        END do ! j=0, ndim-1
-      ENDif ! Case 1 
-
-! Case 2 - Linear Periodicity in Z-direction only; WITH Anuglar Periodicity
-      if((z_per_flag.eq.1).and.(ang_per_flag.eq.1)) then
-
-        ! particle leaving min. or max. x-face -> delete it
-        if((ppiclf_y(1,i).lt.ppiclf_xdrange(1,1)).or.
-     >  (ppiclf_y(1,i).gt.ppiclf_xdrange(2,1))) then
-          call ppiclf_solve_MarkForRemoval(i)
-          goto 1515
-        ENDif
-
-        ! particle leaving min. z-periodic face -> move it relative to 
-        !                                         max z-periodic face
-        if(ppiclf_y(3,i).lt.ppiclf_xdrange(1,3)) then
-          ppiclf_y(3,i) = ppiclf_xdrange(2,3) - 
-     >                  abs(ppiclf_xdrange(1,3) - ppiclf_y(3,i))
-          goto 1515
-        ENDif
-
-        ! particle leaving max. z-periodic face -> move it relative to 
-        !                                         min z-periodic face
-        if(ppiclf_y(3,i).gt.ppiclf_xdrange(2,3)) then
-          ppiclf_y(3,i) = ppiclf_xdrange(1,3) + 
-     >                  abs(ppiclf_y(3,i) - ppiclf_xdrange(2,3))
-          goto 1515
-        ENDif
-        
-        if (ppiclf_iprop(1,i) .eq. 2) then
-             in_part(i) = -1 ! only if periodic check fails it will get here
-        ENDif
- 1515 continue
-      ENDif ! Case 2
-
-      RETURN
-      END
-!-----------------------------------------------------------------------
-       subroutine ppiclf_solve_InvokeAngularPeriodic(i,flag,
-     >                                              per_alpha,
-     >                                              angle, xangle,
-     >                                              register)
-!
-      implicit none
-!
-      include "PPICLF"
-! :
-! Input: 
-! 
-      ! Thierry -  07/24/24 - modified code begins here
-      ! global variables
-      integer*4 i, flag
-      real*8 rin, rout, per_alpha, angle, xangle
-      ! local variables
-      real*8 ct, st, ex, ey, ez, local_angle
-      real*8 rotmat(3,3) , v(3), x(3)
-      integer*4 register
-
-        ! Thierry - 07/24/24 - modified code begins here
-        ! Implementation of Rotational Periodicity
-        ! Just like how Rocflu does it in modflu/RFLU_ModRelatedPatches.F90
-        ! this is invoked when particle is leaving x-axis or y-axis
-       
-!        print*, "!!! Rotational Periodicity Invoked !!!!" 
-          
-        ! use local angle so the value of angle does not get affected globally
-        local_angle = angle
-        ! Thierry 
-        !    (1) sign convention for theta is +ve when measured CCW
-        !           switch angle sign when particle is leaving from 
-        !           upper periodic face
-        !    (2) 0.5 instead of 1.0 to switch angle for ghost algorithm
-        !           since the ghost is being created before the 
-        !           particle is leaving domain
-        if(per_alpha.gt. 0.5*(xangle+angle)) 
-     >    local_angle=-1.0*local_angle
-        
-        ! Half-cylinder case - particle leaving +ve x-axis 
-        !                    - adjust rotation matrix angle accordingly
-        if(ang_case .eq. 3) then
-          if(per_alpha .lt. xangle) local_angle = 0.0 
-        END if
-
-        ! convert from degrees to radians
-        ct = cos(local_angle)
-        st = sin(local_angle)
-        
-        SELECT CASE(flag)
-          !CASE(1)
-          !  ex = 1.0d0
-          !  ey = 0.0d0
-          !  ez = 0.0d0
-          !  print*, "X-Rotational Axis"
-
-          !CASE(2)
-          !  ex = 0.0d0
-          !  ey = 1.0d0
-          !  ez = 0.0d0
-          !  print*, "Y-Rotational Axis"
-
-          CASE(3)
-            ex = 0.0d0
-            ey = 0.0d0
-            ez = 1.0d0
-!            print*, "Z-Rotational Axis"
-          CASE DEFAULT
-            call ppiclf_exittr('Invalid Axis of Rotation!$',0.0d0
-     >         ,ppiclf_nid)
-
-          END SELECT 
-          
-          ! Rotation Matrix calculation
-          rotmat(1,1) = ct + (1.0d0-ct)*ex*ex
-          rotmat(1,2) =      (1.0d0-ct)*ex*ey - st*ez
-          rotmat(1,3) =      (1.0d0-ct)*ex*ez + st*ey
-          
-          rotmat(2,1) =      (1.0d0-ct)*ey*ex + st*ez
-          rotmat(2,2) = ct + (1.0d0-ct)*ey*ey
-          rotmat(2,3) =      (1.0d0-ct)*ey*ez - st*ex
-          
-          rotmat(3,1) =      (1.0d0-ct)*ez*ex - st*ey
-          rotmat(3,2) =      (1.0d0-ct)*ez*ey + st*ex
-          rotmat(3,3) = ct + (1.0d0-ct)*ez*ez
-
-          ! Corrdinates modification
-          x(1) = ppiclf_y(PPICLF_JX,i)
-          x(2) = ppiclf_y(PPICLF_JY,i)
-          x(3) = ppiclf_y(PPICLF_JZ,i)
-          
-          xrot = MATMUL(rotmat, x)
-          
-          ! Velocity vector modification
-
-          v(1) = ppiclf_y(PPICLF_JVX,i)
-          v(2) = ppiclf_y(PPICLF_JVY,i)
-          v(3) = ppiclf_y(PPICLF_JVZ,i)
-
-          vrot = MATMUL(rotmat, v)
-          
-          ! 08/27/24 - Thierry - we add a register variable to 
-          !   choose if we want to register
-          !   the angularly modified variables 
-          ! register = 1 when called from RemoveParticle -> we want to modify the values
-          ! register = 0 when called from AngularCreateGhost -> we don't want to modify values
-          
-          ! register modified values
-          if (register==1) then
-            !print*, "Registering values!" 
-            ppiclf_y(PPICLF_JX,i) = xrot(1)
-            ppiclf_y(PPICLF_JY,i) = xrot(2)
-            ppiclf_y(PPICLF_JZ,i) = xrot(3)
-            
-            ppiclf_y(PPICLF_JVX,i) = vrot(1)
-            ppiclf_y(PPICLF_JVY,i) = vrot(2)
-            ppiclf_y(PPICLF_JVZ,i) = vrot(3)
-            
-          END if 
-       
       RETURN
       END
 !-----------------------------------------------------------------------
@@ -2693,7 +2497,8 @@ c----------------------------------------------------------------------
       integer*4 in_part(PPICLF_LPART), jj(3), iperiodicx, iperiodicy,
      >          iperiodicz,ndim, i, isl, isr, j, jchk, ic
       ! 08/18/24 - Thierry - added for Angular Periodicity begins here
-      real*8 per_alpha
+      real*8 angle
+      logical CW
       ! 08/18/24 - Thierry - added for Angular Periodicity ends here
 !
       iperiodicx = ppiclf_iperiodic(1)
@@ -2705,6 +2510,8 @@ c----------------------------------------------------------------------
       jj(2) = 2
       jj(3) = 3
 
+      CW = .false. ! logical statement to use CW or CCW rotation matrix
+
       do i=1,ppiclf_npart
         
          isl = (i -1) * PPICLF_LRS + 1
@@ -2713,77 +2520,62 @@ c----------------------------------------------------------------------
             in_part(i) = -1 ! User removed particle
             goto 1513
          ENDif
-!-----------------------------------------------------------------------------------
-!!!!!!!!!!!!!!!        Rotational Periodicity Starts Here     !!!!!!!!!!!!!!!!!!!!
-            ! currently only supports angular rotation around z-axis
-            ! and only check theta component and not radial
-            ! applying the radial periodicity is very straightforward, but not needed for now
 
-            if(ang_per_flag .ge. 1) then  ! Angular periodicity
+         ! Thierry - do I also need to modify ppiclf_y1 for linear and angular periodicities ????
+         
+          if(ppiclf_angular_per) then  ! Angular periodicity
            
-            ! particle angle w/ x-axis
-            ! per_alpha here is obtained in radians
-            ! ang_per_angle & ang_per_xangle are transformed 
-            !   to radians in PICL_TEMP_InitFlowSolver.F90
-            per_alpha = 
-     >         atan2(ppiclf_y(PPICLF_JY,i), ppiclf_y(PPICLF_JX,i))
+           angle = atan2(ppiclf_y(PPICLF_JY,i), ppiclf_y(PPICLF_JX,i))
 
-            ! check if particle leaving through lower face or upper face of wedge
-            if ((per_alpha .lt. ang_per_xangle) .or. 
-     >          (per_alpha .gt. (ang_per_xangle + ang_per_angle))) then
-              call ppiclf_solve_InvokeAngularPeriodic(i, ang_per_flag,
-     >                                                per_alpha, 
-     >                                                ang_per_angle,
-     >                                                ang_per_xangle,
-     >                                                1)
-            ENDif ! per_alpha
-           ENDif ! ang_per_flag
+           ! particle leaving from lower angular periodic plane -> rotate all properties CCW
+           if(angle .lt. ang_per_xangle) then
+             call ppiclf_solve_RotateAngularParticleProperties(i,CW)
+
+           ! particle leaving from upper angular periodic plane -> rotate all properties CW
+           elseif(angle .gt. (ang_per_xangle + ang_per_angle)) then
+             CW = .true.
+             call ppiclf_solve_RotateAngularParticleProperties(i,CW)
+           endif ! angle
+
+          endif ! ppiclf_angular_per
 
         ! Linear Periodicity Invoked
-          if((x_per_flag.eq.1) .or. (y_per_flag.eq.1) 
-     >                         .or. (z_per_flag.eq.1)) then
-!------------------------------------------------------------------------------------------------------
-! 10/16/2024 - Thierry - this is now implemented in
-! ppiclf_solve_InvokeLinearPeriodic(i). Either delete below or comment
-! out
-!         do j=0,ndim-1
-!            jchk = jj(j+1)
-!            ! Thierry - checks if particle is about to leave min. periodic face
-!            ! moves it linearly relative to the max. periodic face
-!            if (ppiclf_y(jchk,i).lt.ppiclf_xdrange(1,j+1))then
-!               if (((iperiodicx.eq.0) .and. (j.eq.0)) .or.   ! periodic
-!     >             ((iperiodicy.eq.0) .and. (j.eq.1)) .or.     
-!     >             ((iperiodicz.eq.0) .and. (j.eq.2)) ) then
-!                   ppiclf_y(jchk,i) = ppiclf_xdrange(2,j+1) - 
-!     &                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y(jchk,i))
-!!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(2,j+1) +
-!!     &                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y1(isl+j))
-!                  goto 1512
-!                ENDif
-!            ENDif
-!            ! Thierry - checks if particle is about to leave max. periodic face
-!            ! moves it relative to the min. periodic face
-!            if (ppiclf_y(jchk,i).gt.ppiclf_xdrange(2,j+1))then
-!               if (((iperiodicx.eq.0) .and. (j.eq.0)) .or.   ! periodic
-!     >             ((iperiodicy.eq.0) .and. (j.eq.1)) .or.     
-!     >             ((iperiodicz.eq.0) .and. (j.eq.2)) ) then
-!                   ppiclf_y(jchk,i) = ppiclf_xdrange(1,j+1) +
-!     &                     abs(ppiclf_y(jchk,i) - ppiclf_xdrange(2,j+1))
-!!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(1,j+1) +
-!!     &                     abs(ppiclf_y1(isl+j) - ppiclf_xdrange(2,j+1))
-!                  goto 1512
-!                ENDif
-!            ENDif
-!            if (ppiclf_iprop(1,i) .eq. 2) then
-!               in_part(i) = -1 ! only if periodic check fails it will get here
-!            ENDif
-! 1512 continue
-!         ENDdo ! j=0,ndim-1
-!------------------------------------------------------------------------------------------------------
-         call ppiclf_solve_InvokeLinearPeriodic(i)
-         ENDif ! x_per_flag
+         do j=0,ndim-1
+            jchk = jj(j+1)
+            ! particle is about to leave min. periodic face -> move it linearly relative to the max. periodic face
+            if (ppiclf_y(jchk,i).lt.ppiclf_xdrange(1,j+1))then
+               if (((iperiodicx.eq.0) .and. (j.eq.0)) .or.   ! periodic
+     >             ((iperiodicy.eq.0) .and. (j.eq.1)) .or.     
+     >             ((iperiodicz.eq.0) .and. (j.eq.2)) ) then
+                   ppiclf_y(jchk,i) = ppiclf_xdrange(2,j+1) - 
+     >                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y(jchk,i))
+!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(2,j+1) +
+!     &                     abs(ppiclf_xdrange(1,j+1) - ppiclf_y1(isl+j))
+                  goto 1512
+                endif ! iperiodic .and. j
+              endif ! ppiclf_y .lt. ppiclf_xdrange
+            ! particle is about to leave max. periodic face -> move it linearly relative to the min. periodic face
+            if (ppiclf_y(jchk,i).gt.ppiclf_xdrange(2,j+1))then
+               if (((iperiodicx.eq.0) .and. (j.eq.0)) .or.   ! periodic
+     >             ((iperiodicy.eq.0) .and. (j.eq.1)) .or.     
+     >             ((iperiodicz.eq.0) .and. (j.eq.2)) ) then
+                   ppiclf_y(jchk,i) = ppiclf_xdrange(1,j+1) +
+     &                     abs(ppiclf_y(jchk,i) - ppiclf_xdrange(2,j+1))
+!                   ppiclf_y1(isl+j)   = ppiclf_xdrange(1,j+1) +
+!     &                     abs(ppiclf_y1(isl+j) - ppiclf_xdrange(2,j+1))
+                  goto 1512
+                endif ! iperiodic .and. j
+              endif ! ppiclf_y .gt. ppiclf_xdrange
+             
+            ! if particle is about to leave the domain and is not periodic -> mark it to be deleted
+            if (ppiclf_iprop(1,i) .eq. 2) then
+               in_part(i) = -1 ! only if periodic check fails it will get here
+             endif
+ 1512 continue
+         enddo ! j=0,ndim-1
+
  1513 continue
-      ENDdo ! i=1,ppiclf_part
+      enddo ! i=1,ppiclf_part
 
       ic = 0
       do i=1,ppiclf_npart
@@ -3690,6 +3482,99 @@ c----------------------------------------------------------------------
      >         ,ppiclf_nid)                                        
                                                                    
       END SELECT                                                   
+
+      return
+      end
+c----------------------------------------------------------------------
+      subroutine ppiclf_solve_RotateAngularParticleProperties(i,CW)
+!
+      implicit none
+!
+      include "PPICLF"
+!
+! Input:
+      integer*4 i
+      logical CW
+!
+! Internal:
+      integer*4 nvec
+      parameter nvec = 11
+      integer*4 jvec(nvec), k, j
+      real*8 rotmat(3,3), rprop(3)
+      ! Define all the base indices (x-component) of the 3D vector properties
+      ! jvec contains the starting indices (x-components) of 3D vectors to be rotated, 
+      ! To rotate new vectors, add their x-component index here and increase nvec accor
+      parameter jvec = (/ PPICLF_JX, 
+     >           PPICLF_JVX,
+     >           PPICLF_JOX,
+     >           PPICLF_R_JUX,
+     >           PPICLF_R_FLUCTFX,
+     >           PPICLF_R_WDOTX,
+     >           PPICLF_R_FQSX,
+     >           PPICLF_R_FAMX,
+     >           PPICLF_R_FAMBX,
+     >           PPICLF_R_FCX,
+     >           PPICLF_R_FVUX/)
+!      
+      ! Choose rotation matrix based on where real particle is leaving the domain
+      if(CW) then
+        rotmat = rotCW
+      elseif(.not. CW) then
+        rotmat = rotCCW
+      else
+        call ppiclf_exittr('Error in RotateAngularGhostProperties 
+     >    Rotation Matrix Choice', 0.0d0, 0)
+      endif
+
+
+      ! Properties currently being rotated:
+      !
+      ! ppiclf_y: 
+      !        coordinates, JX JY JZ
+      !        velocities, JVX JVY JVZ
+      !        angular velocity, JOX JOY JOZ
+      ! ppiclf_rprop:
+      !        interpolated fluid velocity, JUX JUY JUZ
+      !        quasi-steady fluctuation, FLUCTFX
+      !        density weighted particle acceleration, WDOTX
+      !        quasi-steady force, FQSX
+      !        added-mass force, FAMX
+      !        binary added-mass force, FAMBX
+      !        collision  force, FCX
+      !        viscous unsteady force, FVUX
+
+      j = 1
+      ! Loop over ppiclf_y and rotate the ones specified in jvec
+      do k=1,PPICLF_LRS
+        if(k == jvec(j)) then
+          rprop(1) = ppiclf_y(k  , i)
+          rprop(2) = ppiclf_y(k+1, i)
+          rprop(3) = ppiclf_y(k+2, i)
+
+          rprop = MATMUL(rotmat, rprop)
+
+          ppiclf_y(k  , i) = rprop(1)
+          ppiclf_y(k+1, i) = rprop(2)
+          ppiclf_y(k+2, i) = rprop(3)
+          j = j +1
+        endif
+      end do
+
+      ! Loop over ppiclf_rprop and rotate the ones specified in jvec
+      do k=1,PPICLF_LRP
+        if(k == jvec(j)) then
+          rprop(1) = ppiclf_rprop(k  , i)
+          rprop(2) = ppiclf_rprop(k+1, i)
+          rprop(3) = ppiclf_rprop(k+2, i)
+
+          rprop = MATMUL(rotmat, rprop)
+
+          ppiclf_rprop(k  , i) = rprop(1)
+          ppiclf_rprop(k+1, i) = rprop(2)
+          ppiclf_rprop(k+2, i) = rprop(3)
+          j = j +1
+        endif
+      end do
 
       return
       end
