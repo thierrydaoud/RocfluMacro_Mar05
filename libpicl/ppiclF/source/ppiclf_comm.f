@@ -252,7 +252,7 @@
       DO l = 1,3
           ! Ensure ppiclf_bin_dx(l) > ppiclf_d2chk(1) 
           IF((binb_length(l)/ppiclf_n_bins(l)) .LT. ppiclf_d2chk(1)) 
-     >      ppiclf_n_bins(l) = INT(ppiclf_n_bins(l)/ppiclf_d2chk(1))
+     >      ppiclf_n_bins(l) = INT(binb_length(l)/ppiclf_d2chk(1))
           IF(ppiclf_n_bins(l) .LT. 1)  
      >  CALL ppiclf_exittr('ppiclf_d2chk(1) criteria violated.',0.0D0,0)
         idealBin(l) = ppiclf_n_bins(l)
