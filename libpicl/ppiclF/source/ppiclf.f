@@ -2046,8 +2046,6 @@
       real*8 rcd_am
       real*8 SDrho
       real*8 ug,vg,wg,vgradrho
-      real*8 famx_Ling
-
 !
 ! Code:
 !
@@ -2096,29 +2094,6 @@
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
      >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
-
-      famx_Ling = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i)*
-     > (-ppiclf_rprop(PPICLF_R_JDPDX,i) - ppiclf_y(PPICLF_JVX,i)*SDrho
-     >  -rhof*ppiclf_ydot(PPICLF_JVX,i))
-
-
-! writing data only for the median particle
-      if((ppiclf_iprop(5,i).eq.29.0) .and. (ppiclf_iprop(6,i).eq.0.0)
-     >   .and. (ppiclf_iprop(7,i).eq.151.0)) then
-      
-      open(unit=20,file='fort.20',position='append') 
-      write(20,*) ppiclf_time,famx-rmass_add*ppiclf_ydot(PPICLF_JVX,i),
-     >            rcd_am, ppiclf_rprop(PPICLF_R_JVOLP,i),
-     >            rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i),
-     >            vx, SDrho, vx*SDrho,
-     >            rhof, ppiclf_rprop(PPICLF_R_JSDRX,i),
-     >            rhof*ppiclf_rprop(PPICLF_R_JSDRX,i),
-     >            ug, vgradrho,
-     >            ug*vgradrho,
-     >            famx_Ling
-      flush(20)
-      endif
-
 
       return
       end
