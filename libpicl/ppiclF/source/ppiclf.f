@@ -5281,7 +5281,7 @@
 
 !-----------------------------------------------------------------------
 ! RocfluMacro_Subbin_Jan10 version
-      subroutine ppiclf_comm_CreateBin
+      subroutine JAN10_ppiclf_comm_CreateBin
 !
       implicit none
 !
@@ -5594,7 +5594,7 @@ c     if (npt_total .eq. 1) then
       
       
 !-----------------------------------------------------------------------
-      SUBROUTINE AVERY_BUG_ppiclf_comm_CreateBin
+      SUBROUTINE ppiclf_comm_CreateBin
 !
       IMPLICIT NONE
 !
@@ -5872,7 +5872,7 @@ c     if (npt_total .eq. 1) then
       DO l = 1,3
           ! Ensure ppiclf_bin_dx(l) > ppiclf_d2chk(1) 
           IF((binb_length(l)/ppiclf_n_bins(l)) .LT. ppiclf_d2chk(1)) 
-     >      ppiclf_n_bins(l) = INT(ppiclf_n_bins(l)/ppiclf_d2chk(1))
+     >      ppiclf_n_bins(l) = INT(binb_length(l)/ppiclf_d2chk(1))
           IF(ppiclf_n_bins(l) .LT. 1)  
      >  CALL ppiclf_exittr('ppiclf_d2chk(1) criteria violated.',0.0D0,0)
         idealBin(l) = ppiclf_n_bins(l)
