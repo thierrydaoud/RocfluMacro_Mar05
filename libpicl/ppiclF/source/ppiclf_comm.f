@@ -1157,11 +1157,6 @@ c-----------------------------------------------------------------------
      >                ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
          nrank = ndum
          
-         print*, "FindParticle, nid, ppiclf_binb, bins_dx", 
-     >    ppiclf_nid, ppiclf_binb, ppiclf_bins_dx
-         print*, "FindParticle, nid, ii, jj, kk, nrank",
-     >           ppiclf_nid, ii, jj, kk, nrank        
-
          ppiclf_iprop(8,i)  = ii
          ppiclf_iprop(9,i)  = jj
          ppiclf_iprop(10,i) = kk
@@ -1190,8 +1185,6 @@ c-----------------------------------------------------------------------
       integer*4 i, ic, j0
 !
 
-      print*, "Move Particle - copying data"
-
       do i=1,ppiclf_npart
          ic = 1
          call ppiclf_copy(rwork(ic,i),ppiclf_y(1,i),PPICLF_LRS)
@@ -1210,12 +1203,7 @@ c-----------------------------------------------------------------------
          call ppiclf_copy(rwork(ic,i),ppiclf_rprop3(1,i),PPICLF_LRP3)
       enddo
 
-      print*, "Move Particle - calling pfgslib"
-
       j0 = 4
-
-      print*, ppiclf_nid, ppiclf_cr_hndl, ppiclf_npart,PPICLF_LPART,
-     >        PPICLF_LIP, partl, lrf, j0
       call pfgslib_crystal_tuple_transfer(ppiclf_cr_hndl
      >                                  ,ppiclf_npart,PPICLF_LPART
      >                                  ,ppiclf_iprop,PPICLF_LIP
@@ -1223,7 +1211,6 @@ c-----------------------------------------------------------------------
      >                                  ,rwork,lrf
      >                                  ,j0)
 
-      print*, "Move Particle - Done calling gslib"
       if (ppiclf_npart .gt. PPICLF_LPART .or. ppiclf_npart .lt. 0) then
         print*, "***ERROR In MoveParticle, PPICLF_LPART", 
      >   PPICLF_LPART, "smaller than ", ppiclf_npart

@@ -6375,11 +6375,6 @@ c-----------------------------------------------------------------------
      >                ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
          nrank = ndum
          
-         print*, "FindParticle, nid, ppiclf_binb, bins_dx", 
-     >    ppiclf_nid, ppiclf_binb, ppiclf_bins_dx
-         print*, "FindParticle, nid, ii, jj, kk, nrank",
-     >           ppiclf_nid, ii, jj, kk, nrank        
-
          ppiclf_iprop(8,i)  = ii
          ppiclf_iprop(9,i)  = jj
          ppiclf_iprop(10,i) = kk
@@ -6408,8 +6403,6 @@ c-----------------------------------------------------------------------
       integer*4 i, ic, j0
 !
 
-      print*, "Move Particle - copying data"
-
       do i=1,ppiclf_npart
          ic = 1
          call ppiclf_copy(rwork(ic,i),ppiclf_y(1,i),PPICLF_LRS)
@@ -6428,12 +6421,7 @@ c-----------------------------------------------------------------------
          call ppiclf_copy(rwork(ic,i),ppiclf_rprop3(1,i),PPICLF_LRP3)
       enddo
 
-      print*, "Move Particle - calling pfgslib"
-
       j0 = 4
-
-      print*, ppiclf_nid, ppiclf_cr_hndl, ppiclf_npart,PPICLF_LPART,
-     >        PPICLF_LIP, partl, lrf, j0
       call pfgslib_crystal_tuple_transfer(ppiclf_cr_hndl
      >                                  ,ppiclf_npart,PPICLF_LPART
      >                                  ,ppiclf_iprop,PPICLF_LIP
@@ -6441,7 +6429,6 @@ c-----------------------------------------------------------------------
      >                                  ,rwork,lrf
      >                                  ,j0)
 
-      print*, "Move Particle - Done calling gslib"
       if (ppiclf_npart .gt. PPICLF_LPART .or. ppiclf_npart .lt. 0) then
         print*, "***ERROR In MoveParticle, PPICLF_LPART", 
      >   PPICLF_LPART, "smaller than ", ppiclf_npart
@@ -10946,15 +10933,20 @@ c1511 continue
         z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
+        print*, "z-linear periodicity, zpmin, zpmax", zpmin, zpmax
         call ppiclf_solve_LinearPlanes !Initialize periodic planes
       END IF
+      
+      ! 05/16/2025 - Testing if this is the issue with Josh's case
+      ! The issue is indeed from this. For some reason this is leading an issue
+      ! in gslib call under MoveParticle
 
-        ppiclf_xdrange(1,1) = xpmin
-        ppiclf_xdrange(2,1) = xpmax
-        ppiclf_xdrange(1,2) = ypmin
-        ppiclf_xdrange(2,2) = ypmax
-        ppiclf_xdrange(1,3) = zpmin
-        ppiclf_xdrange(2,3) = zpmax
+!        ppiclf_xdrange(1,1) = xpmin
+!        ppiclf_xdrange(2,1) = xpmax
+!        ppiclf_xdrange(1,2) = ypmin
+!        ppiclf_xdrange(2,2) = ypmax
+!        ppiclf_xdrange(1,3) = zpmin
+!        ppiclf_xdrange(2,3) = zpmax
 
       ! Angular Periodicity
       ang_per_flag = apflag
@@ -12507,20 +12499,14 @@ c----------------------------------------------------------------------
 ! 
       integer*4 i, j
 !
-      print*, "Calling CreateBin"
       call ppiclf_comm_CreateBin
-      print*, "Calling FindParticle"
       call ppiclf_comm_FindParticle
-      print*, "Calling MoveParticle"
       call ppiclf_comm_MoveParticle
-      print*, "Calling MapOverlapMesh"
       if (ppiclf_overlap)
      >   call ppiclf_comm_MapOverlapMesh
-      print*, "Calling InterpParticleGrid"
       if ((ppiclf_lintp .and. ppiclf_int_icnt .ne. 0) .or.
      >    (ppiclf_lproj .and. ppiclf_sngl_elem))
      >   call ppiclf_solve_InterpParticleGrid
-      print*, "Calling RemoveParticle"
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
            call ppiclf_comm_CreateGhost
