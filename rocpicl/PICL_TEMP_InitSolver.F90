@@ -664,8 +664,12 @@ if (global%myProcid == MASTERPROC)  then
    print*,' '
 endif
 
+print*, "PICL_TEMP_InitSolver: Calling InitParticle"
+
 ! TLJ after computing d2chk, we can initialize bins, etc.
 call ppiclf_solve_InitParticle(2,3,0,npart_local,y,rprop,filter,neighborWidth) 
+
+print*, "PICL_TEMP_InitSolver: Calling Initialize"
 
 call ppiclf_solve_Initialize( &
    x_per_flag, x_per_min, x_per_max, &
@@ -677,12 +681,17 @@ call ppiclf_solve_Initialize( &
 ! TLJ: Initialize Box Filter
 !      This sets ppiclf_d2chk(2) used in Nearest Neighbors
 ! subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
+print*, "PICL_TEMP_InitSolver: Calling InitBoxFilter"
 call ppiclf_solve_InitBoxFilter(filter,0,1)!global%piclFilterWidth,0,1)
 
+
+
+print*, "PICL_TEMP_InitSolver: Calling InitNeighborBin"
 
 ! Sam - must call initneighborbin before initoverlap for new interpolation scheme
 call ppiclf_solve_InitNeighborBin(neighborWidth)
 
+print*, "PICL_TEMP_InitSolver: Calling InitOverlapMesh"
 call ppiclf_comm_InitOverlapMesh(nCells,lx,ly,lz,xGrid,yGrid,zGrid)
 
 ! 08/13/24 - Thierry - added for Periodicity - begins here
@@ -715,6 +724,7 @@ else if (global%myProcid == MASTERPROC) then
   WRITE(*,*) 'Could not find filein.vtk'
 end if
 
+print*, "PICL_TEMP_InitSolver: DEALLOCATING"
 
 ! 03/24/2025 - Thierry - store the RocfluMP Flow Model chosen (Euler or NS)
 !                        this is used in ppiclF for calculating the pressure gradient

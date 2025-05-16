@@ -697,8 +697,12 @@ if (global%myProcid == MASTERPROC)  then
    print*,' '
 endif
 
+print*, "PICL_TEMP_InitSolver: Calling InitParticle"
+
 ! TLJ after computing d2chk, we can initialize bins, etc.
 call ppiclf_solve_InitParticle(2,3,0,npart_local,y,rprop,filter,neighborWidth) 
+
+print*, "PICL_TEMP_InitSolver: Calling Initialize"
 
 call ppiclf_solve_Initialize( &
    x_per_flag, x_per_min, x_per_max, &
@@ -710,31 +714,36 @@ call ppiclf_solve_Initialize( &
 ! TLJ: Initialize Box Filter
 !      This sets ppiclf_d2chk(2) used in Nearest Neighbors
 ! subroutine ppiclf_solve_InitBoxFilter(filt,iwallm,sngl_elem)
+print*, "PICL_TEMP_InitSolver: Calling InitBoxFilter"
 call ppiclf_solve_InitBoxFilter(filter,0,1)!global%piclFilterWidth,0,1)
 
+
+
+print*, "PICL_TEMP_InitSolver: Calling InitNeighborBin"
 
 ! Sam - must call initneighborbin before initoverlap for new interpolation scheme
 call ppiclf_solve_InitNeighborBin(neighborWidth)
 
+print*, "PICL_TEMP_InitSolver: Calling InitOverlapMesh"
 call ppiclf_comm_InitOverlapMesh(nCells,lx,ly,lz,xGrid,yGrid,zGrid)
 
 ! 08/13/24 - Thierry - added for Periodicity - begins here
 
 !  user cannot invoke linear periodicity in y or z when invoking angular periodicity around x-axis
 IF((ang_per_flag.eq.1).and.(y_per_flag.eq.1 .or. z_per_flag.eq.1)) THEN
-    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,692,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,701,&
       'Wrong periodicity choices for ppiclF')
 END IF 
 
 !  user cannot invoke linear periodicity in x or z when invoking angular periodicity around y-axis
 IF((ang_per_flag.eq.2).and.(x_per_flag.eq.1 .or. z_per_flag.eq.1)) THEN
-    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,698,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,707,&
       'Wrong periodicity choices for ppiclF')
 END IF 
 
 !  user cannot invoke linear periodicity in x or y when invoking angular periodicity around z-axis
 IF((ang_per_flag.eq.3).and.(x_per_flag.eq.1 .or. y_per_flag.eq.1)) THEN
-    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,704,&
+    CALL ErrorStop(global,ERR_PICL_INVALID_PERIODICITY,713,&
       'Wrong periodicity choices for ppiclF')
 END IF 
 
@@ -748,6 +757,7 @@ else if (global%myProcid == MASTERPROC) then
   WRITE(*,*) 'Could not find filein.vtk'
 end if
 
+print*, "PICL_TEMP_InitSolver: DEALLOCATING"
 
 ! 03/24/2025 - Thierry - store the RocfluMP Flow Model chosen (Euler or NS)
 !                        this is used in ppiclF for calculating the pressure gradient
@@ -765,31 +775,31 @@ end if
 DEALLOCATE(xGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,735,'PPICLF:xGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,745,'PPICLF:xGrid')
 END IF ! global%error
 
 DEALLOCATE(yGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,741,'PPICLF:yGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,751,'PPICLF:yGrid')
 END IF ! global%error
 
 DEALLOCATE(zGrid,STAT=errorFlag)
 global%error = errorFlag
 IF ( global%error /= ERR_NONE ) THEN
-  CALL ErrorStop(global,ERR_DEALLOCATE,747,'PPICLF:zGrid')
+  CALL ErrorStop(global,ERR_DEALLOCATE,757,'PPICLF:zGrid')
 END IF ! global%error
 
 ALLOCATE(vfP(2,2,2,nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,753,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,763,'PPICLF:xGrid')
     END IF ! global%error
 
 ALLOCATE(volp(nCells),STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_ALLOCATE,759,'PPICLF:xGrid')
+      CALL ErrorStop(global,ERR_ALLOCATE,769,'PPICLF:xGrid')
     END IF ! global%error
 
 do i=1,pGrid%nCellsTot
@@ -808,7 +818,7 @@ DO i = 1,pRegion%grid%nCells
 
        IF (pRegion%mixtInput%axiFlag) THEN
            WRITE(*,*) "Need to properly implement axi-sym for phip init."
-           CALL ErrorStop(global,ERR_OPTION_TYPE,778,'PPICLF:axi')
+           CALL ErrorStop(global,ERR_OPTION_TYPE,788,'PPICLF:axi')
        END IF
 
        tester = tester + (0.125*vfP(lx,ly,lz,i))*pRegion%grid%vol(i)
@@ -840,7 +850,7 @@ DO icg = 1,pGrid%nCellsTot
     pRegion%mixt%cv(CV_MIXT_ENER,icg) = vFrac*pRegion%mixt%cv(CV_MIXT_ENER,icg)
     if (pRegion%mixt%cv(CV_MIXT_DENS,icg) .le. 0.0) then
          WRITE(*,*) "Error: negative density: ",pRegion%mixt%cv(CV_MIXT_DENS,icg)      
-         CALL ErrorStop(global,ERR_INVALID_VALUE,810,'PPICLF:init')
+         CALL ErrorStop(global,ERR_INVALID_VALUE,820,'PPICLF:init')
     end if    
 
 END DO ! icg
@@ -848,12 +858,12 @@ END DO ! icg
 DEALLOCATE(vfP,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,818,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,828,'PPICLF:zGrid')
     END IF ! global%error
 DEALLOCATE(volp,STAT=errorFlag)
     global%error = errorFlag
     IF ( global%error /= ERR_NONE ) THEN
-      CALL ErrorStop(global,ERR_DEALLOCATE,823,'PPICLF:zGrid')
+      CALL ErrorStop(global,ERR_DEALLOCATE,833,'PPICLF:zGrid')
     END IF ! global%error
 
 !!Josh - Removed Brad Comments and Restart Section

@@ -98,8 +98,7 @@
       if((ang_per_flag.eq.3).and.(x_per_flag.eq.1 .or. y_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
-      !IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
-      IF(ang_per_flag.GE.1) THEN
+      IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
          PRINT*, " "
          PRINT*, " ======================================="
          PRINT*, " "
@@ -1624,14 +1623,20 @@ c----------------------------------------------------------------------
 ! 
       integer*4 i, j
 !
+      print*, "Calling CreateBin"
       call ppiclf_comm_CreateBin
+      print*, "Calling FindParticle"
       call ppiclf_comm_FindParticle
+      print*, "Calling MoveParticle"
       call ppiclf_comm_MoveParticle
+      print*, "Calling MapOverlapMesh"
       if (ppiclf_overlap)
      >   call ppiclf_comm_MapOverlapMesh
+      print*, "Calling InterpParticleGrid"
       if ((ppiclf_lintp .and. ppiclf_int_icnt .ne. 0) .or.
      >    (ppiclf_lproj .and. ppiclf_sngl_elem))
      >   call ppiclf_solve_InterpParticleGrid
+      print*, "Calling RemoveParticle"
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
            call ppiclf_comm_CreateGhost
@@ -3316,21 +3321,18 @@ c        do i=il,ir
         ey = 0.0d0
         ez = 0.0d0
         if(ppiclf_nid.eq.0) print*, "Angular X-Rotational Axis"
-        print*, "Angular X-Rotational Axis"
 
       CASE(2)
         ex = 0.0d0
         ey = 1.0d0
         ez = 0.0d0
         if(ppiclf_nid.eq.0) print*, "Angular Y-Rotational Axis"
-        print*, "Angular Y-Rotational Axis"
 
       CASE(3)
         ex = 0.0d0
         ey = 0.0d0
         ez = 1.0d0
         if(ppiclf_nid.eq.0) print*, "Angular Z-Rotational Axis"
-        print*, "Angular Z-Rotational Axis"
 
       CASE DEFAULT
         call ppiclf_exittr('Invalid Axis of Rotation!$',0.0d0
@@ -3443,11 +3445,11 @@ c----------------------------------------------------------------------
         Ap2 = 0.0d0
         Bp2 = sin(angle + xangle)
         Cp2 = cos(angle + xangle)
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular X-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE(2) ! y-axis of rotation (x-z plane); xangle with respect to x-axis                         
         Ap1 = cos(xangle)
@@ -3457,11 +3459,11 @@ c----------------------------------------------------------------------
         Ap2 = cos(angle + xangle)
         Bp2 = 0.0
         Cp2 = sin(angle + xangle)
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular Y-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE(3) ! z-axis of rotation (x-y plane); xangle with respect to x-axis                      
         Ap1 = cos(xangle)
@@ -3471,11 +3473,11 @@ c----------------------------------------------------------------------
         Ap2 = cos(angle + xangle)
         Bp2 = sin(angle + xangle)
         Cp2 = 0.0 
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular Z-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE DEFAULT                                                 
         call ppiclf_exittr('Invalid Axis for Angular Plane!$', 0.0d0      

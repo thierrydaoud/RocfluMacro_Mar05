@@ -5280,320 +5280,6 @@
       END
 
 !-----------------------------------------------------------------------
-! RocfluMacro_Subbin_Jan10 version
-      subroutine JAN10_ppiclf_comm_CreateBin
-!
-      implicit none
-!
-      include "PPICLF"
-!
-! Internal:
-!
-      integer*4  el_face_num(18),el_edge_num(36),el_corner_num(24),
-     >                            nfacegp, nedgegp, ncornergp
-      integer*4 exit_1_array(3), exit_2_array(3), finished(3)
-      integer*4 ix, iy, iz, iperiodicx, iperiodicy, iperiodicz, 
-     >          npt_total, j, i, idum, jdum, kdum, total_bin, 
-     >          sum_value, count
-      real*8 xmin, ymin, zmin, xmax, ymax, zmax, rduml, rdumr, rthresh,
-     >       rmiddle, rdiff
-      logical exit_1, exit_2
-      integer*4 ppiclf_iglsum
-      external ppiclf_iglsum
-      real*8 ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
-      external ppiclf_glmin,ppiclf_glmax,ppiclf_glsum
-      real*8 distchk
-!
-
-! face, edge, and corner number, x,y,z are all inline, so stride=3
-      el_face_num = (/ -1,0,0, 1,0,0, 0,-1,0, 0,1,0, 0,0,-1, 0,0,1 /)
-      el_edge_num = (/ -1,-1,0 , 1,-1,0, 1,1,0 , -1,1,0 ,
-     >                  0,-1,-1, 1,0,-1, 0,1,-1, -1,0,-1,
-     >                  0,-1,1 , 1,0,1 , 0,1,1 , -1,0,1  /)
-      el_corner_num = (/
-     >                 -1,-1,-1, 1,-1,-1, 1,1,-1, -1,1,-1,
-     >                 -1,-1,1,  1,-1,1,  1,1,1,  -1,1,1 /)
-
-      nfacegp   = 4  ! number of faces
-      nedgegp   = 4  ! number of edges
-      ncornergp = 0  ! number of corners
-
-      if (ppiclf_ndim .gt. 2) then
-         nfacegp   = 6  ! number of faces
-         nedgegp   = 12 ! number of edges
-         ncornergp = 8  ! number of corners
-      endif
-
-      ix = 1
-      iy = 2
-      iz = 1
-      if (ppiclf_ndim.eq. 3)
-     >iz = 3
-
-      iperiodicx = ppiclf_iperiodic(1)
-      iperiodicy = ppiclf_iperiodic(2)
-      iperiodicz = ppiclf_iperiodic(3)
-         
-      ! TLJ this line is not necessary 12/21/2024
-      ppiclf_d2chk(1) = max(ppiclf_d2chk(2),ppiclf_d2chk(3))
-
-
-      ! binning requires > 1 global particle. This takes care of 
-      ! single particle case
-      npt_total = ppiclf_iglsum(ppiclf_npart,1)
-c     if (npt_total .eq. 1) then
-      if (.not. ppiclf_lproj .and. .not. ppiclf_lsubsubbin) 
-     >   ppiclf_d2chk(1) = 1E-16
-
-      !if (ppiclf_nid==0) print*,'Bins: ', ppiclf_time, ppiclf_d2chk
-
-      ! compute binb
-      xmin = 1E10
-      ymin = 1E10
-      zmin = 1E10
-      xmax = -1E10
-      ymax = -1E10
-      zmax = -1E10
-      do i=1,ppiclf_npart
-         rduml = ppiclf_y(ix,i) - ppiclf_d2chk(1)
-         rdumr = ppiclf_y(ix,i) + ppiclf_d2chk(1)
-         if (rduml .lt. xmin) xmin = rduml
-         if (rdumr .gt. xmax) xmax = rdumr
-
-         rduml = ppiclf_y(iy,i) - ppiclf_d2chk(1)
-         rdumr = ppiclf_y(iy,i) + ppiclf_d2chk(1)
-         if (rduml .lt. ymin) ymin = rduml
-         if (rdumr .gt. ymax) ymax = rdumr
-
-         if (ppiclf_ndim .eq. 3) then
-            rduml = ppiclf_y(iz,i) - ppiclf_d2chk(1)
-            rdumr = ppiclf_y(iz,i) + ppiclf_d2chk(1)
-            if (rduml .lt. zmin) zmin = rduml
-            if (rdumr .gt. zmax) zmax = rdumr
-         endif
-      enddo
-
-      ppiclf_binb(1) = ppiclf_glmin(xmin,1)
-      ppiclf_binb(2) = ppiclf_glmax(xmax,1)
-      ppiclf_binb(3) = ppiclf_glmin(ymin,1)
-      ppiclf_binb(4) = ppiclf_glmax(ymax,1)
-      ppiclf_binb(5) = 0.0d0
-      ppiclf_binb(6) = 0.0d0
-      if(ppiclf_ndim .gt. 2) ppiclf_binb(5) = ppiclf_glmin(zmin,1)
-      if(ppiclf_ndim .gt. 2) ppiclf_binb(6) = ppiclf_glmax(zmax,1)
-
-      if (npt_total .gt. 0) then
-      do i=1,ppiclf_ndim
-         if (ppiclf_bins_balance(i) .eq. 1) then
-            rmiddle = 0.0
-            do j=1,ppiclf_npart
-               rmiddle = rmiddle + ppiclf_y(i,j)
-            enddo
-            rmiddle = ppiclf_glsum(rmiddle,1)
-            rmiddle = rmiddle/npt_total
-
-            rdiff =  max(abs(rmiddle-ppiclf_binb(2*(i-1)+1)),
-     >                   abs(ppiclf_binb(2*(i-1)+2)-rmiddle))
-            ppiclf_binb(2*(i-1)+1) = rmiddle - rdiff
-            ppiclf_binb(2*(i-1)+2) = rmiddle + rdiff
-         endif
-      enddo
-      endif
-
-      distchk = ppiclf_d2chk(1)                                    ! max(filter_width, neighbor_width)
-
-      if((ppiclf_binb(1).lt.ppiclf_xdrange(1,1)) .or.            ! min binb .lt. periodic domain
-     >  (abs(ppiclf_binb(1)-ppiclf_xdrange(1,1)).le.distchk)) then ! min binb within distchk to min periodic domain
-          ppiclf_binb(1) = ppiclf_xdrange(1,1)
-        if( iperiodicx .eq. 0) ppiclf_linear_bxmin = .true.
-      endif
-      if((ppiclf_binb(2) .gt. ppiclf_xdrange(2,1)) .or.          ! max binb .gt. periodic domain
-     >  (abs(ppiclf_binb(2)-ppiclf_xdrange(2,1)).le.distchk)) then ! max binb within distchk to max periodic domain
-          ppiclf_binb(2) = ppiclf_xdrange(2,1)
-        if( iperiodicx .eq. 0) ppiclf_linear_bxmax = .true.
-      endif
-
-        if(ppiclf_linear_bxmin.and.ppiclf_linear_bxmax)          ! bool check to evaluate linear periodic ghost 
-     >   ppiclf_linear_bx = .true.                                 ! only when this is true
-
-
-      if((ppiclf_binb(3) .lt. ppiclf_xdrange(1,2)) .or.
-     > (abs(ppiclf_binb(3)-ppiclf_xdrange(1,2)).le.distchk)) then
-          ppiclf_binb(3) = ppiclf_xdrange(1,2)
-        if(iperiodicy .eq. 0) ppiclf_linear_bymin = .true.
-      endif
-
-      if((ppiclf_binb(4) .gt. ppiclf_xdrange(2,2)) .or. 
-     > (abs(ppiclf_binb(4)-ppiclf_xdrange(2,2)).le.distchk)) then
-          ppiclf_binb(4) = ppiclf_xdrange(2,2)
-        if(iperiodicy .eq. 0) ppiclf_linear_bymax = .true.
-      endif
-
-        if(ppiclf_linear_bymin.and.ppiclf_linear_bymax)          ! bool check to evaluate linear periodic ghost 
-     >   ppiclf_linear_by = .true.                                 ! only when this is true
-
-      if(ppiclf_ndim .gt. 2) then                                  ! 3D runs
-        if((ppiclf_binb(5) .lt. ppiclf_xdrange(1,3)) .or.
-     >   (abs(ppiclf_binb(5)-ppiclf_xdrange(1,3)).le.distchk)) then
-            ppiclf_binb(5) = ppiclf_xdrange(1,3)
-          if(iperiodicz .eq. 0) ppiclf_linear_bzmin = .true.
-        endif
-        if((ppiclf_binb(6) .gt. ppiclf_xdrange(2,3)) .or. 
-     >   (abs(ppiclf_binb(6)-ppiclf_xdrange(2,3)).le.distchk)) then
-            ppiclf_binb(6) = ppiclf_xdrange(2,3)
-          if(iperiodicz .eq. 0) ppiclf_linear_bzmax = .true.
-        endif
-        if(ppiclf_linear_bzmin.and.ppiclf_linear_bzmax)          ! bool check to evaluate linear periodic ghost 
-     >   ppiclf_linear_bz = .true.                                 ! only when this is true
-      endif ! ppiclf_ndim
-
-      if (npt_total .lt. 1) return
-
-      finished(1) = 0
-      finished(2) = 0
-      finished(3) = 0
-      total_bin = 1 
-
-      do i=1,ppiclf_ndim
-         finished(i) = 0
-         exit_1_array(i) = ppiclf_bins_set(i)
-         exit_2_array(i) = 0
-         if (ppiclf_bins_set(i) .ne. 1) ppiclf_n_bins(i) = 1
-         ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                        ppiclf_binb(2*(i-1)+1)  ) / 
-     >                       ppiclf_n_bins(i)
-         ! Make sure exit_2 is not violated by user input
-         if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
-            do while (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1))
-               ppiclf_n_bins(i) = max(1, ppiclf_n_bins(i)-1)
-               ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                              ppiclf_binb(2*(i-1)+1)  ) / 
-     >                             ppiclf_n_bins(i)
-         WRITE(*,*) "Inf. loop in CreateBin", i, 
-     >              ppiclf_bins_dx(i), ppiclf_d2chk(1)
-         call ppiclf_exittr('Inf. loop in CreateBin$',0.0,0)
-            enddo
-         endif
-         total_bin = total_bin*ppiclf_n_bins(i)
-      enddo
-
-      ! Make sure exit_1 is not violated by user input
-      count = 0
-      do while (total_bin > ppiclf_np)
-          count = count + 1;
-          i = modulo((ppiclf_ndim-1)+count,ppiclf_ndim)+1
-          ppiclf_n_bins(i) = max(ppiclf_n_bins(i)-1,1)
-          ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                         ppiclf_binb(2*(i-1)+1)  ) / 
-     >                        ppiclf_n_bins(i)
-          total_bin = 1
-          do j=1,ppiclf_ndim
-             total_bin = total_bin*ppiclf_n_bins(j)
-          enddo
-          if (total_bin .le. ppiclf_np) exit
-       enddo
-
-       exit_1 = .false.
-       exit_2 = .false.
-
-       do while (.not. exit_1 .and. .not. exit_2)
-          do i=1,ppiclf_ndim
-             if (exit_1_array(i) .eq. 0) then
-                ppiclf_n_bins(i) = ppiclf_n_bins(i) + 1
-                ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                               ppiclf_binb(2*(i-1)+1)  ) / 
-     >                              ppiclf_n_bins(i)
-
-                ! Check conditions
-                ! exit_1
-                total_bin = 1
-                do j=1,ppiclf_ndim
-                   total_bin = total_bin*ppiclf_n_bins(j)
-                enddo
-                if (total_bin .gt. ppiclf_np) then
-                   ! two exit arrays aren't necessary for now, but
-                   ! to make sure exit_2 doesn't slip through, we
-                   ! set both for now
-                   exit_1_array(i) = 1
-                   exit_2_array(i) = 1
-                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
-                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
-     >                                  ppiclf_n_bins(i)
-                   exit
-                endif
-                
-                ! exit_2
-                if (ppiclf_bins_dx(i) .lt. ppiclf_d2chk(1)) then
-                   ! two exit arrays aren't necessary for now, but
-                   ! to make sure exit_2 doesn't slip through, we
-                   ! set both for now
-                   exit_1_array(i) = 1
-                   exit_2_array(i) = 1
-                   ppiclf_n_bins(i) = ppiclf_n_bins(i) - 1
-                   ppiclf_bins_dx(i) = (ppiclf_binb(2*(i-1)+2) -
-     >                                  ppiclf_binb(2*(i-1)+1)  ) / 
-     >                                  ppiclf_n_bins(i)
-                   exit
-                endif
-             endif
-          enddo
-
-          ! full exit_1
-          sum_value = 0
-          do i=1,ppiclf_ndim
-             sum_value = sum_value + exit_1_array(i)
-          enddo
-          if (sum_value .eq. ppiclf_ndim) then
-             exit_1 = .true.
-          endif
-
-          ! full exit_2
-          sum_value = 0
-          do i=1,ppiclf_ndim
-             sum_value = sum_value + exit_2_array(i)
-          enddo
-          if (sum_value .eq. ppiclf_ndim) then
-             exit_2 = .true.
-          endif
-       enddo
-
-! -------------------------------------------------------
-! SETUP 3D BACKGROUND GRID PARAMETERS FOR GHOST PARTICLES
-! -------------------------------------------------------
-      ! Check for too small bins 
-      rthresh = 1E-12
-      total_bin = 1
-      do i=1,ppiclf_ndim
-         total_bin = total_bin*ppiclf_n_bins(i)
-         if (ppiclf_bins_dx(i) .lt. rthresh) ppiclf_bins_dx(i) = 1.0
-      enddo
-
-!     current box coordinates
-      if (ppiclf_nid .le. total_bin-1) then
-         idum = modulo(ppiclf_nid,ppiclf_n_bins(1))
-         jdum = modulo(ppiclf_nid/ppiclf_n_bins(1),ppiclf_n_bins(2))
-         kdum = ppiclf_nid/(ppiclf_n_bins(1)*ppiclf_n_bins(2))
-         if (ppiclf_ndim .lt. 3) kdum = 0
-         ppiclf_binx(1,1) = ppiclf_binb(1) + idum    *ppiclf_bins_dx(1)
-         ppiclf_binx(2,1) = ppiclf_binb(1) + (idum+1)*ppiclf_bins_dx(1)
-         ppiclf_biny(1,1) = ppiclf_binb(3) + jdum    *ppiclf_bins_dx(2)
-         ppiclf_biny(2,1) = ppiclf_binb(3) + (jdum+1)*ppiclf_bins_dx(2)
-         ppiclf_binz(1,1) = 0.0d0
-         ppiclf_binz(2,1) = 0.0d0
-         if (ppiclf_ndim .gt. 2) then
-            ppiclf_binz(1,1) = ppiclf_binb(5)+kdum    *ppiclf_bins_dx(3)
-            ppiclf_binz(2,1) = ppiclf_binb(5)+(kdum+1)*ppiclf_bins_dx(3)
-         endif
-      endif
-
-      return
-      end
-      
-      
-      
-      
-!-----------------------------------------------------------------------
       SUBROUTINE ppiclf_comm_CreateBin
 !
       IMPLICIT NONE
@@ -5872,7 +5558,8 @@ c     if (npt_total .eq. 1) then
       DO l = 1,3
           ! Ensure ppiclf_bin_dx(l) > ppiclf_d2chk(1) 
           IF((binb_length(l)/ppiclf_n_bins(l)) .LT. ppiclf_d2chk(1)) 
-     >      ppiclf_n_bins(l) = INT(binb_length(l)/ppiclf_d2chk(1))
+     >      ppiclf_n_bins(l) = FLOOR(binb_length(l)/ppiclf_d2chk(1))
+!     >      ppiclf_n_bins(l) = INT(ppiclf_n_bins(l)/ppiclf_d2chk(1))
           IF(ppiclf_n_bins(l) .LT. 1)  
      >  CALL ppiclf_exittr('ppiclf_d2chk(1) criteria violated.',0.0D0,0)
         idealBin(l) = ppiclf_n_bins(l)
@@ -6000,6 +5687,11 @@ c     if (npt_total .eq. 1) then
           EXIT
         END IF
       END DO
+      IF(total_bin .GT. ppiclf_np) THEN
+        PRINT*, 'ERROR: Num Bins > NumProcessors',total_bin,ppiclf_np
+        CALL ppiclf_exittr('Error in Createbins',0.0,0)
+      END IF
+          
 
 !      print*, "**************************************"
 !      print*, "In CreateBin, loc 3"
@@ -6682,6 +6374,11 @@ c-----------------------------------------------------------------------
          ndum  = ii + ppiclf_n_bins(1)*jj + 
      >                ppiclf_n_bins(1)*ppiclf_n_bins(2)*kk
          nrank = ndum
+         
+         print*, "FindParticle, nid, ppiclf_binb, bins_dx", 
+     >    ppiclf_nid, ppiclf_binb, ppiclf_bins_dx
+         print*, "FindParticle, nid, ii, jj, kk, nrank",
+     >           ppiclf_nid, ii, jj, kk, nrank        
 
          ppiclf_iprop(8,i)  = ii
          ppiclf_iprop(9,i)  = jj
@@ -6711,6 +6408,8 @@ c-----------------------------------------------------------------------
       integer*4 i, ic, j0
 !
 
+      print*, "Move Particle - copying data"
+
       do i=1,ppiclf_npart
          ic = 1
          call ppiclf_copy(rwork(ic,i),ppiclf_y(1,i),PPICLF_LRS)
@@ -6729,7 +6428,12 @@ c-----------------------------------------------------------------------
          call ppiclf_copy(rwork(ic,i),ppiclf_rprop3(1,i),PPICLF_LRP3)
       enddo
 
+      print*, "Move Particle - calling pfgslib"
+
       j0 = 4
+
+      print*, ppiclf_nid, ppiclf_cr_hndl, ppiclf_npart,PPICLF_LPART,
+     >        PPICLF_LIP, partl, lrf, j0
       call pfgslib_crystal_tuple_transfer(ppiclf_cr_hndl
      >                                  ,ppiclf_npart,PPICLF_LPART
      >                                  ,ppiclf_iprop,PPICLF_LIP
@@ -6737,6 +6441,7 @@ c-----------------------------------------------------------------------
      >                                  ,rwork,lrf
      >                                  ,j0)
 
+      print*, "Move Particle - Done calling gslib"
       if (ppiclf_npart .gt. PPICLF_LPART .or. ppiclf_npart .lt. 0) then
         print*, "***ERROR In MoveParticle, PPICLF_LPART", 
      >   PPICLF_LPART, "smaller than ", ppiclf_npart
@@ -11277,8 +10982,7 @@ c1511 continue
       if((ang_per_flag.eq.3).and.(x_per_flag.eq.1 .or. y_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
-      !IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
-      IF(ang_per_flag.GE.1) THEN
+      IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
          PRINT*, " "
          PRINT*, " ======================================="
          PRINT*, " "
@@ -12803,14 +12507,20 @@ c----------------------------------------------------------------------
 ! 
       integer*4 i, j
 !
+      print*, "Calling CreateBin"
       call ppiclf_comm_CreateBin
+      print*, "Calling FindParticle"
       call ppiclf_comm_FindParticle
+      print*, "Calling MoveParticle"
       call ppiclf_comm_MoveParticle
+      print*, "Calling MapOverlapMesh"
       if (ppiclf_overlap)
      >   call ppiclf_comm_MapOverlapMesh
+      print*, "Calling InterpParticleGrid"
       if ((ppiclf_lintp .and. ppiclf_int_icnt .ne. 0) .or.
      >    (ppiclf_lproj .and. ppiclf_sngl_elem))
      >   call ppiclf_solve_InterpParticleGrid
+      print*, "Calling RemoveParticle"
       call ppiclf_solve_RemoveParticle
       if (ppiclf_lsubsubbin .or. ppiclf_lproj) then
            call ppiclf_comm_CreateGhost
@@ -14495,21 +14205,18 @@ c        do i=il,ir
         ey = 0.0d0
         ez = 0.0d0
         if(ppiclf_nid.eq.0) print*, "Angular X-Rotational Axis"
-        print*, "Angular X-Rotational Axis"
 
       CASE(2)
         ex = 0.0d0
         ey = 1.0d0
         ez = 0.0d0
         if(ppiclf_nid.eq.0) print*, "Angular Y-Rotational Axis"
-        print*, "Angular Y-Rotational Axis"
 
       CASE(3)
         ex = 0.0d0
         ey = 0.0d0
         ez = 1.0d0
         if(ppiclf_nid.eq.0) print*, "Angular Z-Rotational Axis"
-        print*, "Angular Z-Rotational Axis"
 
       CASE DEFAULT
         call ppiclf_exittr('Invalid Axis of Rotation!$',0.0d0
@@ -14622,11 +14329,11 @@ c----------------------------------------------------------------------
         Ap2 = 0.0d0
         Bp2 = sin(angle + xangle)
         Cp2 = cos(angle + xangle)
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular X-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE(2) ! y-axis of rotation (x-z plane); xangle with respect to x-axis                         
         Ap1 = cos(xangle)
@@ -14636,11 +14343,11 @@ c----------------------------------------------------------------------
         Ap2 = cos(angle + xangle)
         Bp2 = 0.0
         Cp2 = sin(angle + xangle)
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular Y-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE(3) ! z-axis of rotation (x-y plane); xangle with respect to x-axis                      
         Ap1 = cos(xangle)
@@ -14650,11 +14357,11 @@ c----------------------------------------------------------------------
         Ap2 = cos(angle + xangle)
         Bp2 = sin(angle + xangle)
         Cp2 = 0.0 
-       ! if(ppiclf_nid.eq.0) then 
+        if(ppiclf_nid.eq.0) then 
           print*, "Angular Z-Rotational Axis"
           print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
           print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
-       ! endif
+        endif
                                                                    
       CASE DEFAULT                                                 
         call ppiclf_exittr('Invalid Axis for Angular Plane!$', 0.0d0      
