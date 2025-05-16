@@ -42,6 +42,9 @@
       real*8 rcd_am
       real*8 SDrho
       real*8 ug,vg,wg,vgradrho
+      real*8 famx_Ling
+      real*8 famx_Brad
+
 !
 ! Code:
 !
@@ -90,6 +93,41 @@
 
       famz = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
      >   (vz*SDrho + rhof*ppiclf_rprop(PPICLF_R_JSDRZ,i) + wg*vgradrho)
+
+
+      if (1==2) then
+      ! This is Ling's 2012 formulation where he replaced
+      !   D(rhog*ug) with -grad(pg)
+      famx_Ling = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i)*
+     > (-ppiclf_rprop(PPICLF_R_JDPDX,i) - ppiclf_y(PPICLF_JVX,i)*SDrho)
+
+      ! Original version
+      ! /home/tlj/Codes_Rocflu/Rocflu_picl_tlj/ppiclf/source/ppiclf_user.f
+      ! In the original version JSDRX was assumed to be D(rhog*ug)/Dt,
+      !    but this was before we realized that the conserved Rocflu
+      !    variable was phig*rhog*ug
+      famx_Brad = rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i) *
+     >   (ppiclf_rprop(PPICLF_R_JSDRX,i) - ppiclf_y(PPICLF_JVX,i)*SDrho)
+
+      ! writing data only for the median particle
+      if((ppiclf_iprop(5,i).eq.29.0) .and. (ppiclf_iprop(6,i).eq.0.0)
+     >   .and. (ppiclf_iprop(7,i).eq.151.0)) then
+      
+      open(unit=20,file='fort.20',position='append') 
+      write(20,*) ppiclf_time,famx-rmass_add*ppiclf_ydot(PPICLF_JVX,i),
+     >            rcd_am, ppiclf_rprop(PPICLF_R_JVOLP,i),
+     >            rcd_am*ppiclf_rprop(PPICLF_R_JVOLP,i),
+     >            vx, SDrho, vx*SDrho,
+     >            rhof, ppiclf_rprop(PPICLF_R_JSDRX,i),
+     >            rhof*ppiclf_rprop(PPICLF_R_JSDRX,i),
+     >            ug, vgradrho,
+     >            ug*vgradrho,
+     >            famx_Ling-rmass_add*ppiclf_ydot(PPICLF_JVX,i),
+     >            famx_Brad-rmass_add*ppiclf_ydot(PPICLF_JVX,i)
+      flush(20)
+      endif
+      endif
+
 
       return
       end
