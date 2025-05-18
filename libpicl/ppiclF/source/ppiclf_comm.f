@@ -2081,25 +2081,26 @@ c CREATING GHOST PARTICLES
           dist2 = abs(Ap2*rxval + Bp2*ryval + Cp2*rzval)
           dist2 = dist2/sqrt(Ap2**2 + Bp2**2 + Cp2**2)
 
-
          distchk = ppiclf_d2chk(1)
          ! particle farther from both angular planes
          if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
-!           print*, "dist1 dist2 cycling"
-!           print*, "dist1 =", dist1
-!           print*, "dist2 =", dist2
-!           print*, "distchk =", distchk
+           print*, "dist1 dist2 cycling"
+           print*, "dist1 =", dist1
+           print*, "dist2 =", dist2
+           print*, "distchk =", distchk
            cycle
-         ! particle closer to lower angular periodic plane -> rotate CCW
+         ! particle closer to upper angular periodic plane -> rotate ghost properties CW
          elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
-           rval = MATMUL(rotCCW, rval)
-!           print*, "Particle Closer to Lower Angular Plane"
-
-         ! particle closer to upper angular periodic plane -> rotate CW
-         elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
            rval = MATMUL(rotCW, rval)
            CW = .true.
-!           print*, "Particle Closer to Upper Angular Plane"
+           print*, "Particle Closer to Upper Angular Plane"
+!           print*, "dist1,dist2,distchk =", dist1,dist2,distchk
+
+         ! particle closer to lower angular periodic plane -> rotate ghost properties CCW
+         elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
+           rval = MATMUL(rotCCW, rval)
+           print*, "Particle Closer to Lower Angular Plane"
+!           print*, "dist1,dist2,distchk =", dist1,dist2,distchk
          else
            print*, "***ERROR Ghost Periodic Angular Plane!"
            print*, "dist1 =", dist1

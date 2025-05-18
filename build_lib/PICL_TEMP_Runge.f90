@@ -573,18 +573,18 @@ pGc => pRegion%mixt%gradCell
 
        ! 03/11/2025 - Thierry - Du/Dt, Dv/Dt, Dw/Dt (not weighted by phi^g or rho^g)
 
-       temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)& 
-                         +ug(XCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+       temp_dudtMixt  = (-pRegion%mixt%rhs(CV_MIXT_XMOM,i)/pRegion%grid%vol(i)& 
+                         +ug(XCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i)/pRegion%grid%vol(i))&
                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                          +DOT_PRODUCT(ug,pGc(:,2,i))
 
-       temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)& 
-                         +ug(YCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+       temp_dvdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_YMOM,i)/pRegion%grid%vol(i)& 
+                         +ug(YCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i)/pRegion%grid%vol(i))&
                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                          +DOT_PRODUCT(ug,pGc(:,3,i))
                          
-       temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)& 
-                         +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i))&
+       temp_dwdtMixt  = (-pRegion%mixt%rhs(CV_MIXT_ZMOM,i)/pRegion%grid%vol(i)& 
+                         +ug(ZCOORD)*pRegion%mixt%rhs(CV_MIXT_DENS,i)/pRegion%grid%vol(i))&
                          /pRegion%mixt%cv(CV_MIXT_DENS,i)&
                          +DOT_PRODUCT(ug,pGc(:,4,i))
 
@@ -687,7 +687,7 @@ pGc => pRegion%mixt%gradCell
        SDRY(lx,ly,lz,i) = temp_dvdtMixt ! Dv/Dt
        SDRZ(lx,ly,lz,i) = temp_dwdtMixt ! Dw/Dt
 
-       rhsR(lx,ly,lz,i) = -pRegion%mixt%rhs(CV_MIXT_DENS,i) ! \p(rho*phi)/\p(t)
+       rhsR(lx,ly,lz,i) = -pRegion%mixt%rhs(CV_MIXT_DENS,i)/pRegion%grid%vol(i) ! \p(rho*phi)/\p(t)
 
        pGcX(lx,ly,lz,i) = pGc(XCOORD,1,i) ! d(rho phi)/dx
        pGcY(lx,ly,lz,i) = pGc(YCOORD,1,i) ! d(rho phi)/dy

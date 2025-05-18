@@ -243,8 +243,8 @@
       drdt02 = drdt00*drdt00
       
       if(ppiclf_time .eq. 0.0) then
-        ppiclf_y(PPICLF_JVX,i) =  0.0d0
-        ppiclf_y(PPICLF_JVY,i) =  -drdt00
+        ppiclf_ydot(PPICLF_JVX,i) =  0.0d0
+        ppiclf_ydot(PPICLF_JVY,i) =  -drdt00
         ppiclf_y(PPICLF_JVZ,i) =  0.0d0
       endif
       

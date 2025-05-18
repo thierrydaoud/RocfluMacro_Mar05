@@ -7,11 +7,9 @@
 !
       INCLUDE "PPICLF"
 !
-! Input:
-!
       INTEGER*4 xpflag, ypflag, zpflag, apflag
       REAL*8 pi, xpmin, xpmax, ypmin, ypmax, zpmin, zpmax,
-     >       apa, apxa
+     >       apa, apxa, ri, ro, L
 
 !
 ! Code:
@@ -64,6 +62,8 @@
         ppiclf_xdrange(2,3) = zpmax
         print*, "z-linear periodicity, zpmin, zpmax", zpmin, zpmax
         call ppiclf_solve_LinearPlanes !Initialize periodic planes
+        ! checking if calling InitSolve solves the issue
+        call ppiclf_solve_InitSolve
       END IF
       
       ! 05/16/2025 - Testing if this is the issue with Josh's case
@@ -84,9 +84,33 @@
         ! degrees to radians
         ang_per_angle  = apa * pi / 180.0d0
         ang_per_xangle = apxa * pi / 180.0d0
+        SELECT CASE(ang_per_flag)
+        CASE(1) ! x-axis of rotation (z-y plane)
+          ri = sqrt(ypmin**2 + zpmin**2)
+          ro = sqrt(ypmax**2 + zpmax**2)
+          L  = xpmax
+
+        CASE(2) ! y-axis of rotation (x-z plane)
+          ri = sqrt(xpmin**2 + zpmin**2)
+          ro = sqrt(xpmax**2 + zpmax**2)
+          L = ypmax
+
+        CASE(3) ! z-axis of rotation (x-y plane)
+          ri = sqrt(xpmin**2 + ypmin**2)
+          ro = sqrt(xpmax**2 + ypmax**2)
+          L = zpmax
+        CASE DEFAULT
+          call ppiclf_exittr('Invalid Axis for Angular Plane!$', 0.0d0
+     >         ,ang_per_flag)
+        END SELECT
+
+        print*, "ri =", ri
+        print*, "ro =", ro
+        print*, "L  =", L
+
         ! initialize angular planes
         call ppiclf_solve_AngularPlanes(ang_per_flag, ang_per_angle, 
-     >                                  ang_per_xangle)
+     >                                  ang_per_xangle, ri, ro, L)
         ! initialize rotation matrices
         call ppiclf_solve_AngularRotate(ang_per_flag, ang_per_angle)
       END IF
@@ -2533,10 +2557,14 @@ c----------------------------------------------------------------------
 
            ! particle leaving from lower angular periodic plane -> rotate all properties CCW
            if(angle .lt. ang_per_xangle) then
+             print*, "RemoveParticle, rotating CCW", angle, 
+     >               ang_per_xangle, ang_per_angle, CW
              call ppiclf_solve_RotateAngularParticleProperties(i,CW)
 
            ! particle leaving from upper angular periodic plane -> rotate all properties CW
            elseif(angle .gt. (ang_per_xangle + ang_per_angle)) then
+             print*, "RemoveParticle, rotating CW", angle,
+     >               ang_per_xangle, ang_per_angle, CW
              CW = .true.
              call ppiclf_solve_RotateAngularParticleProperties(i,CW)
            endif ! angle
@@ -3415,7 +3443,7 @@ c----------------------------------------------------------------------
       return
       end
 c----------------------------------------------------------------------
-      subroutine ppiclf_solve_AngularPlanes(axis, angle, xangle)
+      subroutine ppiclf_solve_AngularPlanes(axis,angle,xangle,Ri,Ro,L)
 !
       implicit none
 !
@@ -3424,8 +3452,11 @@ c----------------------------------------------------------------------
 ! Input:
 !
       integer*4 axis
-      real*8 angle, xangle
+      real*8 angle, xangle, Ri, Ro, L
 !
+! Local: 
+!
+      real*8 P0(3), P1(3), P2(3), P3(3), P4(3), n1(3), n2(3)
       ! Plane equation : Ax + By + Cz + D = 0 
       !
       ! Initialize two angular periodic planes
@@ -3436,53 +3467,70 @@ c----------------------------------------------------------------------
       SELECT CASE(axis)
       CASE(1) ! x-axis of rotation (z-y plane); xangle with respect to z-axis                                                
         ! Lower plane
-        Ap1 = 0.0
-        Bp1 = sin(xangle)
-        Cp1 = cos(xangle)
+        P0 = (/0.0d0,        0.0d0  ,        0.0d0  /)
+        P1 = (/0.0d0, Ri*sin(xangle), Ri*cos(xangle)/)
+        P3 = (/    L, Ro*sin(xangle), Ro*cos(xangle)/)
 
         ! Upper plane
-        Ap2 = 0.0d0
-        Bp2 = sin(angle + xangle)
-        Cp2 = cos(angle + xangle)
+        P2 = (/0.0d0, Ri*sin(xangle+angle), Ri*cos(xangle+angle)/)
+        P4 = (/    L, Ro*sin(xangle+angle), Ro*cos(xangle+angle)/)
+
         if(ppiclf_nid.eq.0) then 
           print*, "Angular X-Rotational Axis"
-          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
-          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
         endif
                                                                    
       CASE(2) ! y-axis of rotation (x-z plane); xangle with respect to x-axis                         
-        Ap1 = cos(xangle)
-        Bp1 = 0.0
-        Cp1 = sin(xangle)
+        ! Lower plane
+        P0 = (/       0.0d0  ,  0.0d0,        0.0d0  /)
+        P1 = (/Ri*cos(xangle),  0.0d0, Ri*sin(xangle)/)
+        P3 = (/Ro*cos(xangle),      L, Ro*sin(xangle)/)
 
-        Ap2 = cos(angle + xangle)
-        Bp2 = 0.0
-        Cp2 = sin(angle + xangle)
+        ! Upper plane
+        P2 = (/Ri*cos(xangle+angle),   0.0d0, Ri*sin(xangle+angle)/)
+        P4 = (/Ro*cos(xangle+angle),       L, Ro*sin(xangle+angle)/)
+
         if(ppiclf_nid.eq.0) then 
           print*, "Angular Y-Rotational Axis"
-          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
-          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
         endif
                                                                    
       CASE(3) ! z-axis of rotation (x-y plane); xangle with respect to x-axis                      
-        Ap1 = cos(xangle)
-        Bp1 = sin(xangle)
-        Cp1 = 0.0 
+        ! Lower plane
+        P0 = (/     0.0d0    ,      0.0d0    , 0.0d0/)
+        P1 = (/Ri*cos(xangle), Ri*sin(xangle), 0.0d0/)
+        P3 = (/Ro*cos(xangle), Ro*sin(xangle),     L/)
 
-        Ap2 = cos(angle + xangle)
-        Bp2 = sin(angle + xangle)
-        Cp2 = 0.0 
+        ! Upper plane
+        P2 = (/Ri*cos(xangle+angle), Ri*sin(xangle+angle), 0.0d0/)
+        P4 = (/Ro*cos(xangle+angle), Ro*sin(xangle+angle),     L/)
+
         if(ppiclf_nid.eq.0) then 
           print*, "Angular Z-Rotational Axis"
-          print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
-          print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
         endif
                                                                    
       CASE DEFAULT                                                 
         call ppiclf_exittr('Invalid Axis for Angular Plane!$', 0.0d0      
-     >         ,ppiclf_nid)                                        
+     >         ,axis)                                        
                                                                    
       END SELECT                                                   
+
+      n1 = P1 - P0
+      n2 = P3 - P0
+
+      Ap1 =  n1(2)*n2(3) - n1(3)*n2(2) 
+      Bp1 = -n1(1)*n2(3) + n1(3)*n2(1) 
+      Cp1 =  n1(1)*n2(2) - n1(2)*n2(1)
+
+      n1 = P2 - P0
+      n2 = P4 - P0
+
+      Ap2 =  n1(2)*n2(3) - n1(3)*n2(2) 
+      Bp2 = -n1(1)*n2(3) + n1(3)*n2(1) 
+      Cp2 =  n1(1)*n2(2) - n1(2)*n2(1) 
+
+      if(ppiclf_nid.eq.0) then 
+        print*, "Plane 1 Initialized: A, B, C =", Ap1, Bp1, Cp1
+        print*, "Plane 2 Initialized: A, B, C =", Ap2, Bp2, Cp2
+      endif
 
       return
       end

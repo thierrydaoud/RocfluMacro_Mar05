@@ -264,16 +264,6 @@ ang_per_flag = global%piclAngularPeriodicFlag
 ang_per_angle  = global%piclAngularPeriodicAngle  ! angle between two periodic faces
 ang_per_xangle = global%piclAngularPeriodicXAngle ! angle of lower face w/ x-axis, CCW +ve
 
-if(global%myprocid .eq. MASTERPROC) then
-  print*, "======================================================"
-  print*, "PICL_TEMP_InitSolver"
-  print*, "  "
-  print*, "ang_per_flag=",  ang_per_flag
-  print*, "ang_per_angle=",  ang_per_angle 
-  print*, "ang_per_xangle=", ang_per_xangle
-  print*,"======================================================"
-endif
-
 
 ! 08/13/24 - Thierry - added for Periodicity - ends here
 
@@ -667,11 +657,6 @@ endif
 ! TLJ after computing d2chk, we can initialize bins, etc.
 call ppiclf_solve_InitParticle(2,3,0,npart_local,y,rprop,filter,neighborWidth) 
 
-call ppiclf_solve_Initialize( &
-   x_per_flag, x_per_min, x_per_max, &
-   y_per_flag, y_per_min, y_per_max, &
-   z_per_flag, z_per_min, z_per_max, &
-   ang_per_flag, ang_per_angle, ang_per_xangle)
 
 ! TLJ: CAUTION - Gaussian filter needs to be fixed
 ! TLJ: Initialize Box Filter
@@ -684,6 +669,12 @@ call ppiclf_solve_InitNeighborBin(neighborWidth)
 
 
 call ppiclf_comm_InitOverlapMesh(nCells,lx,ly,lz,xGrid,yGrid,zGrid)
+
+call ppiclf_solve_Initialize( &
+   x_per_flag, x_per_min, x_per_max, &
+   y_per_flag, y_per_min, y_per_max, &
+   z_per_flag, z_per_min, z_per_max, &
+   ang_per_flag, ang_per_angle, ang_per_xangle)
 
 ! 08/13/24 - Thierry - added for Periodicity - begins here
 
