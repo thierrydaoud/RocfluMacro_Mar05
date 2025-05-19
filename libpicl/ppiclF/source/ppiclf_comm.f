@@ -2084,28 +2084,18 @@ c CREATING GHOST PARTICLES
          distchk = ppiclf_d2chk(1)
          ! particle farther from both angular planes
          if((dist1.gt.distchk) .and. (dist2.gt.distchk)) then
-           print*, "dist1 dist2 cycling"
-           print*, "dist1 =", dist1
-           print*, "dist2 =", dist2
-           print*, "distchk =", distchk
            cycle
          ! particle closer to upper angular periodic plane -> rotate ghost properties CW
          elseif((dist1.gt.distchk) .and. (dist2.lt.distchk)) then
            rval = MATMUL(rotCW, rval)
            CW = .true.
-           print*, "Particle Closer to Upper Angular Plane"
-!           print*, "dist1,dist2,distchk =", dist1,dist2,distchk
 
          ! particle closer to lower angular periodic plane -> rotate ghost properties CCW
          elseif((dist1.lt.distchk) .and. (dist2.gt.distchk)) then
            rval = MATMUL(rotCCW, rval)
-           print*, "Particle Closer to Lower Angular Plane"
-!           print*, "dist1,dist2,distchk =", dist1,dist2,distchk
          else
            print*, "***ERROR Ghost Periodic Angular Plane!"
-           print*, "dist1 =", dist1
-           print*, "dist2 =", dist2
-           print*, "distchk =", distchk
+           print*, "dist1, dis2, distchk =",dist1,dist2,distchk
            call ppiclf_exittr('Error Ghost Periodic 
      >                                 Angular Plane!')
          endif
@@ -2252,11 +2242,6 @@ c CREATING GHOST PARTICLES
                ppiclf_rprop_gp(k,ppiclf_npart_gp) = 
      >                           ppiclf_rprop_gp(k,ppiclf_npart_gp-1)
             enddo
-!            write(1920+ppiclf_nid,*) "NewFaces", ppiclf_time, ! 0-1   
-!     >              ppiclf_nid, nrank, ppiclf_npart_gp,       ! 2-4
-!     >              ppiclf_rprop_gp(1:6, ppiclf_npart_gp),    ! 5-7, 8,10
-!     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)        ! 11-13, 14-16
-
 
   111 continue
          enddo
@@ -2331,10 +2316,6 @@ c CREATING GHOST PARTICLES
      >                           ppiclf_rprop_gp(k,ppiclf_npart_gp-1)
             enddo
 
-!            write(1920+ppiclf_nid,*) "NewEdges", ppiclf_time, ! 0-1   
-!     >              ppiclf_nid, nrank, ppiclf_npart_gp,       ! 2-4
-!     >              ppiclf_rprop_gp(1:6, ppiclf_npart_gp),    ! 5-7, 8,10
-!     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)        ! 11-13, 14-16
   222 continue
          enddo
 
@@ -2407,10 +2388,6 @@ c CREATING GHOST PARTICLES
      >                           ppiclf_rprop_gp(k,ppiclf_npart_gp-1)
             enddo
 
-!            write(1920+ppiclf_nid,*) "NewCorners", ppiclf_time, ! 0-1   
-!     >              ppiclf_nid, nrank, ppiclf_npart_gp,       ! 2-4
-!     >              ppiclf_rprop_gp(1:6, ppiclf_npart_gp),    ! 5-7, 8,10
-!     >              ppiclf_y(1:3,ip), ppiclf_y(4:6,ip)        ! 11-13, 14-16
   333 continue
          enddo
 
@@ -2543,8 +2520,6 @@ c----------------------------------------------------------------------
       !        pressure gradient, FPGCX
       ! ppiclf_cp_map: 
       !        JFX, JFY, JFZ
-
-
 
       j = 1
       ! Loop over all ppiclf_rprop_gp properties and rotate the ones specified in jvec

@@ -30,11 +30,8 @@
         IF(xpmin .ge. xpmax) CALL ppiclf_exittr('PeriodicX 
      >      must have xmin < xmax$',xpmin,0)
         ppiclf_iperiodic(1) = 0
-        x_per_min = xpmin
-        x_per_max = xpmax
         ppiclf_xdrange(1,1) = xpmin
         ppiclf_xdrange(2,1) = xpmax
-        call ppiclf_solve_LinearPlanes ! Initialize periodic planes
       END IF
 
       ! Linear Y-Periodicity
@@ -43,11 +40,8 @@
         IF(ypmin .ge. ypmax) CALL ppiclf_exittr('PeriodicY 
      >     must have ymin < ymax$',ypmin,0)
         ppiclf_iperiodic(2) = 0
-        y_per_min = ypmin
-        y_per_max = ypmax
         ppiclf_xdrange(1,2) = ypmin
         ppiclf_xdrange(2,2) = ypmax
-        call ppiclf_solve_LinearPlanes ! Initialize periodic planes
       END IF
 
       ! Linear Z-Periodicity
@@ -56,27 +50,13 @@
         IF(zpmin .ge. zpmax) CALL ppiclf_exittr('PeriodicZ 
      >     must have zmin < zmax$',zpmin,0)
         ppiclf_iperiodic(3) = 0
-        z_per_min = zpmin
-        z_per_max = zpmax
         ppiclf_xdrange(1,3) = zpmin
         ppiclf_xdrange(2,3) = zpmax
-        print*, "z-linear periodicity, zpmin, zpmax", zpmin, zpmax
-        call ppiclf_solve_LinearPlanes !Initialize periodic planes
-        ! checking if calling InitSolve solves the issue
-        call ppiclf_solve_InitSolve
       END IF
+
+      call ppiclf_solve_LinearPlanes !Initialize periodic planes
+      call ppiclf_solve_InitSolve
       
-      ! 05/16/2025 - Testing if this is the issue with Josh's case
-      ! The issue is indeed from this. For some reason this is leading an issue
-      ! in gslib call under MoveParticle
-
-!        ppiclf_xdrange(1,1) = xpmin
-!        ppiclf_xdrange(2,1) = xpmax
-!        ppiclf_xdrange(1,2) = ypmin
-!        ppiclf_xdrange(2,2) = ypmax
-!        ppiclf_xdrange(1,3) = zpmin
-!        ppiclf_xdrange(2,3) = zpmax
-
       ! Angular Periodicity
       ang_per_flag = apflag
       IF(ang_per_flag.GE.1) THEN
@@ -104,10 +84,6 @@
      >         ,ang_per_flag)
         END SELECT
 
-        print*, "ri =", ri
-        print*, "ro =", ro
-        print*, "L  =", L
-
         ! initialize angular planes
         call ppiclf_solve_AngularPlanes(ang_per_flag, ang_per_angle, 
      >                                  ang_per_xangle, ri, ro, L)
@@ -127,16 +103,23 @@
       if((ang_per_flag.eq.3).and.(x_per_flag.eq.1 .or. y_per_flag.eq.1))
      >   call ppiclf_exittr('PPICLF: Invalid Periodicity choice$',0,0)
 
-      IF(ppiclf_nid.EQ.0 .AND. ang_per_flag.GE.1) THEN
+      IF(ppiclf_nid.EQ.0) THEN
          PRINT*, " "
          PRINT*, " ======================================="
+         PRINT*, "        ppiclf_solve_Initialize         "
          PRINT*, " "
-         PRINT*, "  PPICLF Angular Periodicity Initialized   "
+         PRINT*, "  Linear Periodicity flags =", x_per_flag, 
+     >                               y_per_flag, z_per_flag
+         PRINT*, "  Linear X-Periodicity Range", ppiclf_xdrange(:,1)
+         PRINT*, "  Linear Y-Periodicity Range", ppiclf_xdrange(:,2)
+         PRINT*, "  Linear Z-Periodicity Range", ppiclf_xdrange(:,3)
+         PRINT*, " "
          PRINT*, "  Angular periodicity flag =", ang_per_flag
          PRINT*, "  Angular periodicity angle (deg, rad) =", 
      >                                            apa, ang_per_angle
          PRINT*, "  Angular periodicity x-angle (deg, rad) =", 
      >                                            apxa, ang_per_xangle
+         PRINT*, "  Angular periodiicty rin, rout, L =", ri, ro, L
          PRINT*, " "
          PRINT*, " ======================================="
          PRINT*, " "
